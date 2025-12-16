@@ -1497,8 +1497,11 @@ public final class TreeBuilder: TokenSink {
             } else if name == "template" {
                 processEndTagInBody(name: name)
             } else {
+                // Foster parent: process using in body rules
                 emitError("unexpected-end-tag")
-                // Ignore (no foster parenting for end tags)
+                fosterParentingEnabled = true
+                processEndTagInBody(name: name)
+                fosterParentingEnabled = false
             }
 
         case .inCaption:
