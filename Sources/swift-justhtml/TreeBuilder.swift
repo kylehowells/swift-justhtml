@@ -818,6 +818,90 @@ public final class TreeBuilder: TokenSink {
                 processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
             }
 
+        case .inSelect:
+            if name == "html" {
+                // Process using "in body" rules
+                processStartTagInBody(name: name, attrs: attrs, selfClosing: selfClosing)
+            } else if name == "option" {
+                if let current = currentNode, current.name == "option" {
+                    popCurrentElement()
+                }
+                _ = insertElement(name: name, attrs: attrs)
+            } else if name == "optgroup" {
+                if let current = currentNode, current.name == "option" {
+                    popCurrentElement()
+                }
+                if let current = currentNode, current.name == "optgroup" {
+                    popCurrentElement()
+                }
+                _ = insertElement(name: name, attrs: attrs)
+            } else if name == "hr" {
+                if let current = currentNode, current.name == "option" {
+                    popCurrentElement()
+                }
+                if let current = currentNode, current.name == "optgroup" {
+                    popCurrentElement()
+                }
+                _ = insertElement(name: name, attrs: attrs)
+                popCurrentElement()
+            } else if name == "select" {
+                emitError("unexpected-start-tag-in-select")
+                if hasElementInSelectScope("select") {
+                    popUntil("select")
+                    resetInsertionMode()
+                }
+            } else if ["input", "keygen", "textarea"].contains(name) {
+                emitError("unexpected-start-tag-in-select")
+                if !hasElementInSelectScope("select") {
+                    // Ignore the token
+                    return
+                }
+                popUntil("select")
+                resetInsertionMode()
+                processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
+            } else if ["script", "template"].contains(name) {
+                // Process using "in head" rules
+                let savedMode = insertionMode
+                insertionMode = .inHead
+                processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
+                if insertionMode != .text {
+                    insertionMode = savedMode
+                }
+            } else if name == "svg" {
+                // Insert SVG element in SVG namespace
+                let adjustedAttrs = adjustForeignAttributes(attrs, namespace: .svg)
+                _ = insertElement(name: name, namespace: .svg, attrs: adjustedAttrs)
+                if selfClosing {
+                    popCurrentElement()
+                }
+            } else if name == "math" {
+                // Insert MathML element in MathML namespace
+                let adjustedAttrs = adjustForeignAttributes(attrs, namespace: .math)
+                _ = insertElement(name: name, namespace: .math, attrs: adjustedAttrs)
+                if selfClosing {
+                    popCurrentElement()
+                }
+            } else {
+                emitError("unexpected-start-tag-in-select")
+            }
+
+        case .inSelectInTable:
+            // Table-related start tags close the select and reprocess
+            if ["caption", "table", "tbody", "tfoot", "thead", "tr", "td", "th"].contains(name) {
+                emitError("unexpected-start-tag-in-select")
+                popUntil("select")
+                resetInsertionMode()
+                processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
+            } else {
+                // Process using "in select" rules
+                let savedMode = insertionMode
+                insertionMode = .inSelect
+                processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
+                if insertionMode == .inSelect {
+                    insertionMode = savedMode
+                }
+            }
+
         default:
             processStartTagInBody(name: name, attrs: attrs, selfClosing: selfClosing)
         }
@@ -1361,6 +1445,60 @@ public final class TreeBuilder: TokenSink {
                 emitError("unexpected-end-tag-in-template")
             }
 
+        case .inSelect:
+            if name == "optgroup" {
+                // If current node is option and previous is optgroup, pop option first
+                if let current = currentNode, current.name == "option",
+                   openElements.count >= 2, openElements[openElements.count - 2].name == "optgroup" {
+                    popCurrentElement()
+                }
+                if let current = currentNode, current.name == "optgroup" {
+                    popCurrentElement()
+                } else {
+                    emitError("unexpected-end-tag")
+                }
+            } else if name == "option" {
+                if let current = currentNode, current.name == "option" {
+                    popCurrentElement()
+                } else {
+                    emitError("unexpected-end-tag")
+                }
+            } else if name == "select" {
+                if !hasElementInSelectScope("select") {
+                    emitError("unexpected-end-tag")
+                    return
+                }
+                popUntil("select")
+                resetInsertionMode()
+            } else if name == "template" {
+                processEndTagInBody(name: name)
+            } else {
+                emitError("unexpected-end-tag")
+            }
+
+        case .inSelectInTable:
+            // Table-related end tags close the select and reprocess
+            if ["caption", "table", "tbody", "tfoot", "thead", "tr", "td", "th"].contains(name) {
+                emitError("unexpected-end-tag-in-select")
+                if !hasElementInTableScope(name) {
+                    // Ignore the token
+                    return
+                }
+                // Close the select
+                popUntil("select")
+                resetInsertionMode()
+                // Reprocess the end tag
+                processEndTag(name: name)
+            } else {
+                // Process using "in select" rules
+                let savedMode = insertionMode
+                insertionMode = .inSelect
+                processEndTag(name: name)
+                if insertionMode == .inSelect {
+                    insertionMode = savedMode
+                }
+            }
+
         default:
             processEndTagInBody(name: name)
         }
@@ -1827,6 +1965,19 @@ public final class TreeBuilder: TokenSink {
         return hasElementInScope(name, scopeElements: BUTTON_SCOPE_ELEMENTS)
     }
 
+    private func hasElementInSelectScope(_ name: String) -> Bool {
+        // In select scope, everything except optgroup and option is a scope marker
+        for node in openElements.reversed() {
+            if node.name == name {
+                return true
+            }
+            if node.name != "optgroup" && node.name != "option" {
+                return false
+            }
+        }
+        return false
+    }
+
     private func hasElementInListItemScope(_ name: String) -> Bool {
         return hasElementInScope(name, scopeElements: LIST_ITEM_SCOPE_ELEMENTS)
     }
@@ -2230,12 +2381,18 @@ public final class TreeBuilder: TokenSink {
             return false
         }
 
-        // Insert element in current foreign namespace
-        guard let ns = currentNode?.namespace else { return false }
+        // Determine the namespace for the new element
+        guard let currentNs = currentNode?.namespace else { return false }
 
-        // Apply SVG tag name adjustments
+        // SVG and MathML elements inside foreign content should use their own namespace
+        var ns: Namespace = currentNs
         var adjustedName = name
-        if ns == .svg {
+        if lowercaseName == "svg" {
+            ns = .svg
+        } else if lowercaseName == "math" {
+            ns = .math
+        } else if currentNs == .svg {
+            // Apply SVG tag name adjustments
             adjustedName = SVG_ELEMENT_ADJUSTMENTS[lowercaseName] ?? name
         }
 
