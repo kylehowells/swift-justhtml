@@ -1856,7 +1856,8 @@ public final class TreeBuilder: TokenSink {
         } else if name == "template" {
             // Handle template end tag
             // Per spec: check if template is on the stack of open elements (not in scope!)
-            let hasTemplate = openElements.contains { $0.name == "template" }
+            // Only match HTML namespace templates, not SVG/MathML ones
+            let hasTemplate = openElements.contains { $0.name == "template" && ($0.namespace == nil || $0.namespace == .html) }
             if !hasTemplate {
                 emitError("unexpected-end-tag")
                 return
@@ -1865,11 +1866,12 @@ public final class TreeBuilder: TokenSink {
             if currentNode?.name != "template" {
                 emitError("end-tag-too-early")
             }
-            // Pop elements until template
+            // Pop elements until HTML template
             while let current = currentNode {
-                let name = current.name
+                let nodeName = current.name
+                let isHtmlTemplate = nodeName == "template" && (current.namespace == nil || current.namespace == .html)
                 popCurrentElement()
-                if name == "template" {
+                if isHtmlTemplate {
                     break
                 }
             }

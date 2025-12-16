@@ -557,27 +557,9 @@ func runTreeConstructionTests(files: [String]? = nil, showFailures: Bool = false
 }
 
 @Test func debugFailures() async throws {
-    // Debug template.dat test 69
-    let html = "<body><template><thead></thead><template><tr></tr></template><tr></tr><tfoot></tfoot></template>"
-    print("INPUT: \(html)")
-
-    let doc = try JustHTML(html)
-    let output = doc.toTestFormat()
-    print("\nACTUAL:\n\(output)")
-
-    print("\nEXPECTED:")
-    print("| <html>")
-    print("|   <head>")
-    print("|   <body>")
-    print("|     <template>")
-    print("|       content")
-    print("|         <thead>")
-    print("|         <template>")
-    print("|           content")
-    print("|             <tr>")
-    print("|         <tbody>")
-    print("|           <tr>")
-    print("|         <tfoot>")
+    // Placeholder for debugging test failures
+    // Currently all known issues are fixed
+    print("No specific test case being debugged")
 }
 
 private func *(lhs: String, rhs: Int) -> String {
