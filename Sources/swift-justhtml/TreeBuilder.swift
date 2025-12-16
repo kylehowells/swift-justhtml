@@ -888,7 +888,20 @@ public final class TreeBuilder: TokenSink {
             _ = insertElement(name: name, attrs: attrs)
             framesetOk = false
         } else if name == "a" {
-            // Check for active 'a' element
+            // Check for active 'a' element and run adoption agency if found
+            if hasActiveFormattingEntry("a") {
+                emitError("unexpected-start-tag")
+                adoptionAgency(name: "a")
+                // Also remove from active formatting elements and open elements
+                // (adoption agency may have already done this, but be safe)
+                for i in stride(from: activeFormattingElements.count - 1, through: 0, by: -1) {
+                    if let elem = activeFormattingElements[i], elem.name == "a" {
+                        activeFormattingElements.remove(at: i)
+                        openElements.removeAll { $0 === elem }
+                        break
+                    }
+                }
+            }
             reconstructActiveFormattingElements()
             let element = insertElement(name: name, attrs: attrs)
             pushFormattingElement(element)
