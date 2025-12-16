@@ -3019,6 +3019,21 @@ public final class TreeBuilder: TokenSink {
 
             switch node.name {
             case "select":
+                // Per spec: check if there's a table ancestor to determine inSelect vs inSelectInTable
+                if !last {
+                    // Check ancestors for table or template
+                    for j in stride(from: i - 1, through: 0, by: -1) {
+                        let ancestor = openElements[j]
+                        if ancestor.name == "template" {
+                            // Template breaks the chain - use inSelect
+                            break
+                        }
+                        if ancestor.name == "table" {
+                            insertionMode = .inSelectInTable
+                            return
+                        }
+                    }
+                }
                 insertionMode = .inSelect
                 return
             case "td", "th":

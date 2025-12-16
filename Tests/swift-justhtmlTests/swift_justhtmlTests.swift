@@ -557,27 +557,35 @@ func runTreeConstructionTests(files: [String]? = nil, showFailures: Bool = false
 }
 
 @Test func debugFailures() async throws {
-    // Debug namespace-sensitivity.dat failure
-    let html = "<body><table><tr><td><svg><td><foreignObject><span></td>Foo"
-    print("INPUT: \(html)")
+    // Find failing tests in webkit02.dat
+    guard let testsDir = getTestsDirectory() else {
+        print("No tests directory")
+        return
+    }
 
-    let doc = try JustHTML(html)
-    let output = doc.toTestFormat()
-    print("\nACTUAL:\n\(output)")
+    let fileURL = testsDir.appendingPathComponent("template.dat")
+    guard let content = try? String(contentsOf: fileURL, encoding: .utf8) else {
+        print("Could not read file")
+        return
+    }
 
-    print("\nEXPECTED:")
-    print("| <html>")
-    print("|   <head>")
-    print("|   <body>")
-    print("|     \"Foo\"")
-    print("|     <table>")
-    print("|       <tbody>")
-    print("|         <tr>")
-    print("|           <td>")
-    print("|             <svg svg>")
-    print("|               <svg td>")
-    print("|                 <svg foreignObject>")
-    print("|                   <span>")
+    let tests = parseDatFile(content)
+    for (i, test) in tests.enumerated() {
+        if test.scriptDirective == "script-on" {
+            continue
+        }
+
+        let doc = try JustHTML(test.input, fragmentContext: test.fragmentContext, scripting: false)
+        let actual = doc.toTestFormat()
+
+        if !compareOutputs(test.expected, actual) {
+            print("FAILED TEST #\(i + 1)")
+            print("INPUT: \(test.input.debugDescription)")
+            print("EXPECTED:\n\(test.expected)")
+            print("ACTUAL:\n\(actual)")
+            print("---")
+        }
+    }
 }
 
 private func *(lhs: String, rhs: Int) -> String {
