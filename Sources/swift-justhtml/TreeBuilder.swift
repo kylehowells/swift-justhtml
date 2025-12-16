@@ -1344,10 +1344,11 @@ public final class TreeBuilder: TokenSink {
         // Flush pending table character tokens before processing any non-character token
         flushPendingTableCharacterTokens()
 
-        // Check for foreign content processing first
-        // Note: For end tags, we should try to close foreign elements even when inside
-        // an HTML integration point (unlike start tags which get processed as HTML)
-        if hasForeignElementInStack() {
+        // Check for foreign content processing
+        // Per WHATWG spec: use foreign content rules only when adjusted current node
+        // is in MathML/SVG namespace. Unlike start tags, there are no integration point
+        // exceptions for end tags - they're handled within processForeignContentEndTag.
+        if let node = adjustedCurrentNode, let ns = node.namespace, (ns == .svg || ns == .math) {
             if processForeignContentEndTag(name: name) {
                 return  // Handled by foreign content rules
             }
@@ -2841,17 +2842,12 @@ public final class TreeBuilder: TokenSink {
             return false
         }
 
-        // Walk up the stack looking for a matching foreign element
+        // Walk up the stack looking for a matching element
         // Per WHATWG: "Any other end tag" in foreign content
         for i in stride(from: openElements.count - 1, through: 0, by: -1) {
             let node = openElements[i]
 
-            // If we hit an HTML element, let normal processing handle it
-            if node.namespace == nil || node.namespace == .html {
-                return false
-            }
-
-            // Check if this foreign element matches (case-insensitive)
+            // Check if this element matches (case-insensitive for foreign, case-sensitive for HTML)
             if node.name.lowercased() == lowercaseName {
                 // Pop elements until we've popped this node
                 while openElements.count > i {
@@ -2859,9 +2855,14 @@ public final class TreeBuilder: TokenSink {
                 }
                 return true
             }
+
+            // If we hit an HTML element that doesn't match, let normal processing handle it
+            if node.namespace == nil || node.namespace == .html {
+                return false
+            }
         }
 
-        // No matching foreign element found, let normal processing handle it
+        // No matching element found, let normal processing handle it
         return false
     }
 
