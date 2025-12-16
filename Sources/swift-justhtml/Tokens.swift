@@ -51,12 +51,19 @@ public struct StrictModeError: Error {
 }
 
 /// Thrown on invalid CSS selector syntax
-public struct SelectorError: Error {
+public struct SelectorError: Error, CustomStringConvertible {
     public let message: String
     public let position: Int?
 
     public init(_ message: String, position: Int? = nil) {
         self.message = message
         self.position = position
+    }
+
+    public var description: String {
+        if let pos = position {
+            return "SelectorError at position \(pos): \(message)"
+        }
+        return "SelectorError: \(message)"
     }
 }
