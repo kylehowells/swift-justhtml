@@ -1084,8 +1084,47 @@ public final class TreeBuilder: TokenSink {
     }
 
     private func reconstructActiveFormattingElements() {
-        // Simplified: just ensure proper nesting
-        // Full implementation would reconstruct the list
+        // 1. If there are no entries in the list, return
+        if activeFormattingElements.isEmpty { return }
+
+        // 2. If the last entry is a marker or is already in open elements, return
+        guard let lastEntry = activeFormattingElements.last else { return }
+        if lastEntry == nil { return }  // marker
+        if let elem = lastEntry, openElements.contains(where: { $0 === elem }) {
+            return
+        }
+
+        // 3. Rewind: find the first entry that's either a marker or in open elements
+        var entryIndex = activeFormattingElements.count - 1
+        while entryIndex > 0 {
+            entryIndex -= 1
+            if let entry = activeFormattingElements[entryIndex] {
+                if openElements.contains(where: { $0 === entry }) {
+                    entryIndex += 1
+                    break
+                }
+            } else {
+                // Hit a marker
+                entryIndex += 1
+                break
+            }
+        }
+
+        // 4. Advance: create and insert elements
+        while entryIndex < activeFormattingElements.count {
+            guard let entry = activeFormattingElements[entryIndex] else {
+                entryIndex += 1
+                continue
+            }
+
+            // Create new element with same name and attributes
+            let newElement = insertElement(name: entry.name, namespace: entry.namespace ?? .html, attrs: entry.attrs)
+
+            // Replace the entry in the list
+            activeFormattingElements[entryIndex] = newElement
+
+            entryIndex += 1
+        }
     }
 
     private func adoptionAgency(name: String) {
