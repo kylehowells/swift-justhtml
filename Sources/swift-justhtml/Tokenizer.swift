@@ -172,12 +172,21 @@ public final class Tokenizer {
     }
 
     public func run(_ html: String) {
-        self.input = html
-        self.pos = html.startIndex
+        // Preprocess input: normalize line endings per HTML5 spec
+        // CR (U+000D) followed by LF (U+000A) → LF
+        // CR (U+000D) not followed by LF → LF
+        var preprocessed = html
+        if html.contains("\r") {
+            preprocessed = html.replacingOccurrences(of: "\r\n", with: "\n")
+                               .replacingOccurrences(of: "\r", with: "\n")
+        }
+
+        self.input = preprocessed
+        self.pos = preprocessed.startIndex
 
         // Optionally discard BOM
-        if opts.discardBom && !html.isEmpty && html.first == "\u{FEFF}" {
-            pos = html.index(after: pos)
+        if opts.discardBom && !preprocessed.isEmpty && preprocessed.first == "\u{FEFF}" {
+            pos = preprocessed.index(after: pos)
         }
 
         // Process all input
