@@ -208,18 +208,14 @@ func compareOutputs(_ expected: String, _ actual: String) -> Bool {
 }
 
 func getTestsDirectory() -> URL? {
-    // The tests are at ../html5lib-tests relative to the swift-justhtml package
     let fileManager = FileManager.default
-
-    // Try finding from current working directory
     let cwd = fileManager.currentDirectoryPath
     let cwdUrl = URL(fileURLWithPath: cwd)
 
-    // Check several possible locations
+    // Check several possible locations (CI puts html5lib-tests at repo root)
     let possiblePaths = [
         cwdUrl.appendingPathComponent("html5lib-tests/tree-construction"),
-        cwdUrl.appendingPathComponent("../html5lib-tests/tree-construction"),
-        URL(fileURLWithPath: "/home/kyle/Development/justhtml/html5lib-tests/tree-construction")
+        cwdUrl.appendingPathComponent("../html5lib-tests/tree-construction")
     ]
 
     for path in possiblePaths {
@@ -362,12 +358,15 @@ func runTreeConstructionTests(files: [String]? = nil, showFailures: Bool = false
 // MARK: - html5lib Tests
 
 @Test func html5libTreeConstructionTests1() async throws {
-    // Test reading the file
-    let filePath = "/home/kyle/Development/justhtml/html5lib-tests/tree-construction/tests1.dat"
-    print("Reading file: \(filePath)")
+    guard let testsDir = getTestsDirectory() else {
+        print("Could not find html5lib-tests directory")
+        #expect(Bool(false), "Could not find html5lib-tests directory")
+        return
+    }
 
-    guard let content = try? String(contentsOfFile: filePath, encoding: .utf8) else {
-        print("Could not read file")
+    let fileURL = testsDir.appendingPathComponent("tests1.dat")
+    guard let content = try? String(contentsOf: fileURL, encoding: .utf8) else {
+        print("Could not read file: \(fileURL.path)")
         #expect(Bool(false), "Could not read test file")
         return
     }

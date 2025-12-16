@@ -10,6 +10,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Checkout html5lib-tests
+        uses: actions/checkout@v4
+        with:
+          repository: html5lib/html5lib-tests
+          path: html5lib-tests
+
       - name: Setup Swift
         uses: swift-actions/setup-swift@v2
         with:
@@ -18,20 +24,8 @@ jobs:
       - name: Build
         run: swift build
 
-      - name: Run smoke tests
+      - name: Run tests
         run: swift test
-
-      - name: Checkout html5lib-tests
-        uses: actions/checkout@v4
-        with:
-          repository: html5lib/html5lib-tests
-          path: html5lib-tests
-
-      # Future: Run full html5lib test suite
-      # - name: Run tree construction tests
-      #   run: swift run TreeConstructionTests --tests-dir html5lib-tests
-      # - name: Run tokenizer tests
-      #   run: swift run TokenizerTests --tests-dir html5lib-tests
 
   # Test on macOS as well
   macos:
@@ -39,8 +33,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Checkout html5lib-tests
+        uses: actions/checkout@v4
+        with:
+          repository: html5lib/html5lib-tests
+          path: html5lib-tests
+
       - name: Build
         run: swift build
 
-      - name: Run smoke tests
+      - name: Run tests
         run: swift test
