@@ -2288,11 +2288,13 @@ public final class TreeBuilder: TokenSink {
     private func popUntil(_ name: String) {
         // In fragment parsing, if the target element is only the context element
         // (not on the actual stack), we should pop until we reach the html element
+        // Only match HTML namespace elements
         let isContextOnly = contextElement?.name == name &&
-                           !openElements.contains { $0.name == name }
+                           !openElements.contains { $0.name == name && ($0.namespace == nil || $0.namespace == .html) }
 
         while let current = currentNode {
-            if current.name == name {
+            // Only match HTML namespace elements
+            if current.name == name && (current.namespace == nil || current.namespace == .html) {
                 popCurrentElement()
                 break
             }
