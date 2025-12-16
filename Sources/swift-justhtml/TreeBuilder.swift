@@ -910,7 +910,8 @@ public final class TreeBuilder: TokenSink {
     private func processStartTagInBody(name: String, attrs: [String: String], selfClosing: Bool) {
         if name == "html" {
             emitError("unexpected-start-tag")
-            if let html = openElements.first {
+            // Don't merge attributes if inside a template
+            if templateInsertionModes.isEmpty, let html = openElements.first {
                 for (key, value) in attrs where html.attrs[key] == nil {
                     html.attrs[key] = value
                 }
@@ -929,7 +930,9 @@ public final class TreeBuilder: TokenSink {
             }
         } else if name == "body" {
             emitError("unexpected-start-tag")
-            if openElements.count >= 2, openElements[1].name == "body" {
+            // Don't merge attributes if inside a template
+            if templateInsertionModes.isEmpty,
+               openElements.count >= 2, openElements[1].name == "body" {
                 framesetOk = false
                 for (key, value) in attrs where openElements[1].attrs[key] == nil {
                     openElements[1].attrs[key] = value
