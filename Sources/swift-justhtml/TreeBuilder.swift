@@ -2308,25 +2308,28 @@ public final class TreeBuilder: TokenSink {
     /// HTML integration points in SVG
     private static let svgHtmlIntegrationPoints: Set<String> = ["foreignObject", "desc", "title"]
 
-    /// HTML integration points in MathML
-    private static let mathmlHtmlIntegrationPoints: Set<String> = ["mi", "mo", "mn", "ms", "mtext"]
+    /// MathML text integration points (affect how certain tags are processed, not general HTML processing)
+    private static let mathmlTextIntegrationPoints: Set<String> = ["mi", "mo", "mn", "ms", "mtext"]
 
     /// Check if we should process in foreign content mode
     private func shouldProcessInForeignContent() -> Bool {
         guard let currentNode = openElements.last else { return false }
         guard let ns = currentNode.namespace else { return false }
 
-        // Check if we're in an HTML integration point
+        // Check if we're in an HTML integration point (SVG only - foreignObject, desc, title)
+        // Note: MathML text integration points (mi, mo, mn, ms, mtext) do NOT prevent foreign content processing
+        // They only affect processing of specific breakout elements
         if ns == .svg && Self.svgHtmlIntegrationPoints.contains(currentNode.name) {
             return false
         }
 
-        // MathML HTML integration points (annotation-xml with special attrs not handled here)
-        if ns == .math && Self.mathmlHtmlIntegrationPoints.contains(currentNode.name) {
-            return false
-        }
-
         return ns == .svg || ns == .math
+    }
+
+    /// Check if current node is a MathML text integration point
+    private func isInMathMLTextIntegrationPoint() -> Bool {
+        guard let currentNode = openElements.last else { return false }
+        return currentNode.namespace == .math && Self.mathmlTextIntegrationPoints.contains(currentNode.name)
     }
 
     /// Process an end tag in foreign content
@@ -2337,12 +2340,11 @@ public final class TreeBuilder: TokenSink {
         // Special handling for </br> and </p> - break out and reprocess as end tag
         if lowercaseName == "br" || lowercaseName == "p" {
             emitError("unexpected-end-tag")
-            // Pop until we leave foreign content (reach HTML integration point or HTML namespace)
+            // Pop until we leave foreign content (reach SVG HTML integration point or HTML namespace)
             while let current = currentNode,
                   let ns = current.namespace,
                   (ns == .svg || ns == .math),
-                  !(ns == .svg && Self.svgHtmlIntegrationPoints.contains(current.name)),
-                  !(ns == .math && Self.mathmlHtmlIntegrationPoints.contains(current.name)) {
+                  !(ns == .svg && Self.svgHtmlIntegrationPoints.contains(current.name)) {
                 popCurrentElement()
             }
             // Reprocess the end tag in HTML mode - return false to let normal processing handle it
@@ -2370,11 +2372,21 @@ public final class TreeBuilder: TokenSink {
             (attrs.keys.contains { $0.lowercased() == "color" || $0.lowercased() == "face" || $0.lowercased() == "size" })
 
         if Self.foreignContentBreakoutElements.contains(lowercaseName) || isFontBreakout {
+            // If current node is MathML text integration point or SVG HTML integration point,
+            // process breakout elements as HTML without popping
+            if let current = currentNode,
+               let ns = current.namespace,
+               ((ns == .svg && Self.svgHtmlIntegrationPoints.contains(current.name)) ||
+                (ns == .math && Self.mathmlTextIntegrationPoints.contains(current.name))) {
+                return false
+            }
+
             // Pop until we leave foreign content (but not HTML integration points)
             while let current = currentNode,
                   let ns = current.namespace,
                   (ns == .svg || ns == .math),
-                  !(ns == .svg && Self.svgHtmlIntegrationPoints.contains(current.name)) {
+                  !(ns == .svg && Self.svgHtmlIntegrationPoints.contains(current.name)),
+                  !(ns == .math && Self.mathmlTextIntegrationPoints.contains(current.name)) {
                 popCurrentElement()
             }
             // Process as normal HTML
