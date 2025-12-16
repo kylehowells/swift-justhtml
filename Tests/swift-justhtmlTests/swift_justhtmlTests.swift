@@ -495,17 +495,7 @@ func runTreeConstructionTests(files: [String]? = nil, showFailures: Bool = false
 }
 
 @Test func debugFailures() async throws {
-    let testFiles = ["adoption01.dat", "adoption02.dat", "entities01.dat", "entities02.dat",
-                     "comments01.dat", "doctype01.dat", "foreign-fragment.dat", "html5test-com.dat",
-                     "inbody01.dat", "isindex.dat", "main-element.dat", "menuitem-element.dat",
-                     "namespace-sensitivity.dat", "noscript01.dat", "pending-spec-changes-plain-text-unsafe.dat",
-                     "pending-spec-changes.dat", "plain-text-unsafe.dat", "ruby.dat", "scriptdata01.dat",
-                     "tables01.dat", "template.dat", "tests_innerHTML_1.dat", "tricky01.dat",
-                     "webkit01.dat", "webkit02.dat"]
-    for file in testFiles {
-        print("Running \(file)...")
-        let (passed, failed, _, _) = runTreeConstructionTests(files: [file], showFailures: false)
-        print("  \(file): \(passed)/\(passed + failed) passed")
-    }
+    let (passed, failed, _, _) = runTreeConstructionTests(files: ["template.dat"], showFailures: false)
+    print("template.dat: \(passed)/\(passed + failed) passed")
 }
 

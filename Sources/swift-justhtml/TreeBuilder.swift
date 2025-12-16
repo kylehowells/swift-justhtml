@@ -1284,6 +1284,32 @@ public final class TreeBuilder: TokenSink {
             insertBodyElement()
             insertionMode = .inBody
             processEOF()
+        case .text:
+            // EOF in text mode (script/rawtext)
+            emitError("eof-in-script-html-comment-like-text")
+            popCurrentElement()
+            insertionMode = originalInsertionMode
+            processEOF()
+        case .inTable, .inTableBody, .inRow, .inCell, .inCaption, .inColumnGroup:
+            // EOF in table contexts - pop elements and process EOF
+            emitError("eof-in-table")
+            // For in-table modes, we should process EOF which will handle generating implied tags
+            insertionMode = .inBody
+            processEOF()
+        case .inTemplate:
+            // EOF in template - pop template and close
+            if !hasElementInScope("template") {
+                // No template in scope - stop processing
+                break
+            }
+            emitError("eof-in-template")
+            popUntil("template")
+            clearActiveFormattingElementsToLastMarker()
+            if !templateInsertionModes.isEmpty {
+                templateInsertionModes.removeLast()
+            }
+            resetInsertionMode()
+            processEOF()
         default:
             break
         }
