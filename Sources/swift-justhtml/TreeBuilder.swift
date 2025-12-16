@@ -1930,6 +1930,44 @@ public final class TreeBuilder: TokenSink {
 
         let node = Node(name: "!doctype", data: .doctype(doctype))
         document.appendChild(node)
+
+        // Determine quirks mode based on doctype
+        // Quirks mode if:
+        // 1. Force-quirks flag is set
+        // 2. Name is not "html"
+        // 3. PUBLIC identifier exists and matches certain patterns
+        // 4. SYSTEM identifier exists without PUBLIC identifier
+        // 5. SYSTEM identifier is certain legacy values
+        if doctype.forceQuirks {
+            quirksMode = true
+        } else if doctype.name?.lowercased() != "html" {
+            quirksMode = true
+        } else if doctype.publicId != nil {
+            // Has PUBLIC identifier - check for known quirks-triggering patterns
+            let publicId = doctype.publicId?.lowercased() ?? ""
+            let systemId = doctype.systemId?.lowercased()
+
+            // Many legacy PUBLIC identifiers trigger quirks mode
+            let quirksPublicIds = [
+                "-//w3c//dtd html 3.2",
+                "-//w3c//dtd html 4.0 transitional",
+                "-//w3c//dtd html 4.0 frameset",
+                "-//w3c//dtd html 4.01 transitional",
+                "-//w3c//dtd html 4.01 frameset",
+                "html"  // Just "html" as public id
+            ]
+
+            if quirksPublicIds.contains(where: { publicId.hasPrefix($0) }) {
+                quirksMode = true
+            } else if publicId.hasPrefix("-//w3c//dtd html 4.01") && systemId == nil {
+                // HTML 4.01 without system identifier is quirks
+                quirksMode = true
+            }
+        } else if doctype.systemId != nil && doctype.publicId == nil {
+            // SYSTEM identifier without PUBLIC identifier triggers quirks mode
+            quirksMode = true
+        }
+
         insertionMode = .beforeHtml
     }
 
