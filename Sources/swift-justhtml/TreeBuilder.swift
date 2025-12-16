@@ -282,6 +282,14 @@ public final class TreeBuilder: TokenSink {
     }
 
     private func processStartTag(name: String, attrs: [String: String], selfClosing: Bool) {
+        // Check for foreign content processing
+        if shouldProcessInForeignContent() {
+            if processForeignContentStartTag(name: name, attrs: attrs, selfClosing: selfClosing) {
+                return  // Handled by foreign content rules
+            }
+            // Fall through to normal processing if breakout element
+        }
+
         switch insertionMode {
         case .initial:
             insertionMode = .beforeHtml
@@ -365,7 +373,13 @@ public final class TreeBuilder: TokenSink {
                 let savedMode = insertionMode
                 insertionMode = .inHead
                 processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
-                insertionMode = savedMode
+                // If parseRawtext/parseRCDATA switched to .text mode, update originalInsertionMode
+                // so the end tag returns to afterHead, not inHead
+                if insertionMode == .text {
+                    originalInsertionMode = savedMode
+                } else {
+                    insertionMode = savedMode
+                }
                 if let idx = openElements.lastIndex(where: { $0 === headElement }) {
                     openElements.remove(at: idx)
                 }
@@ -430,7 +444,12 @@ public final class TreeBuilder: TokenSink {
             let savedMode = insertionMode
             insertionMode = .inHead
             processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
-            insertionMode = savedMode
+            // If parseRawtext/parseRCDATA switched to .text mode, update originalInsertionMode
+            if insertionMode == .text {
+                originalInsertionMode = savedMode
+            } else {
+                insertionMode = savedMode
+            }
         } else if name == "body" {
             emitError("unexpected-start-tag")
             if openElements.count >= 2, openElements[1].name == "body" {
@@ -1101,6 +1120,51 @@ public final class TreeBuilder: TokenSink {
             activeFormattingElements.removeAll { $0 === fe }
             return
         }
+    }
+
+    // MARK: - Foreign Content
+
+    /// Elements that break out of foreign content back to HTML
+    private static let foreignContentBreakoutElements: Set<String> = [
+        "b", "big", "blockquote", "body", "br", "center", "code", "dd", "div", "dl", "dt",
+        "em", "embed", "h1", "h2", "h3", "h4", "h5", "h6", "head", "hr", "i", "img", "li",
+        "listing", "menu", "meta", "nobr", "ol", "p", "pre", "ruby", "s", "small", "span",
+        "strong", "strike", "sub", "sup", "table", "tt", "u", "ul", "var"
+    ]
+
+    /// Check if we should process in foreign content mode
+    private func shouldProcessInForeignContent() -> Bool {
+        guard let currentNode = openElements.last else { return false }
+        guard let ns = currentNode.namespace else { return false }
+        return ns == .svg || ns == .math
+    }
+
+    /// Process a start tag in foreign content
+    /// Returns true if handled, false if should fall through to normal processing
+    private func processForeignContentStartTag(name: String, attrs: [String: String], selfClosing: Bool) -> Bool {
+        let lowercaseName = name.lowercased()
+
+        // Check for breakout elements
+        if Self.foreignContentBreakoutElements.contains(lowercaseName) || lowercaseName == "font" {
+            // Pop until we leave foreign content
+            while let current = currentNode,
+                  let ns = current.namespace,
+                  (ns == .svg || ns == .math) {
+                popCurrentElement()
+            }
+            // Process as normal HTML
+            return false
+        }
+
+        // Insert element in current foreign namespace
+        guard let ns = currentNode?.namespace else { return false }
+        _ = insertElement(name: name, namespace: ns, attrs: attrs)
+
+        if selfClosing {
+            popCurrentElement()
+        }
+
+        return true
     }
 
     // MARK: - Rawtext and RCDATA Parsing
