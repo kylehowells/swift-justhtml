@@ -2434,9 +2434,8 @@ public final class TreeBuilder: TokenSink {
                 // Step 12.5: If node is not in active formatting, remove from stack and continue
                 if nodeFormattingIndex == nil {
                     openElements.remove(at: nodeIndex)
-                    // After removal, the element that was at nodeIndex+1 is now at nodeIndex
-                    // We need to increment nodeIndex so the next decrement gets the right element
-                    nodeIndex += 1
+                    // After removal, elements shift down, so nodeIndex now points to what was nodeIndex+1.
+                    // The next decrement at the loop start will correctly move to the element that was above.
                     continue
                 }
 
