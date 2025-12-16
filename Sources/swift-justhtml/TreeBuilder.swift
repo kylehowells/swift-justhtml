@@ -1808,6 +1808,13 @@ public final class TreeBuilder: TokenSink {
         switch insertionMode {
         case .initial, .beforeHtml:
             document.appendChild(comment)
+        case .afterBody:
+            // In afterBody mode, append to the html element (first on stack)
+            if let html = openElements.first {
+                html.appendChild(comment)
+            } else {
+                document.appendChild(comment)
+            }
         case .afterAfterBody, .afterAfterFrameset:
             // In fragment parsing, append to html element; otherwise to document
             if fragmentContext != nil, let html = openElements.first {
@@ -2290,6 +2297,31 @@ public final class TreeBuilder: TokenSink {
     // MARK: - Formatting Elements
 
     private func pushFormattingElement(_ element: Node) {
+        // Noah's Ark clause: If there are already 3 elements with the same tag name
+        // and attributes in the list before the last marker, remove the earliest one
+        var matchCount = 0
+        var earliestMatchIndex: Int?
+
+        for i in stride(from: activeFormattingElements.count - 1, through: 0, by: -1) {
+            guard let entry = activeFormattingElements[i] else {
+                break  // Hit marker, stop searching
+            }
+            // Check if same tag name and attributes
+            if entry.name == element.name && entry.attrs == element.attrs {
+                if earliestMatchIndex == nil {
+                    earliestMatchIndex = i
+                } else {
+                    earliestMatchIndex = i  // Keep updating to find earliest
+                }
+                matchCount += 1
+            }
+        }
+
+        // If we already have 3 matching elements, remove the earliest one
+        if matchCount >= 3, let idx = earliestMatchIndex {
+            activeFormattingElements.remove(at: idx)
+        }
+
         activeFormattingElements.append(element)
     }
 
