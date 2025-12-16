@@ -328,6 +328,32 @@ public final class TreeBuilder: TokenSink {
                 // Ignore
             }
 
+        case .inTable, .inTableBody, .inRow, .inColumnGroup:
+            // In table contexts, pending table characters are accumulated
+            // For simplicity, insert directly (TODO: proper table text handling)
+            insertCharacter(ch)
+
+        case .inCell, .inCaption:
+            // Process using inBody rules
+            if ch == "\0" {
+                emitError("unexpected-null-character")
+            } else if isWhitespace(ch) {
+                reconstructActiveFormattingElements()
+                insertCharacter(ch)
+            } else {
+                reconstructActiveFormattingElements()
+                insertCharacter(ch)
+                framesetOk = false
+            }
+
+        case .inSelect, .inSelectInTable:
+            // Characters in select go directly into the select
+            if ch == "\0" {
+                emitError("unexpected-null-character")
+            } else {
+                insertCharacter(ch)
+            }
+
         default:
             insertCharacter(ch)
         }
@@ -1021,6 +1047,14 @@ public final class TreeBuilder: TokenSink {
     }
 
     private func processEndTag(name: String) {
+        // Check for foreign content processing first
+        if shouldProcessInForeignContent() {
+            if processForeignContentEndTag(name: name) {
+                return  // Handled by foreign content rules
+            }
+            // Fall through to normal processing if breakout element
+        }
+
         switch insertionMode {
         case .initial:
             insertionMode = .beforeHtml
@@ -2116,6 +2150,9 @@ public final class TreeBuilder: TokenSink {
     /// HTML integration points in SVG
     private static let svgHtmlIntegrationPoints: Set<String> = ["foreignObject", "desc", "title"]
 
+    /// HTML integration points in MathML
+    private static let mathmlHtmlIntegrationPoints: Set<String> = ["mi", "mo", "mn", "ms", "mtext"]
+
     /// Check if we should process in foreign content mode
     private func shouldProcessInForeignContent() -> Bool {
         guard let currentNode = openElements.last else { return false }
@@ -2126,7 +2163,42 @@ public final class TreeBuilder: TokenSink {
             return false
         }
 
+        // MathML HTML integration points (annotation-xml with special attrs not handled here)
+        if ns == .math && Self.mathmlHtmlIntegrationPoints.contains(currentNode.name) {
+            return false
+        }
+
         return ns == .svg || ns == .math
+    }
+
+    /// Process an end tag in foreign content
+    /// Returns true if handled, false if should fall through to normal processing
+    private func processForeignContentEndTag(name: String) -> Bool {
+        let lowercaseName = name.lowercased()
+
+        // Special handling for </br> and </p> - break out and reprocess as end tag
+        if lowercaseName == "br" || lowercaseName == "p" {
+            emitError("unexpected-end-tag")
+            // Pop until we leave foreign content (reach HTML integration point or HTML namespace)
+            while let current = currentNode,
+                  let ns = current.namespace,
+                  (ns == .svg || ns == .math),
+                  !(ns == .svg && Self.svgHtmlIntegrationPoints.contains(current.name)),
+                  !(ns == .math && Self.mathmlHtmlIntegrationPoints.contains(current.name)) {
+                popCurrentElement()
+            }
+            // Reprocess the end tag in HTML mode - return false to let normal processing handle it
+            return false
+        }
+
+        // For other end tags, check if current node matches (case-insensitive for SVG)
+        if let current = currentNode, current.name.lowercased() == lowercaseName {
+            popCurrentElement()
+            return true
+        }
+
+        // Otherwise, let normal processing handle it
+        return false
     }
 
     /// Process a start tag in foreign content
