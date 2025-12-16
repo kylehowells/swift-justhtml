@@ -2369,6 +2369,8 @@ public final class TreeBuilder: TokenSink {
 
     private func hasElementInSelectScope(_ name: String) -> Bool {
         // In select scope, everything except optgroup and option is a scope marker
+        // This is unusual - most scope definitions have limited markers, but select scope
+        // treats everything except optgroup/option as markers
         for node in openElements.reversed() {
             if node.name == name {
                 return true
