@@ -1195,7 +1195,11 @@ public final class TreeBuilder: TokenSink {
         let lowercaseName = name.lowercased()
 
         // Check for breakout elements
-        if Self.foreignContentBreakoutElements.contains(lowercaseName) || lowercaseName == "font" {
+        // font only breaks out if it has color, face, or size attributes
+        let isFontBreakout = lowercaseName == "font" &&
+            (attrs.keys.contains { $0.lowercased() == "color" || $0.lowercased() == "face" || $0.lowercased() == "size" })
+
+        if Self.foreignContentBreakoutElements.contains(lowercaseName) || isFontBreakout {
             // Pop until we leave foreign content
             while let current = currentNode,
                   let ns = current.namespace,
