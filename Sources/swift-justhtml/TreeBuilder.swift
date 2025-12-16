@@ -74,6 +74,7 @@ public final class TreeBuilder: TokenSink {
     private var skipNextNewline: Bool = false  // For pre/listing/textarea leading newline
     private var scripting: Bool = false
     private var iframeSrcdoc: Bool = false
+    private var fosterParentingEnabled: Bool = false
 
     // Pending table character tokens
     private var pendingTableCharacterTokens: String = ""
@@ -571,7 +572,9 @@ public final class TreeBuilder: TokenSink {
             } else {
                 // Foster parenting - process using "in body" rules
                 emitError("unexpected-start-tag-in-table")
+                fosterParentingEnabled = true
                 processStartTagInBody(name: name, attrs: attrs, selfClosing: selfClosing)
+                fosterParentingEnabled = false
             }
 
         case .inTableBody:
@@ -1556,7 +1559,66 @@ public final class TreeBuilder: TokenSink {
     }
 
     private func insertNode(_ node: Node) {
-        adjustedInsertionTarget.appendChild(node)
+        if fosterParentingEnabled {
+            fosterParentNode(node)
+        } else {
+            adjustedInsertionTarget.appendChild(node)
+        }
+    }
+
+    /// Foster parent insertion - used when we need to insert nodes outside of a table
+    private func fosterParentNode(_ node: Node) {
+        // Find last table and last template in the stack
+        var lastTableIndex: Int? = nil
+        var lastTemplateIndex: Int? = nil
+
+        for i in stride(from: openElements.count - 1, through: 0, by: -1) {
+            let element = openElements[i]
+            if element.name == "table" && lastTableIndex == nil {
+                lastTableIndex = i
+            }
+            if element.name == "template" && lastTemplateIndex == nil {
+                lastTemplateIndex = i
+            }
+        }
+
+        // If last template is after last table, or there's no table, use template contents
+        if let templateIndex = lastTemplateIndex {
+            if lastTableIndex == nil || templateIndex > lastTableIndex! {
+                if let content = openElements[templateIndex].templateContent {
+                    content.appendChild(node)
+                    return
+                }
+            }
+        }
+
+        // If no table found in the stack
+        guard let tableIndex = lastTableIndex else {
+            // For fragment parsing or when there's no table, insert in document or first element
+            if !openElements.isEmpty {
+                openElements[0].appendChild(node)
+            } else {
+                // Fragment parsing - insert directly into document
+                document.appendChild(node)
+            }
+            return
+        }
+
+        let tableElement = openElements[tableIndex]
+
+        // If table's parent is an element, insert before table
+        if let parent = tableElement.parent {
+            parent.insertBefore(node, reference: tableElement)
+            return
+        }
+
+        // Otherwise, insert at the end of the element before table in the stack
+        if tableIndex > 0 {
+            openElements[tableIndex - 1].appendChild(node)
+        } else {
+            // Table is first in stack, insert into document
+            document.appendChild(node)
+        }
     }
 
     private func insertCharacter(_ ch: Character) {
