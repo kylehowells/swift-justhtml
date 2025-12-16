@@ -1709,7 +1709,9 @@ public final class TreeBuilder: TokenSink {
             framesetOk = false
         } else if name == "template" {
             // Handle template end tag
-            if !hasElementInScope("template") {
+            // Per spec: check if template is on the stack of open elements (not in scope!)
+            let hasTemplate = openElements.contains { $0.name == "template" }
+            if !hasTemplate {
                 emitError("unexpected-end-tag")
                 return
             }
@@ -1840,8 +1842,13 @@ public final class TreeBuilder: TokenSink {
             }
             resetInsertionMode()
             processEOF()
-        default:
-            break
+        case .inBody, .inSelect, .inSelectInTable, .inFrameset, .afterBody, .afterFrameset, .afterAfterBody, .afterAfterFrameset, .inTableText:
+            // Per spec: if template insertion modes stack is not empty, process using in template rules
+            if !templateInsertionModes.isEmpty {
+                insertionMode = .inTemplate
+                processEOF()
+            }
+            // Otherwise stop parsing (break)
         }
     }
 
