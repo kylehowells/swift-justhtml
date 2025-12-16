@@ -557,11 +557,61 @@ func runTreeConstructionTests(files: [String]? = nil, showFailures: Bool = false
 }
 
 @Test func debugFailures() async throws {
-    // Placeholder for debugging test failures
-    // Remaining 2 failures (99.9% pass rate):
-    // 1. webkit02.dat test 46: Adoption agency with formatting elements in select
-    // 2. tricky01.dat test 8: Complex nested table foster parenting
-    print("No specific test case being debugged")
+    // Debug the specific tricky01.dat test 8
+    let html = """
+    <TABLE>
+    <TR>
+    <CENTER><CENTER><TD></TD></TR><TR>
+    <FONT>
+    <TABLE><tr></tr></TABLE>
+    </P>
+    <a></font><font></a>
+    This page contains an insanely badly-nested tag sequence.
+    """
+    print("INPUT: \(html)")
+
+    let doc = try JustHTML(html)
+    let output = doc.toTestFormat()
+    print("\nACTUAL:\n\(output)")
+
+    // Print expected for comparison
+    let expected = """
+    | <html>
+    |   <head>
+    |   <body>
+    |     <center>
+    |       <center>
+    |     <font>
+    |       "
+    "
+    |     <table>
+    |       "
+    "
+    |       <tbody>
+    |         <tr>
+    |           "
+    "
+    |           <td>
+    |         <tr>
+    |           "
+    "
+    |     <table>
+    |       <tbody>
+    |         <tr>
+    |     <font>
+    |       "
+    "
+    |       <p>
+    |       "
+    "
+    |       <a>
+    |     <a>
+    |       <font>
+    |     <font>
+    |       "
+    This page contains an insanely badly-nested tag sequence."
+    """
+    print("\nEXPECTED:\n\(expected)")
 }
 
 private func *(lhs: String, rhs: Int) -> String {

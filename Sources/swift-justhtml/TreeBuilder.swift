@@ -512,6 +512,8 @@ public final class TreeBuilder: TokenSink {
             if ch == "\0" {
                 emitError("unexpected-null-character")
             } else {
+                // Reconstruct active formatting elements for proper formatting element handling
+                reconstructActiveFormattingElements()
                 insertCharacter(ch)
             }
 
@@ -826,6 +828,15 @@ public final class TreeBuilder: TokenSink {
                 popCurrentElement()
                 insertionMode = .inTable
                 processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
+            } else if name == "table" {
+                // Nested table - close current table and insert new one
+                // Don't restore mode since we're creating a completely new table context
+                emitError("unexpected-start-tag-implies-end-tag")
+                if hasElementInTableScope("table") {
+                    popUntil("table")
+                    resetInsertionMode()
+                    processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
+                }
             } else {
                 // Process using "in table" rules
                 let savedMode = insertionMode
@@ -851,6 +862,15 @@ public final class TreeBuilder: TokenSink {
                 popCurrentElement()
                 insertionMode = .inTableBody
                 processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
+            } else if name == "table" {
+                // Nested table - close current table and insert new one
+                // Don't restore mode since we're creating a completely new table context
+                emitError("unexpected-start-tag-implies-end-tag")
+                if hasElementInTableScope("table") {
+                    popUntil("table")
+                    resetInsertionMode()
+                    processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
+                }
             } else {
                 // Process using "in table" rules
                 let savedMode = insertionMode
@@ -1111,6 +1131,12 @@ public final class TreeBuilder: TokenSink {
                 if selfClosing {
                     popCurrentElement()
                 }
+            } else if FORMATTING_ELEMENTS.contains(name.lowercased()) {
+                // Handle formatting elements in select mode
+                // Per HTML5 spec: reconstruct, insert, and add to active formatting
+                reconstructActiveFormattingElements()
+                let element = insertElement(name: name, attrs: attrs)
+                pushFormattingElement(element)
             } else if Self.foreignContentBreakoutElements.contains(name.lowercased()) ||
                       name.lowercased() == "button" || name.lowercased() == "datalist" ||
                       name.lowercased() == "menuitem" {
@@ -1399,6 +1425,8 @@ public final class TreeBuilder: TokenSink {
         } else if name == "select" {
             reconstructActiveFormattingElements()
             _ = insertElement(name: name, attrs: attrs)
+            // Insert marker to prevent reconstruction of formatting elements from outside select
+            insertMarker()
             framesetOk = false
             // Check if we're in a table context
             if insertionMode == .inTable || insertionMode == .inTableBody ||
@@ -1798,9 +1826,15 @@ public final class TreeBuilder: TokenSink {
                     return
                 }
                 popUntil("select")
+                // Clear the marker we inserted when opening select
+                clearActiveFormattingElementsToLastMarker()
                 resetInsertionMode()
             } else if name == "template" {
                 processEndTagInBody(name: name)
+            } else if name == "a" || FORMATTING_ELEMENTS.contains(name.lowercased()) {
+                // Handle formatting element end tags with adoption agency
+                // Per HTML5 spec: formatting elements in select use adoption agency
+                adoptionAgency(name: name)
             } else if Self.foreignContentBreakoutElements.contains(name.lowercased()) ||
                       name.lowercased() == "button" || name.lowercased() == "datalist" {
                 // Handle end tags for elements we inserted in select
