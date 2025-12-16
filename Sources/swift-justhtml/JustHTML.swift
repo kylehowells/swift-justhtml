@@ -48,18 +48,17 @@ public struct JustHTML {
         var opts = TokenizerOpts()
 
         // Handle special fragment contexts that affect tokenizer initial state
+        // Note: We DON'T set initialRawtextTag for fragments because no start tag was emitted,
+        // so no end tag should be considered "appropriate" per WHATWG spec
         if let ctx = fragmentContext, ctx.namespace == nil || ctx.namespace == .html {
             let tagName = ctx.tagName.lowercased()
             switch tagName {
             case "title", "textarea":
                 opts.initialState = .rcdata
-                opts.initialRawtextTag = tagName
             case "style", "xmp", "iframe", "noembed", "noframes":
                 opts.initialState = .rawtext
-                opts.initialRawtextTag = tagName
             case "script":
                 opts.initialState = .scriptData
-                opts.initialRawtextTag = tagName
             case "plaintext":
                 opts.initialState = .plaintext
             default:
@@ -116,18 +115,17 @@ public struct JustHTML {
         var opts = TokenizerOpts()
 
         // Handle special fragment contexts that affect tokenizer initial state
+        // Note: We DON'T set initialRawtextTag for fragments because no start tag was emitted,
+        // so no end tag should be considered "appropriate" per WHATWG spec
         if let ctx = fragmentContext, ctx.namespace == nil || ctx.namespace == .html {
             let tagName = ctx.tagName.lowercased()
             switch tagName {
             case "title", "textarea":
                 opts.initialState = .rcdata
-                opts.initialRawtextTag = tagName
             case "style", "xmp", "iframe", "noembed", "noframes":
                 opts.initialState = .rawtext
-                opts.initialRawtextTag = tagName
             case "script":
                 opts.initialState = .scriptData
-                opts.initialRawtextTag = tagName
             case "plaintext":
                 opts.initialState = .plaintext
             default:

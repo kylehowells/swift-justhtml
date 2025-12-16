@@ -75,6 +75,7 @@ public final class TreeBuilder: TokenSink {
     private var scripting: Bool = false
     private var iframeSrcdoc: Bool = false
     private var fosterParentingEnabled: Bool = false
+    private var quirksMode: Bool = false  // Document mode: quirks, limited-quirks, or no-quirks
 
     // Pending table character tokens
     private var pendingTableCharacterTokens: String = ""
@@ -208,10 +209,10 @@ public final class TreeBuilder: TokenSink {
             }
         }
 
-        // HTML integration points (MathML text integration points and SVG HTML integration points)
-        // process characters as HTML but should NOT foster-parent (insert directly into the element)
+        // HTML integration points (MathML text integration points, SVG HTML integration points,
+        // and MathML annotation-xml with encoding) process characters as HTML
         // Check this BEFORE foreign content check since shouldProcessInForeignContent returns true for math namespace
-        if isInMathMLTextIntegrationPoint() || isInSVGHtmlIntegrationPoint() {
+        if isInMathMLTextIntegrationPoint() || isInSVGHtmlIntegrationPoint() || isInMathMLAnnotationXmlIntegrationPoint() {
             if ch == "\0" {
                 emitError("unexpected-null-character")
             } else if isWhitespace(ch) {
@@ -244,6 +245,9 @@ public final class TreeBuilder: TokenSink {
             if isWhitespace(ch) {
                 // Ignore
             } else {
+                // Parse error - anything other than whitespace in initial mode sets quirks mode
+                emitError("expected-doctype-but-got-chars")
+                quirksMode = true
                 insertionMode = .beforeHtml
                 processCharacter(ch)
             }
@@ -377,20 +381,21 @@ public final class TreeBuilder: TokenSink {
             }
 
         case .inTable, .inTableBody, .inRow:
+            // Switch to inTableText mode and buffer characters
             if ch == "\0" {
                 emitError("unexpected-null-character")
-            } else if isWhitespace(ch) {
-                // Whitespace in table context: insert into current node
-                insertCharacter(ch)
             } else {
-                // Non-whitespace in table context: foster parent
-                emitError("unexpected-char-in-table")
-                fosterParentingEnabled = true
-                // Process using inBody rules with foster parenting
-                reconstructActiveFormattingElements()
-                insertCharacter(ch)
-                framesetOk = false
-                fosterParentingEnabled = false
+                pendingTableCharacterTokens.append(ch)
+                originalInsertionMode = insertionMode
+                insertionMode = .inTableText
+            }
+
+        case .inTableText:
+            // Buffer characters in table text mode
+            if ch == "\0" {
+                emitError("unexpected-null-character")
+            } else {
+                pendingTableCharacterTokens.append(ch)
             }
 
         case .inCell, .inCaption:
@@ -419,7 +424,43 @@ public final class TreeBuilder: TokenSink {
         }
     }
 
+    /// Flush pending table character tokens (called before processing non-character tokens)
+    private func flushPendingTableCharacterTokens() {
+        guard insertionMode == .inTableText else { return }
+        guard !pendingTableCharacterTokens.isEmpty else {
+            insertionMode = originalInsertionMode
+            return
+        }
+
+        // Check if all characters are whitespace
+        let allWhitespace = pendingTableCharacterTokens.allSatisfy { isWhitespace($0) }
+
+        if allWhitespace {
+            // Insert whitespace normally into the table
+            for ch in pendingTableCharacterTokens {
+                insertCharacter(ch)
+            }
+        } else {
+            // Foster parent all characters (including whitespace)
+            emitError("unexpected-char-in-table")
+            fosterParentingEnabled = true
+            for ch in pendingTableCharacterTokens {
+                reconstructActiveFormattingElements()
+                insertCharacter(ch)
+                if !isWhitespace(ch) {
+                    framesetOk = false
+                }
+            }
+            fosterParentingEnabled = false
+        }
+
+        pendingTableCharacterTokens = ""
+        insertionMode = originalInsertionMode
+    }
+
     private func processStartTag(name: String, attrs: [String: String], selfClosing: Bool) {
+        // Flush pending table character tokens before processing any non-character token
+        flushPendingTableCharacterTokens()
         // Check for foreign content processing
         if shouldProcessInForeignContent() {
             if processForeignContentStartTag(name: name, attrs: attrs, selfClosing: selfClosing) {
@@ -430,6 +471,9 @@ public final class TreeBuilder: TokenSink {
 
         switch insertionMode {
         case .initial:
+            // Parse error - start tag in initial mode sets quirks mode
+            emitError("expected-doctype-but-got-start-tag")
+            quirksMode = true
             insertionMode = .beforeHtml
             processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
 
@@ -898,7 +942,8 @@ public final class TreeBuilder: TokenSink {
                     popCurrentElement()
                 }
                 _ = insertElement(name: name, attrs: attrs)
-            } else if name == "hr" {
+            } else if name == "hr" || name == "keygen" {
+                // hr and keygen are inserted inside select as self-closing elements
                 if let current = currentNode, current.name == "option" {
                     popCurrentElement()
                 }
@@ -913,7 +958,7 @@ public final class TreeBuilder: TokenSink {
                     popUntil("select")
                     resetInsertionMode()
                 }
-            } else if ["input", "keygen", "textarea"].contains(name) {
+            } else if ["input", "textarea"].contains(name) {
                 emitError("unexpected-start-tag-in-select")
                 if !hasElementInSelectScope("select") {
                     // Ignore the token
@@ -1087,6 +1132,7 @@ public final class TreeBuilder: TokenSink {
         } else if ["dd", "dt"].contains(name) {
             framesetOk = false
             // Close any open dd or dt elements in scope
+            // Per spec: stop at special elements EXCEPT address, div, and p
             for node in openElements.reversed() {
                 if node.name == "dd" || node.name == "dt" {
                     generateImpliedEndTags(except: node.name)
@@ -1096,9 +1142,9 @@ public final class TreeBuilder: TokenSink {
                     popUntil(node.name)
                     break
                 }
-                // Stop at scope boundary elements
-                if SCOPE_ELEMENTS.contains(node.name) ||
-                   SPECIAL_ELEMENTS.contains(node.name) {
+                // Stop at special elements, but NOT address, div, or p
+                if SPECIAL_ELEMENTS.contains(node.name) &&
+                   !["address", "div", "p"].contains(node.name) {
                     break
                 }
             }
@@ -1167,7 +1213,8 @@ public final class TreeBuilder: TokenSink {
             insertMarker()
             framesetOk = false
         } else if name == "table" {
-            if hasElementInButtonScope("p") {
+            // Only close p element if NOT in quirks mode
+            if !quirksMode && hasElementInButtonScope("p") {
                 closePElement()
             }
             _ = insertElement(name: name, attrs: attrs)
@@ -1269,6 +1316,9 @@ public final class TreeBuilder: TokenSink {
     }
 
     private func processEndTag(name: String) {
+        // Flush pending table character tokens before processing any non-character token
+        flushPendingTableCharacterTokens()
+
         // Check for foreign content processing first
         // Note: For end tags, we should try to close foreign elements even when inside
         // an HTML integration point (unlike start tags which get processed as HTML)
@@ -1281,6 +1331,9 @@ public final class TreeBuilder: TokenSink {
 
         switch insertionMode {
         case .initial:
+            // Parse error - end tag in initial mode sets quirks mode
+            emitError("expected-doctype-but-got-end-tag")
+            quirksMode = true
             insertionMode = .beforeHtml
             processEndTag(name: name)
 
@@ -1803,6 +1856,7 @@ public final class TreeBuilder: TokenSink {
     }
 
     private func processComment(_ text: String) {
+        flushPendingTableCharacterTokens()
         let comment = Node(name: "#comment", data: .comment(text))
 
         switch insertionMode {
@@ -1829,6 +1883,7 @@ public final class TreeBuilder: TokenSink {
     }
 
     private func processDoctype(_ doctype: Doctype) {
+        flushPendingTableCharacterTokens()
         if insertionMode != .initial {
             emitError("unexpected-doctype")
             return
@@ -1840,6 +1895,7 @@ public final class TreeBuilder: TokenSink {
     }
 
     private func processEOF() {
+        flushPendingTableCharacterTokens()
         // Generate implied end tags and finish
         switch insertionMode {
         case .initial:
@@ -2623,7 +2679,7 @@ public final class TreeBuilder: TokenSink {
     }
 
     /// Check if we should process start tags in foreign content mode
-    /// Returns false only for SVG HTML integration points (not MathML text integration points)
+    /// Returns false only for HTML integration points (SVG foreignObject/desc/title or MathML annotation-xml with encoding)
     /// because MathML text integration points still process MOST start tags as foreign content
     private func shouldProcessInForeignContent() -> Bool {
         guard let node = adjustedCurrentNode else { return false }
@@ -2633,6 +2689,17 @@ public final class TreeBuilder: TokenSink {
         // These process start tags as HTML
         if ns == .svg && Self.svgHtmlIntegrationPoints.contains(node.name) {
             return false
+        }
+
+        // Check if we're in a MathML annotation-xml HTML integration point
+        // annotation-xml with encoding="text/html" or "application/xhtml+xml" processes start tags as HTML
+        if ns == .math && node.name == "annotation-xml" {
+            if let encoding = node.attrs.first(where: { $0.key.lowercased() == "encoding" })?.value {
+                let lowercased = encoding.lowercased()
+                if lowercased == "text/html" || lowercased == "application/xhtml+xml" {
+                    return false
+                }
+            }
         }
 
         // Note: MathML text integration points (mi, mo, mn, ms, mtext) still process
@@ -2652,6 +2719,19 @@ public final class TreeBuilder: TokenSink {
     private func isInSVGHtmlIntegrationPoint() -> Bool {
         guard let currentNode = openElements.last else { return false }
         return currentNode.namespace == .svg && Self.svgHtmlIntegrationPoints.contains(currentNode.name)
+    }
+
+    /// Check if current node is a MathML annotation-xml HTML integration point
+    /// annotation-xml with encoding="text/html" or "application/xhtml+xml" is an HTML integration point
+    private func isInMathMLAnnotationXmlIntegrationPoint() -> Bool {
+        guard let currentNode = openElements.last else { return false }
+        guard currentNode.namespace == .math && currentNode.name == "annotation-xml" else { return false }
+        // Check encoding attribute (case-insensitive)
+        if let encoding = currentNode.attrs.first(where: { $0.key.lowercased() == "encoding" })?.value {
+            let lowercased = encoding.lowercased()
+            return lowercased == "text/html" || lowercased == "application/xhtml+xml"
+        }
+        return false
     }
 
     /// Check if there are any foreign (SVG/MathML) elements in the open elements stack
