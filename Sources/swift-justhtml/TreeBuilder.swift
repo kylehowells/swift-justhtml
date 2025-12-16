@@ -952,6 +952,16 @@ public final class TreeBuilder: TokenSink {
                 }
                 _ = insertElement(name: name, attrs: attrs)
                 popCurrentElement()
+            } else if name == "plaintext" {
+                // plaintext is inserted and switches tokenizer to plaintext mode
+                if let current = currentNode, current.name == "option" {
+                    popCurrentElement()
+                }
+                if let current = currentNode, current.name == "optgroup" {
+                    popCurrentElement()
+                }
+                _ = insertElement(name: name, attrs: attrs)
+                tokenizer?.switchToPlaintext()
             } else if name == "select" {
                 emitError("unexpected-start-tag-in-select")
                 if hasElementInSelectScope("select") {

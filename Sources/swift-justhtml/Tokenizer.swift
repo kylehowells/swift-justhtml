@@ -197,6 +197,11 @@ public final class Tokenizer {
         emit(.eof)
     }
 
+    /// Switch to plaintext state (called by tree builder for plaintext element)
+    public func switchToPlaintext() {
+        state = .plaintext
+    }
+
     private func processState() {
         switch state {
         case .data:
