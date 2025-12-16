@@ -605,6 +605,28 @@ swift test -v
 - [ ] Document memory usage comparisons across implementations
 - [ ] Gate: All implementations return identical results for benchmark HTML files
 
+### Milestone 9 — Performance Tuning & Enhancement (Optional)
+
+- [ ] Run benchmarks on test suite and sample HTML files to establish baseline
+- [ ] Profile parsing hot paths and identify optimization opportunities
+- [ ] Attempt Swift micro-optimizations while maintaining 100% test passing
+- [ ] Run `swift test --enable-code-coverage` + `llvm-cov report ...` to analyze test coverage
+- [ ] Identify uncovered code paths — if tests pass but code isn't covered, it's likely dead code
+- [ ] Remove dead/unreachable code to improve performance and reduce complexity
+- [ ] Gate: 100% test passing maintained, measurable performance improvement
+
+> **Note**: This mirrors the original justhtml author's experience: "I ran coverage on the codebase and found that large parts of the code were 'untested'. But this was backwards, because I already knew that the tests were covering everything important. So lines with no test coverage could be removed! I told the agent to start removing code to reach 100% test coverage, which was an interesting reversal of roles. These removals actually sped up the code as much as the microoptimizations."
+
+### Milestone 10 — Fuzz Testing & Hardening (Optional)
+
+- [ ] Write an HTML5 fuzzer that generates edge-case HTML to stress-test the parser
+- [ ] Run fuzzer against parser to identify crashes or unexpected behavior
+- [ ] For each breaking case: fix the bug and add a regression test to the test suite
+- [ ] Target: pass millions of generated HTML documents without crashes
+- [ ] Gate: Parser handles all fuzzed inputs gracefully, test suite expanded with new edge cases
+
+> **Note**: This mirrors the original author's approach: "After removing code, I got worried that I had removed too much and missed corner cases. So I asked the agent to write a html5 fuzzer that tried really hard to generate HTML that broke the parser. It did break the parser, and for each breaking case I asked it to fix it, and write a new test for the test suite. Passed 3 million generated webpages without any crashes, and hardened the codebase again."
+
 ---
 
 ## Development Approach

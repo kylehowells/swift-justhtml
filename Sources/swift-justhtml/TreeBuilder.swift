@@ -919,8 +919,18 @@ public final class TreeBuilder: TokenSink {
                     // Ignore the token
                     return
                 }
-                popUntil("select")
-                resetInsertionMode()
+                // In fragment parsing, if select is only the context element,
+                // we conceptually close it by clearing the context and going to inBody
+                let selectIsContextOnly = contextElement?.name == "select" &&
+                                         !openElements.contains { $0.name == "select" }
+                if selectIsContextOnly {
+                    contextElement = nil
+                    // Go directly to inBody without creating implicit head/body
+                    insertionMode = .inBody
+                } else {
+                    popUntil("select")
+                    resetInsertionMode()
+                }
                 processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
             } else if ["script", "template"].contains(name) {
                 // Process using "in head" rules
@@ -1796,8 +1806,15 @@ public final class TreeBuilder: TokenSink {
         let comment = Node(name: "#comment", data: .comment(text))
 
         switch insertionMode {
-        case .initial, .beforeHtml, .afterAfterBody, .afterAfterFrameset:
+        case .initial, .beforeHtml:
             document.appendChild(comment)
+        case .afterAfterBody, .afterAfterFrameset:
+            // In fragment parsing, append to html element; otherwise to document
+            if fragmentContext != nil, let html = openElements.first {
+                html.appendChild(comment)
+            } else {
+                document.appendChild(comment)
+            }
         default:
             // Use adjustedInsertionTarget to properly handle template content
             adjustedInsertionTarget.appendChild(comment)
@@ -1907,15 +1924,19 @@ public final class TreeBuilder: TokenSink {
             let lowercaseName = name.lowercased()
             var adjustedName = name
 
+            // Foreign attribute adjustments (xmlns, xlink, xml namespace prefixes)
+            // These apply to both SVG and MathML
+            if let foreignAdjusted = FOREIGN_ATTRIBUTE_ADJUSTMENTS[lowercaseName] {
+                adjustedName = foreignAdjusted
+            }
             // SVG attribute adjustments
-            if namespace == .svg {
+            else if namespace == .svg {
                 if let svgAdjusted = SVG_ATTRIBUTE_ADJUSTMENTS[lowercaseName] {
                     adjustedName = svgAdjusted
                 }
             }
-
             // MathML attribute adjustments
-            if namespace == .math {
+            else if namespace == .math {
                 if let mathAdjusted = MATHML_ATTRIBUTE_ADJUSTMENTS[lowercaseName] {
                     adjustedName = mathAdjusted
                 }
@@ -2113,11 +2134,21 @@ public final class TreeBuilder: TokenSink {
     }
 
     private func popUntil(_ name: String) {
+        // In fragment parsing, if the target element is only the context element
+        // (not on the actual stack), we should pop until we reach the html element
+        let isContextOnly = contextElement?.name == name &&
+                           !openElements.contains { $0.name == name }
+
         while let current = currentNode {
-            popCurrentElement()
             if current.name == name {
+                popCurrentElement()
                 break
             }
+            // In fragment parsing with context-only target, stop at html element
+            if isContextOnly && current.name == "html" {
+                break
+            }
+            popCurrentElement()
         }
     }
 
@@ -2202,8 +2233,16 @@ public final class TreeBuilder: TokenSink {
                 return true
             }
             if node.name != "optgroup" && node.name != "option" {
+                // Per spec: In fragment parsing, if context element matches, consider it in scope
+                if let ctx = contextElement, ctx.name == name {
+                    return true
+                }
                 return false
             }
+        }
+        // Also check context element for fragment parsing
+        if let ctx = contextElement, ctx.name == name {
+            return true
         }
         return false
     }

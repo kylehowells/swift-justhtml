@@ -74,17 +74,11 @@ public enum Serialize {
         var lines = ["| \(padding)<\(qualifiedName)>"]
 
         // Attributes (sorted)
+        // Note: Foreign attributes are already adjusted during parsing (e.g., xml:lang -> xml lang)
         let sortedAttrs = node.attrs.sorted { $0.key < $1.key }
         for (name, value) in sortedAttrs {
-            var displayName = name
-            // Handle foreign attributes with namespace prefix
-            if let ns = node.namespace, ns != .html {
-                if let adjusted = FOREIGN_ATTRIBUTE_ADJUSTMENTS[name.lowercased()] {
-                    displayName = name.replacingOccurrences(of: ":", with: " ")
-                }
-            }
             let attrPadding = String(repeating: " ", count: indent + 2)
-            lines.append("| \(attrPadding)\(displayName)=\"\(value)\"")
+            lines.append("| \(attrPadding)\(name)=\"\(value)\"")
         }
 
         // Template content
