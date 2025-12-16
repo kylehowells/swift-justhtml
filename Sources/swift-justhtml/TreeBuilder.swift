@@ -466,7 +466,7 @@ public final class TreeBuilder: TokenSink {
             if processForeignContentStartTag(name: name, attrs: attrs, selfClosing: selfClosing) {
                 return  // Handled by foreign content rules
             }
-            // Fall through to normal processing if breakout element
+            // Fall through to normal processing if breakout element or integration point
         }
 
         switch insertionMode {
@@ -965,7 +965,8 @@ public final class TreeBuilder: TokenSink {
                 tokenizer?.switchToPlaintext()
             } else if name == "select" {
                 emitError("unexpected-start-tag-in-select")
-                if hasElementInSelectScope("select") {
+                // Per browser behavior, check if select is anywhere on the stack, not using strict scope
+                if openElements.contains(where: { $0.name == "select" }) {
                     popUntil("select")
                     resetInsertionMode()
                 }
@@ -2400,15 +2401,32 @@ public final class TreeBuilder: TokenSink {
 
     private func hasElementInScope(_ name: String, scopeElements: Set<String>) -> Bool {
         for node in openElements.reversed() {
-            if node.name == name {
+            // Per WHATWG spec, only match HTML namespace elements when checking scope
+            if node.name == name && (node.namespace == nil || node.namespace == .html) {
                 return true
             }
+            // Scope boundary elements can be in any namespace
+            // HTML elements in scopeElements, or MathML/SVG integration points
             if scopeElements.contains(node.name) {
-                return false
+                // For MathML/SVG scope boundaries, check namespace
+                let mathScopeBoundaries: Set<String> = ["mi", "mo", "mn", "ms", "mtext", "annotation-xml"]
+                let svgScopeBoundaries: Set<String> = ["foreignObject", "desc", "title"]
+                if mathScopeBoundaries.contains(node.name) {
+                    if node.namespace == .math {
+                        return false
+                    }
+                } else if svgScopeBoundaries.contains(node.name) {
+                    if node.namespace == .svg {
+                        return false
+                    }
+                } else {
+                    // HTML scope boundary element
+                    return false
+                }
             }
         }
         // Check context element for fragment parsing
-        if let ctx = contextElement, ctx.name == name {
+        if let ctx = contextElement, ctx.name == name && (ctx.namespace == nil || ctx.namespace == .html) {
             return true
         }
         return false

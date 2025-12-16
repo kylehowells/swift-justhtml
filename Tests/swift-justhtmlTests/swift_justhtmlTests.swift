@@ -557,15 +557,15 @@ func runTreeConstructionTests(files: [String]? = nil, showFailures: Bool = false
 }
 
 @Test func debugFailures() async throws {
-    let (_, _, _, results) = runTreeConstructionTests(files: ["tests1.dat"], showFailures: true)
-    let failures = results.filter { !$0.passed }
-    print("\nTotal failures in tests1.dat: \(failures.count)")
-    for f in failures {
-        print("\n[\(f.file):\(f.index)]")
-        print("INPUT: \(f.input.replacingOccurrences(of: "\n", with: "\\n"))")
-        print("\nEXPECTED:\n\(f.expected)")
-        print("\nACTUAL:\n\(f.actual)")
-    }
+    // Show all remaining failures
+    let files = ["menuitem-element.dat", "namespace-sensitivity.dat",
+                 "template.dat", "tests10.dat", "tricky01.dat", "webkit02.dat"]
+    let (passed, failed, _, results) = runTreeConstructionTests(files: files, showFailures: true)
+    print("\nTotal: \(passed)/\(passed + failed) passed")
+}
+
+private func *(lhs: String, rhs: Int) -> String {
+    return String(repeating: lhs, count: rhs)
 }
 
 // MARK: - CSS Selector Tests
