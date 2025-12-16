@@ -1000,7 +1000,21 @@ public final class TreeBuilder: TokenSink {
             }
         } else if name == "frameset" {
             emitError("unexpected-start-tag")
-            // Ignore unless framesetOk
+            // Check conditions for allowing frameset
+            if openElements.count > 1 && openElements[1].name == "body" && framesetOk {
+                // Remove the body element from its parent
+                if let body = openElements.count > 1 ? openElements[1] : nil {
+                    body.parent?.removeChild(body)
+                }
+                // Pop all nodes except html
+                while openElements.count > 1 {
+                    popCurrentElement()
+                }
+                // Insert frameset
+                _ = insertElement(name: name, attrs: attrs)
+                insertionMode = .inFrameset
+            }
+            // Otherwise ignore
         } else if ["address", "article", "aside", "blockquote", "center", "details", "dialog", "dir", "div", "dl", "fieldset", "figcaption", "figure", "footer", "header", "hgroup", "main", "menu", "nav", "ol", "p", "search", "section", "summary", "ul"].contains(name) {
             if hasElementInButtonScope("p") {
                 closePElement()
