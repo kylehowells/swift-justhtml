@@ -59,6 +59,20 @@ public final class Tokenizer {
         case scriptDataLessThan
         case scriptDataEndTagOpen
         case scriptDataEndTagName
+        case scriptDataEscapeStart
+        case scriptDataEscapeStartDash
+        case scriptDataEscaped
+        case scriptDataEscapedDash
+        case scriptDataEscapedDashDash
+        case scriptDataEscapedLessThan
+        case scriptDataEscapedEndTagOpen
+        case scriptDataEscapedEndTagName
+        case scriptDataDoubleEscapeStart
+        case scriptDataDoubleEscaped
+        case scriptDataDoubleEscapedDash
+        case scriptDataDoubleEscapedDashDash
+        case scriptDataDoubleEscapedLessThan
+        case scriptDataDoubleEscapeEnd
         case beforeAttributeName
         case attributeName
         case afterAttributeName
@@ -301,9 +315,42 @@ public final class Tokenizer {
             cdataSectionBracketState()
         case .cdataSectionEnd:
             cdataSectionEndState()
-        case .scriptDataLessThan, .scriptDataEndTagOpen, .scriptDataEndTagName, .scriptData:
-            // For now, treat script data like rawtext
-            rawtextState()
+        case .scriptData:
+            scriptDataState()
+        case .scriptDataLessThan:
+            scriptDataLessThanState()
+        case .scriptDataEndTagOpen:
+            scriptDataEndTagOpenState()
+        case .scriptDataEndTagName:
+            scriptDataEndTagNameState()
+        case .scriptDataEscapeStart:
+            scriptDataEscapeStartState()
+        case .scriptDataEscapeStartDash:
+            scriptDataEscapeStartDashState()
+        case .scriptDataEscaped:
+            scriptDataEscapedState()
+        case .scriptDataEscapedDash:
+            scriptDataEscapedDashState()
+        case .scriptDataEscapedDashDash:
+            scriptDataEscapedDashDashState()
+        case .scriptDataEscapedLessThan:
+            scriptDataEscapedLessThanState()
+        case .scriptDataEscapedEndTagOpen:
+            scriptDataEscapedEndTagOpenState()
+        case .scriptDataEscapedEndTagName:
+            scriptDataEscapedEndTagNameState()
+        case .scriptDataDoubleEscapeStart:
+            scriptDataDoubleEscapeStartState()
+        case .scriptDataDoubleEscaped:
+            scriptDataDoubleEscapedState()
+        case .scriptDataDoubleEscapedDash:
+            scriptDataDoubleEscapedDashState()
+        case .scriptDataDoubleEscapedDashDash:
+            scriptDataDoubleEscapedDashDashState()
+        case .scriptDataDoubleEscapedLessThan:
+            scriptDataDoubleEscapedLessThanState()
+        case .scriptDataDoubleEscapeEnd:
+            scriptDataDoubleEscapeEndState()
         }
     }
 
@@ -775,6 +822,432 @@ public final class Tokenizer {
                 emitString("</")
                 emitString(tempBuffer)
                 state = .rawtext
+                reconsume()
+            }
+        }
+    }
+
+    // MARK: - Script Data States
+
+    private func scriptDataState() {
+        guard let ch = consume() else {
+            emit(.eof)
+            return
+        }
+        switch ch {
+        case "<":
+            state = .scriptDataLessThan
+        case "\0":
+            emitError("unexpected-null-character")
+            emitChar("\u{FFFD}")
+        default:
+            emitChar(ch)
+        }
+    }
+
+    private func scriptDataLessThanState() {
+        guard let ch = consume() else {
+            emitChar("<")
+            state = .scriptData
+            return
+        }
+        switch ch {
+        case "/":
+            tempBuffer = ""
+            state = .scriptDataEndTagOpen
+        case "!":
+            state = .scriptDataEscapeStart
+            emitString("<!")
+        default:
+            emitChar("<")
+            state = .scriptData
+            reconsume()
+        }
+    }
+
+    private func scriptDataEndTagOpenState() {
+        guard let ch = consume() else {
+            emitString("</")
+            state = .scriptData
+            return
+        }
+        if ch.isASCIILetter {
+            resetTag()
+            currentTagIsEnd = true
+            state = .scriptDataEndTagName
+            reconsume()
+        } else {
+            emitString("</")
+            state = .scriptData
+            reconsume()
+        }
+    }
+
+    private func scriptDataEndTagNameState() {
+        guard let ch = consume() else {
+            emitString("</")
+            emitString(tempBuffer)
+            state = .scriptData
+            return
+        }
+
+        switch ch {
+        case "\t", "\n", "\u{0C}", " ":
+            if tempBuffer.lowercased() == lastStartTagName.lowercased() {
+                state = .beforeAttributeName
+            } else {
+                emitString("</")
+                emitString(tempBuffer)
+                state = .scriptData
+                reconsume()
+            }
+        case "/":
+            if tempBuffer.lowercased() == lastStartTagName.lowercased() {
+                state = .selfClosingStartTag
+            } else {
+                emitString("</")
+                emitString(tempBuffer)
+                state = .scriptData
+                reconsume()
+            }
+        case ">":
+            if tempBuffer.lowercased() == lastStartTagName.lowercased() {
+                currentTagName = tempBuffer.lowercased()
+                state = .data
+                emitCurrentTag()
+            } else {
+                emitString("</")
+                emitString(tempBuffer)
+                state = .scriptData
+                reconsume()
+            }
+        default:
+            if ch.isASCIILetter {
+                currentTagName.append(ch.asLowercaseCharacter)
+                tempBuffer.append(ch)
+            } else {
+                emitString("</")
+                emitString(tempBuffer)
+                state = .scriptData
+                reconsume()
+            }
+        }
+    }
+
+    private func scriptDataEscapeStartState() {
+        guard let ch = consume() else {
+            state = .scriptData
+            return
+        }
+        if ch == "-" {
+            state = .scriptDataEscapeStartDash
+            emitChar("-")
+        } else {
+            state = .scriptData
+            reconsume()
+        }
+    }
+
+    private func scriptDataEscapeStartDashState() {
+        guard let ch = consume() else {
+            state = .scriptData
+            return
+        }
+        if ch == "-" {
+            state = .scriptDataEscapedDashDash
+            emitChar("-")
+        } else {
+            state = .scriptData
+            reconsume()
+        }
+    }
+
+    private func scriptDataEscapedState() {
+        guard let ch = consume() else {
+            emitError("eof-in-script-html-comment-like-text")
+            emit(.eof)
+            return
+        }
+        switch ch {
+        case "-":
+            state = .scriptDataEscapedDash
+            emitChar("-")
+        case "<":
+            state = .scriptDataEscapedLessThan
+        case "\0":
+            emitError("unexpected-null-character")
+            emitChar("\u{FFFD}")
+        default:
+            emitChar(ch)
+        }
+    }
+
+    private func scriptDataEscapedDashState() {
+        guard let ch = consume() else {
+            emitError("eof-in-script-html-comment-like-text")
+            emit(.eof)
+            return
+        }
+        switch ch {
+        case "-":
+            state = .scriptDataEscapedDashDash
+            emitChar("-")
+        case "<":
+            state = .scriptDataEscapedLessThan
+        case "\0":
+            emitError("unexpected-null-character")
+            state = .scriptDataEscaped
+            emitChar("\u{FFFD}")
+        default:
+            state = .scriptDataEscaped
+            emitChar(ch)
+        }
+    }
+
+    private func scriptDataEscapedDashDashState() {
+        guard let ch = consume() else {
+            emitError("eof-in-script-html-comment-like-text")
+            emit(.eof)
+            return
+        }
+        switch ch {
+        case "-":
+            emitChar("-")
+        case "<":
+            state = .scriptDataEscapedLessThan
+        case ">":
+            state = .scriptData
+            emitChar(">")
+        case "\0":
+            emitError("unexpected-null-character")
+            state = .scriptDataEscaped
+            emitChar("\u{FFFD}")
+        default:
+            state = .scriptDataEscaped
+            emitChar(ch)
+        }
+    }
+
+    private func scriptDataEscapedLessThanState() {
+        guard let ch = consume() else {
+            emitChar("<")
+            state = .scriptDataEscaped
+            return
+        }
+        switch ch {
+        case "/":
+            tempBuffer = ""
+            state = .scriptDataEscapedEndTagOpen
+        default:
+            if ch.isASCIILetter {
+                tempBuffer = ""
+                emitChar("<")
+                state = .scriptDataDoubleEscapeStart
+                reconsume()
+            } else {
+                emitChar("<")
+                state = .scriptDataEscaped
+                reconsume()
+            }
+        }
+    }
+
+    private func scriptDataEscapedEndTagOpenState() {
+        guard let ch = consume() else {
+            emitString("</")
+            state = .scriptDataEscaped
+            return
+        }
+        if ch.isASCIILetter {
+            resetTag()
+            currentTagIsEnd = true
+            state = .scriptDataEscapedEndTagName
+            reconsume()
+        } else {
+            emitString("</")
+            state = .scriptDataEscaped
+            reconsume()
+        }
+    }
+
+    private func scriptDataEscapedEndTagNameState() {
+        guard let ch = consume() else {
+            emitString("</")
+            emitString(tempBuffer)
+            state = .scriptDataEscaped
+            return
+        }
+
+        switch ch {
+        case "\t", "\n", "\u{0C}", " ":
+            if tempBuffer.lowercased() == lastStartTagName.lowercased() {
+                state = .beforeAttributeName
+            } else {
+                emitString("</")
+                emitString(tempBuffer)
+                state = .scriptDataEscaped
+                reconsume()
+            }
+        case "/":
+            if tempBuffer.lowercased() == lastStartTagName.lowercased() {
+                state = .selfClosingStartTag
+            } else {
+                emitString("</")
+                emitString(tempBuffer)
+                state = .scriptDataEscaped
+                reconsume()
+            }
+        case ">":
+            if tempBuffer.lowercased() == lastStartTagName.lowercased() {
+                currentTagName = tempBuffer.lowercased()
+                state = .data
+                emitCurrentTag()
+            } else {
+                emitString("</")
+                emitString(tempBuffer)
+                state = .scriptDataEscaped
+                reconsume()
+            }
+        default:
+            if ch.isASCIILetter {
+                currentTagName.append(ch.asLowercaseCharacter)
+                tempBuffer.append(ch)
+            } else {
+                emitString("</")
+                emitString(tempBuffer)
+                state = .scriptDataEscaped
+                reconsume()
+            }
+        }
+    }
+
+    private func scriptDataDoubleEscapeStartState() {
+        guard let ch = consume() else {
+            state = .scriptDataEscaped
+            return
+        }
+        switch ch {
+        case "\t", "\n", "\u{0C}", " ", "/", ">":
+            if tempBuffer.lowercased() == "script" {
+                state = .scriptDataDoubleEscaped
+            } else {
+                state = .scriptDataEscaped
+            }
+            emitChar(ch)
+        default:
+            if ch.isASCIILetter {
+                tempBuffer.append(ch)
+                emitChar(ch)
+            } else {
+                state = .scriptDataEscaped
+                reconsume()
+            }
+        }
+    }
+
+    private func scriptDataDoubleEscapedState() {
+        guard let ch = consume() else {
+            emitError("eof-in-script-html-comment-like-text")
+            emit(.eof)
+            return
+        }
+        switch ch {
+        case "-":
+            state = .scriptDataDoubleEscapedDash
+            emitChar("-")
+        case "<":
+            state = .scriptDataDoubleEscapedLessThan
+            emitChar("<")
+        case "\0":
+            emitError("unexpected-null-character")
+            emitChar("\u{FFFD}")
+        default:
+            emitChar(ch)
+        }
+    }
+
+    private func scriptDataDoubleEscapedDashState() {
+        guard let ch = consume() else {
+            emitError("eof-in-script-html-comment-like-text")
+            emit(.eof)
+            return
+        }
+        switch ch {
+        case "-":
+            state = .scriptDataDoubleEscapedDashDash
+            emitChar("-")
+        case "<":
+            state = .scriptDataDoubleEscapedLessThan
+            emitChar("<")
+        case "\0":
+            emitError("unexpected-null-character")
+            state = .scriptDataDoubleEscaped
+            emitChar("\u{FFFD}")
+        default:
+            state = .scriptDataDoubleEscaped
+            emitChar(ch)
+        }
+    }
+
+    private func scriptDataDoubleEscapedDashDashState() {
+        guard let ch = consume() else {
+            emitError("eof-in-script-html-comment-like-text")
+            emit(.eof)
+            return
+        }
+        switch ch {
+        case "-":
+            emitChar("-")
+        case "<":
+            state = .scriptDataDoubleEscapedLessThan
+            emitChar("<")
+        case ">":
+            state = .scriptData
+            emitChar(">")
+        case "\0":
+            emitError("unexpected-null-character")
+            state = .scriptDataDoubleEscaped
+            emitChar("\u{FFFD}")
+        default:
+            state = .scriptDataDoubleEscaped
+            emitChar(ch)
+        }
+    }
+
+    private func scriptDataDoubleEscapedLessThanState() {
+        guard let ch = consume() else {
+            state = .scriptDataDoubleEscaped
+            return
+        }
+        if ch == "/" {
+            tempBuffer = ""
+            state = .scriptDataDoubleEscapeEnd
+            emitChar("/")
+        } else {
+            state = .scriptDataDoubleEscaped
+            reconsume()
+        }
+    }
+
+    private func scriptDataDoubleEscapeEndState() {
+        guard let ch = consume() else {
+            state = .scriptDataDoubleEscaped
+            return
+        }
+        switch ch {
+        case "\t", "\n", "\u{0C}", " ", "/", ">":
+            if tempBuffer.lowercased() == "script" {
+                state = .scriptDataEscaped
+            } else {
+                state = .scriptDataDoubleEscaped
+            }
+            emitChar(ch)
+        default:
+            if ch.isASCIILetter {
+                tempBuffer.append(ch)
+                emitChar(ch)
+            } else {
+                state = .scriptDataDoubleEscaped
                 reconsume()
             }
         }
