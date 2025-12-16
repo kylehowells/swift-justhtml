@@ -2635,6 +2635,14 @@ public final class TreeBuilder: TokenSink {
     private func processForeignContentStartTag(name: String, attrs: [String: String], selfClosing: Bool) -> Bool {
         let lowercaseName = name.lowercased()
 
+        // In MathML text integration points (mi, mo, mn, ms, mtext), only mglyph and malignmark
+        // stay in MathML - everything else should be processed as HTML
+        if let adjNode = adjustedCurrentNode,
+           adjNode.namespace == .math && Self.mathmlTextIntegrationPoints.contains(adjNode.name),
+           lowercaseName != "mglyph" && lowercaseName != "malignmark" {
+            return false
+        }
+
         // Check for breakout elements
         // font only breaks out if it has color, face, or size attributes
         let isFontBreakout = lowercaseName == "font" &&
