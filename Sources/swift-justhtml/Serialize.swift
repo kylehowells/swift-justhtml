@@ -251,4 +251,345 @@ public enum Serialize {
         }
         return true
     }
+
+    // MARK: - Markdown Serialization
+
+    /// Serialize node to Markdown (GitHub-Flavored Markdown subset)
+    public static func toMarkdown(_ node: Node) -> String {
+        var context = MarkdownContext()
+        collectMarkdown(node, context: &context)
+        return context.output.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private struct MarkdownContext {
+        var output: String = ""
+        var inPreformatted: Bool = false
+        var listStack: [ListInfo] = []
+        var pendingNewlines: Int = 0
+
+        struct ListInfo {
+            var ordered: Bool
+            var index: Int = 1
+        }
+
+        mutating func addText(_ text: String) {
+            if pendingNewlines > 0 && !output.isEmpty {
+                output += String(repeating: "\n", count: pendingNewlines)
+                pendingNewlines = 0
+            }
+            output += text
+        }
+
+        mutating func addNewlines(_ count: Int) {
+            pendingNewlines = max(pendingNewlines, count)
+        }
+
+        mutating func flushNewlines() {
+            if pendingNewlines > 0 && !output.isEmpty {
+                output += String(repeating: "\n", count: pendingNewlines)
+            }
+            pendingNewlines = 0  // Always reset, even if we didn't flush
+        }
+    }
+
+    private static func collectMarkdown(_ node: Node, context: inout MarkdownContext) {
+        switch node.name {
+        case "#document", "#document-fragment":
+            for child in node.children {
+                collectMarkdown(child, context: &context)
+            }
+
+        case "#text":
+            if case .text(let text) = node.data {
+                if context.inPreformatted {
+                    context.addText(text)
+                } else {
+                    // Collapse whitespace
+                    let collapsed = collapseWhitespace(text)
+                    if !collapsed.isEmpty {
+                        context.addText(collapsed)
+                    }
+                }
+            }
+
+        case "#comment":
+            // Comments are ignored in markdown
+            break
+
+        case "!doctype":
+            // Doctype is ignored
+            break
+
+        case "html", "head", "body":
+            for child in node.children {
+                collectMarkdown(child, context: &context)
+            }
+
+        case "title", "style", "script", "noscript", "template":
+            // Skip these elements
+            break
+
+        case "h1", "h2", "h3", "h4", "h5", "h6":
+            let level = Int(String(node.name.dropFirst()))!
+            context.addNewlines(2)
+            context.flushNewlines()
+            context.addText(String(repeating: "#", count: level) + " ")
+            for child in node.children {
+                collectMarkdown(child, context: &context)
+            }
+            context.addNewlines(2)
+
+        case "p":
+            context.addNewlines(2)
+            for child in node.children {
+                collectMarkdown(child, context: &context)
+            }
+            context.addNewlines(2)
+
+        case "br":
+            context.addText("  \n")
+
+        case "hr":
+            context.addNewlines(2)
+            context.flushNewlines()
+            context.addText("---")
+            context.addNewlines(2)
+
+        case "strong", "b":
+            context.addText("**")
+            for child in node.children {
+                collectMarkdown(child, context: &context)
+            }
+            context.addText("**")
+
+        case "em", "i":
+            context.addText("*")
+            for child in node.children {
+                collectMarkdown(child, context: &context)
+            }
+            context.addText("*")
+
+        case "code":
+            if !context.inPreformatted {
+                context.addText("`")
+                for child in node.children {
+                    collectMarkdown(child, context: &context)
+                }
+                context.addText("`")
+            } else {
+                for child in node.children {
+                    collectMarkdown(child, context: &context)
+                }
+            }
+
+        case "pre":
+            context.addNewlines(2)
+            context.flushNewlines()
+            context.addText("```\n")
+            let wasPreformatted = context.inPreformatted
+            context.inPreformatted = true
+            for child in node.children {
+                collectMarkdown(child, context: &context)
+            }
+            context.inPreformatted = wasPreformatted
+            if !context.output.hasSuffix("\n") {
+                context.addText("\n")
+            }
+            context.addText("```")
+            context.addNewlines(2)
+
+        case "blockquote":
+            context.addNewlines(2)
+            // Process children and prefix each line with >
+            var innerContext = MarkdownContext()
+            for child in node.children {
+                collectMarkdown(child, context: &innerContext)
+            }
+            let inner = innerContext.output.trimmingCharacters(in: .whitespacesAndNewlines)
+            let quoted = inner.split(separator: "\n", omittingEmptySubsequences: false)
+                .map { "> \($0)" }
+                .joined(separator: "\n")
+            context.flushNewlines()
+            context.addText(quoted)
+            context.addNewlines(2)
+
+        case "a":
+            let href = node.attrs["href"] ?? ""
+            context.addText("[")
+            for child in node.children {
+                collectMarkdown(child, context: &context)
+            }
+            context.addText("](\(href))")
+
+        case "img":
+            let src = node.attrs["src"] ?? ""
+            let alt = node.attrs["alt"] ?? ""
+            context.addText("![\(alt)](\(src))")
+
+        case "ul":
+            context.addNewlines(2)
+            context.listStack.append(MarkdownContext.ListInfo(ordered: false))
+            for child in node.children {
+                collectMarkdown(child, context: &context)
+            }
+            context.listStack.removeLast()
+            context.addNewlines(2)
+
+        case "ol":
+            context.addNewlines(2)
+            context.listStack.append(MarkdownContext.ListInfo(ordered: true))
+            for child in node.children {
+                collectMarkdown(child, context: &context)
+            }
+            context.listStack.removeLast()
+            context.addNewlines(2)
+
+        case "li":
+            context.addNewlines(1)
+            context.flushNewlines()
+            let indent = String(repeating: "  ", count: max(0, context.listStack.count - 1))
+            if var listInfo = context.listStack.last {
+                if listInfo.ordered {
+                    context.addText("\(indent)\(listInfo.index). ")
+                    listInfo.index += 1
+                    context.listStack[context.listStack.count - 1] = listInfo
+                } else {
+                    context.addText("\(indent)- ")
+                }
+            } else {
+                context.addText("- ")
+            }
+            for child in node.children {
+                collectMarkdown(child, context: &context)
+            }
+
+        case "table":
+            context.addNewlines(2)
+            convertTable(node, context: &context)
+            context.addNewlines(2)
+
+        case "div", "section", "article", "main", "header", "footer", "nav", "aside":
+            context.addNewlines(2)
+            for child in node.children {
+                collectMarkdown(child, context: &context)
+            }
+            context.addNewlines(2)
+
+        case "span":
+            for child in node.children {
+                collectMarkdown(child, context: &context)
+            }
+
+        case "del", "s", "strike":
+            context.addText("~~")
+            for child in node.children {
+                collectMarkdown(child, context: &context)
+            }
+            context.addText("~~")
+
+        default:
+            // Unknown element - just process children
+            for child in node.children {
+                collectMarkdown(child, context: &context)
+            }
+        }
+    }
+
+    private static func collapseWhitespace(_ text: String) -> String {
+        var result = ""
+        var lastWasWhitespace = false
+        for ch in text {
+            if ch.isWhitespace {
+                if !lastWasWhitespace && !result.isEmpty {
+                    result.append(" ")
+                    lastWasWhitespace = true
+                }
+            } else {
+                result.append(ch)
+                lastWasWhitespace = false
+            }
+        }
+        return result
+    }
+
+    private static func convertTable(_ table: Node, context: inout MarkdownContext) {
+        var rows: [[String]] = []
+
+        // Find rows (handle thead, tbody, tr directly under table)
+        func findRows(_ node: Node) {
+            for child in node.children {
+                if child.name == "tr" {
+                    var cells: [String] = []
+                    for cell in child.children {
+                        if cell.name == "td" || cell.name == "th" {
+                            var cellContext = MarkdownContext()
+                            for cellChild in cell.children {
+                                collectMarkdown(cellChild, context: &cellContext)
+                            }
+                            cells.append(cellContext.output.trimmingCharacters(in: .whitespacesAndNewlines))
+                        }
+                    }
+                    if !cells.isEmpty {
+                        rows.append(cells)
+                    }
+                } else if child.name == "thead" || child.name == "tbody" || child.name == "tfoot" {
+                    findRows(child)
+                }
+            }
+        }
+
+        findRows(table)
+
+        guard !rows.isEmpty else { return }
+
+        // Determine column count
+        let columnCount = rows.map { $0.count }.max() ?? 0
+        guard columnCount > 0 else { return }
+
+        // Normalize rows to have same column count
+        let normalizedRows = rows.map { row -> [String] in
+            var r = row
+            while r.count < columnCount {
+                r.append("")
+            }
+            return r
+        }
+
+        // Calculate column widths
+        var colWidths = Array(repeating: 3, count: columnCount)  // minimum width of 3 for ---
+        for row in normalizedRows {
+            for (i, cell) in row.enumerated() {
+                colWidths[i] = max(colWidths[i], cell.count)
+            }
+        }
+
+        context.flushNewlines()
+
+        // Output header row (first row)
+        let headerRow = normalizedRows[0]
+        context.addText("| ")
+        context.addText(headerRow.enumerated().map { (i, cell) in
+            cell.padding(toLength: colWidths[i], withPad: " ", startingAt: 0)
+        }.joined(separator: " | "))
+        context.addText(" |")
+        context.addNewlines(1)
+        context.flushNewlines()
+
+        // Output separator row
+        context.addText("| ")
+        context.addText(colWidths.map { String(repeating: "-", count: $0) }.joined(separator: " | "))
+        context.addText(" |")
+        context.addNewlines(1)
+
+        // Output data rows
+        for row in normalizedRows.dropFirst() {
+            context.flushNewlines()
+            context.addText("| ")
+            context.addText(row.enumerated().map { (i, cell) in
+                cell.padding(toLength: colWidths[i], withPad: " ", startingAt: 0)
+            }.joined(separator: " | "))
+            context.addText(" |")
+            context.addNewlines(1)
+        }
+    }
 }

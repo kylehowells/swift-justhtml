@@ -152,8 +152,7 @@ public struct JustHTML {
     /// - Parameter selector: The CSS selector
     /// - Returns: Array of matching nodes
     public func query(_ selector: String) throws -> [Node] {
-        // TODO: Implement selector matching
-        return []
+        return try swift_justhtml.query(root, selector: selector)
     }
 
     /// Serialize the document to HTML
@@ -178,5 +177,11 @@ public struct JustHTML {
     /// - Returns: Test format string
     public func toTestFormat() -> String {
         return root.toTestFormat()
+    }
+
+    /// Convert to Markdown (GitHub-Flavored Markdown subset)
+    /// - Returns: Markdown string
+    public func toMarkdown() -> String {
+        return root.toMarkdown()
     }
 }

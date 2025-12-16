@@ -168,4 +168,14 @@ public final class Node {
     public func toTestFormat() -> String {
         return Serialize.toTestFormat(self)
     }
+
+    /// Serialize to Markdown (GitHub-Flavored Markdown subset)
+    public func toMarkdown() -> String {
+        return Serialize.toMarkdown(self)
+    }
+
+    /// Query using CSS selector
+    public func query(_ selector: String) throws -> [Node] {
+        return try swift_justhtml.query(self, selector: selector)
+    }
 }
