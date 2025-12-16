@@ -931,19 +931,26 @@ public final class TreeBuilder: TokenSink {
             reconstructActiveFormattingElements()
             let element = insertElement(name: name, attrs: attrs)
             pushFormattingElement(element)
-        } else if FORMATTING_ELEMENTS.contains(name) {
+        } else if name == "nobr" {
+            // Special handling for nobr - must check scope BEFORE other formatting elements logic
+            if hasElementInScope("nobr") {
+                emitError("unexpected-start-tag-implies-end-tag")
+                // Run adoption agency to close the existing nobr
+                adoptionAgency(name: "nobr")
+                // Explicitly remove nobr from active formatting and open elements
+                for i in stride(from: activeFormattingElements.count - 1, through: 0, by: -1) {
+                    if let elem = activeFormattingElements[i], elem.name == "nobr" {
+                        activeFormattingElements.remove(at: i)
+                        openElements.removeAll { $0 === elem }
+                        break
+                    }
+                }
+            }
             reconstructActiveFormattingElements()
             let element = insertElement(name: name, attrs: attrs)
             pushFormattingElement(element)
-        } else if name == "nobr" {
+        } else if FORMATTING_ELEMENTS.contains(name) {
             reconstructActiveFormattingElements()
-            if hasElementInScope("nobr") {
-                emitError("unexpected-start-tag")
-                // Run adoption agency to close the existing nobr
-                adoptionAgency(name: "nobr")
-                // Reconstruct active formatting elements again
-                reconstructActiveFormattingElements()
-            }
             let element = insertElement(name: name, attrs: attrs)
             pushFormattingElement(element)
         } else if ["applet", "marquee", "object"].contains(name) {
