@@ -494,3 +494,8 @@ func runTreeConstructionTests(files: [String]? = nil, showFailures: Bool = false
     #expect(totalPassed + totalFailed + totalSkipped > 0)
 }
 
+@Test func debugFailures() async throws {
+    let (_, _, _, results) = runTreeConstructionTests(files: ["tests11.dat"], showFailures: true)
+    print("Failures: \(results.filter { !$0.passed }.count)")
+}
+

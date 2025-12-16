@@ -670,15 +670,15 @@ public final class TreeBuilder: TokenSink {
             _ = insertElement(name: name, attrs: attrs)
         } else if name == "math" {
             reconstructActiveFormattingElements()
-            // TODO: adjust math attributes
-            let element = insertElement(name: name, namespace: .math, attrs: attrs)
+            let adjustedAttrs = adjustForeignAttributes(attrs, namespace: .math)
+            let element = insertElement(name: name, namespace: .math, attrs: adjustedAttrs)
             if selfClosing {
                 popCurrentElement()
             }
         } else if name == "svg" {
             reconstructActiveFormattingElements()
-            // TODO: adjust svg attributes
-            let element = insertElement(name: name, namespace: .svg, attrs: attrs)
+            let adjustedAttrs = adjustForeignAttributes(attrs, namespace: .svg)
+            let element = insertElement(name: name, namespace: .svg, attrs: adjustedAttrs)
             if selfClosing {
                 popCurrentElement()
             }
@@ -1022,6 +1022,32 @@ public final class TreeBuilder: TokenSink {
         return Node(name: name, namespace: namespace, attrs: attrs)
     }
 
+    /// Adjust attributes for foreign content (SVG/MathML)
+    private func adjustForeignAttributes(_ attrs: [String: String], namespace: Namespace) -> [String: String] {
+        var adjusted: [String: String] = [:]
+        for (name, value) in attrs {
+            let lowercaseName = name.lowercased()
+            var adjustedName = name
+
+            // SVG attribute adjustments
+            if namespace == .svg {
+                if let svgAdjusted = SVG_ATTRIBUTE_ADJUSTMENTS[lowercaseName] {
+                    adjustedName = svgAdjusted
+                }
+            }
+
+            // MathML attribute adjustments
+            if namespace == .math {
+                if let mathAdjusted = MATHML_ATTRIBUTE_ADJUSTMENTS[lowercaseName] {
+                    adjustedName = mathAdjusted
+                }
+            }
+
+            adjusted[adjustedName] = value
+        }
+        return adjusted
+    }
+
     @discardableResult
     private func insertElement(name: String, namespace: Namespace = .html, attrs: [String: String]) -> Node {
         let element = createElement(name: name, namespace: namespace, attrs: attrs)
@@ -1290,7 +1316,8 @@ public final class TreeBuilder: TokenSink {
             adjustedName = SVG_ELEMENT_ADJUSTMENTS[lowercaseName] ?? name
         }
 
-        _ = insertElement(name: adjustedName, namespace: ns, attrs: attrs)
+        let adjustedAttrs = adjustForeignAttributes(attrs, namespace: ns)
+        _ = insertElement(name: adjustedName, namespace: ns, attrs: adjustedAttrs)
 
         if selfClosing {
             popCurrentElement()
