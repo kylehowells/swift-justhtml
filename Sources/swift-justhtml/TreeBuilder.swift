@@ -644,7 +644,9 @@ public final class TreeBuilder: TokenSink {
                 } else {
                     // Foster parenting - insert in body instead
                     emitError("unexpected-start-tag-in-table")
+                    fosterParentingEnabled = true
                     processStartTagInBody(name: name, attrs: attrs, selfClosing: selfClosing)
+                    fosterParentingEnabled = false
                 }
             } else if name == "form" {
                 emitError("unexpected-start-tag-in-table")
@@ -1158,7 +1160,14 @@ public final class TreeBuilder: TokenSink {
             reconstructActiveFormattingElements()
             _ = insertElement(name: name, attrs: attrs)
             framesetOk = false
-            insertionMode = .inSelect
+            // Check if we're in a table context
+            if insertionMode == .inTable || insertionMode == .inTableBody ||
+               insertionMode == .inRow || insertionMode == .inCell ||
+               insertionMode == .inCaption {
+                insertionMode = .inSelectInTable
+            } else {
+                insertionMode = .inSelect
+            }
         } else if ["optgroup", "option"].contains(name) {
             if currentNode?.name == "option" {
                 popCurrentElement()
