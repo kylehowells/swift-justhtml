@@ -495,9 +495,9 @@ func runTreeConstructionTests(files: [String]? = nil, showFailures: Bool = false
 }
 
 @Test func debugFailures() async throws {
-    let (_, _, _, results) = runTreeConstructionTests(files: ["tricky01.dat"], showFailures: true)
+    let (_, _, _, results) = runTreeConstructionTests(files: ["webkit02.dat"], showFailures: true)
     let failures = results.filter { !$0.passed }
-    print("\nTotal failures in tricky01.dat: \(failures.count)")
+    print("\nTotal failures in webkit02.dat: \(failures.count)")
     for f in failures {
         print("\n[\(f.file):\(f.index)]")
         print("INPUT: \(f.input.replacingOccurrences(of: "\n", with: "\\n"))")

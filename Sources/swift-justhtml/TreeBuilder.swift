@@ -1013,6 +1013,12 @@ public final class TreeBuilder: TokenSink {
                 if selfClosing {
                     popCurrentElement()
                 }
+            } else if Self.foreignContentBreakoutElements.contains(name.lowercased()) ||
+                      name.lowercased() == "button" || name.lowercased() == "datalist" {
+                // Breakout elements that came from foreign content should be inserted
+                // Also button and datalist are allowed inside select
+                emitError("unexpected-start-tag-in-select")
+                _ = insertElement(name: name, attrs: attrs)
             } else {
                 emitError("unexpected-start-tag-in-select")
             }
@@ -1672,6 +1678,20 @@ public final class TreeBuilder: TokenSink {
                 resetInsertionMode()
             } else if name == "template" {
                 processEndTagInBody(name: name)
+            } else if Self.foreignContentBreakoutElements.contains(name.lowercased()) ||
+                      name.lowercased() == "button" || name.lowercased() == "datalist" {
+                // Handle end tags for elements we inserted in select
+                emitError("unexpected-end-tag")
+                if openElements.contains(where: { $0.name == name.lowercased() }) {
+                    // Pop until we find the element
+                    while let current = currentNode, current.name != name.lowercased() {
+                        popCurrentElement()
+                        if openElements.isEmpty { break }
+                    }
+                    if let current = currentNode, current.name == name.lowercased() {
+                        popCurrentElement()
+                    }
+                }
             } else {
                 emitError("unexpected-end-tag")
             }
@@ -2614,8 +2634,12 @@ public final class TreeBuilder: TokenSink {
                 parent.removeChild(lastNode)
             }
             // Insert into common ancestor (or its template content if template)
+            // But if foster parenting is enabled and common ancestor is a table element,
+            // use foster parenting instead
             if commonAncestor.name == "template", let content = commonAncestor.templateContent {
                 content.appendChild(lastNode)
+            } else if fosterParentingEnabled && ["table", "tbody", "tfoot", "thead", "tr"].contains(commonAncestor.name) {
+                fosterParentNode(lastNode)
             } else {
                 commonAncestor.appendChild(lastNode)
             }
