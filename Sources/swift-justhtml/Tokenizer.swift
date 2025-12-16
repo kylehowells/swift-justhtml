@@ -5,7 +5,18 @@ import Foundation
 /// Protocol for receiving tokens from the tokenizer
 public protocol TokenSink: AnyObject {
     func processToken(_ token: Token)
+    /// Current element's namespace (for rawtext state switching)
+    var currentNamespace: Namespace? { get }
 }
+
+/// RCDATA elements that switch tokenizer to RCDATA state
+private let RCDATA_ELEMENTS: Set<String> = ["title", "textarea"]
+
+/// RAWTEXT elements that switch tokenizer to RAWTEXT state
+private let RAWTEXT_ELEMENTS: Set<String> = ["style", "xmp", "iframe", "noembed", "noframes"]
+
+/// Script element needs SCRIPT DATA state
+private let SCRIPT_ELEMENT = "script"
 
 /// Tokenizer options
 public struct TokenizerOpts {
@@ -126,6 +137,10 @@ public final class Tokenizer {
     // Temporary buffer for rawtext/rcdata end tag matching
     private var tempBuffer: String = ""
     private var lastStartTagName: String = ""
+
+    // Character reference state
+    private var charRefCode: UInt32 = 0
+    private var charRefTempBuffer: String = ""
 
     // Error collection
     public var errors: [ParseError] = []
@@ -256,9 +271,33 @@ public final class Tokenizer {
             afterDoctypeSystemIdentifierState()
         case .bogusDoctype:
             bogusDoctypeState()
-        default:
-            // For unimplemented states, just consume and move on
-            _ = consume()
+        case .characterReference:
+            characterReferenceState()
+        case .namedCharacterReference:
+            namedCharacterReferenceState()
+        case .ambiguousAmpersand:
+            ambiguousAmpersandState()
+        case .numericCharacterReference:
+            numericCharacterReferenceState()
+        case .hexadecimalCharacterReferenceStart:
+            hexadecimalCharacterReferenceStartState()
+        case .decimalCharacterReferenceStart:
+            decimalCharacterReferenceStartState()
+        case .hexadecimalCharacterReference:
+            hexadecimalCharacterReferenceState()
+        case .decimalCharacterReference:
+            decimalCharacterReferenceState()
+        case .numericCharacterReferenceEnd:
+            numericCharacterReferenceEndState()
+        case .cdataSection:
+            cdataSectionState()
+        case .cdataSectionBracket:
+            cdataSectionBracketState()
+        case .cdataSectionEnd:
+            cdataSectionEndState()
+        case .scriptDataLessThan, .scriptDataEndTagOpen, .scriptDataEndTagName, .scriptData:
+            // For now, treat script data like rawtext
+            rawtextState()
         }
     }
 
@@ -355,6 +394,20 @@ public final class Tokenizer {
         } else {
             sink?.processToken(.startTag(name: currentTagName, attrs: currentAttrs, selfClosing: currentTagSelfClosing))
             lastStartTagName = currentTagName
+
+            // Switch to appropriate state for special elements (only in HTML namespace)
+            let ns = sink?.currentNamespace
+            if ns == nil || ns == .html {
+                if RCDATA_ELEMENTS.contains(currentTagName) {
+                    state = .rcdata
+                } else if RAWTEXT_ELEMENTS.contains(currentTagName) {
+                    state = .rawtext
+                } else if currentTagName == SCRIPT_ELEMENT {
+                    state = .scriptData
+                } else if currentTagName == "plaintext" {
+                    state = .plaintext
+                }
+            }
         }
         resetTag()
     }
@@ -932,10 +985,16 @@ public final class Tokenizer {
         } else if consumeIf("DOCTYPE", caseInsensitive: true) {
             state = .doctype
         } else if consumeIf("[CDATA[", caseInsensitive: false) {
-            // For now, treat CDATA as bogus comment in HTML
-            emitError("cdata-in-html-content")
-            currentComment = "[CDATA["
-            state = .bogusComment
+            // CDATA is only valid in foreign content (SVG/MathML)
+            if let ns = sink?.currentNamespace, ns == .svg || ns == .math {
+                // In foreign content - process as CDATA section
+                state = .cdataSection
+            } else {
+                // In HTML - treat as bogus comment
+                emitError("cdata-in-html-content")
+                currentComment = "[CDATA["
+                state = .bogusComment
+            }
         } else {
             emitError("incorrectly-opened-comment")
             currentComment = ""
@@ -1463,6 +1522,349 @@ public final class Tokenizer {
             break
         }
     }
+
+    // MARK: - Character Reference States
+
+    private var isInAttribute: Bool {
+        return returnState == .attributeValueDoubleQuoted ||
+               returnState == .attributeValueSingleQuoted ||
+               returnState == .attributeValueUnquoted
+    }
+
+    private func flushCharRefTempBuffer() {
+        if isInAttribute {
+            currentAttrValue.append(charRefTempBuffer)
+        } else {
+            emitString(charRefTempBuffer)
+        }
+        charRefTempBuffer = ""
+    }
+
+    private func emitCharRefChar(_ ch: Character) {
+        if isInAttribute {
+            currentAttrValue.append(ch)
+        } else {
+            emitChar(ch)
+        }
+    }
+
+    private func emitCharRefString(_ s: String) {
+        if isInAttribute {
+            currentAttrValue.append(s)
+        } else {
+            emitString(s)
+        }
+    }
+
+    private func characterReferenceState() {
+        charRefTempBuffer = "&"
+
+        guard let ch = consume() else {
+            flushCharRefTempBuffer()
+            state = returnState
+            return
+        }
+
+        if ch.isASCIILetter || ch.isASCIIDigit {
+            state = .namedCharacterReference
+            reconsume()
+        } else if ch == "#" {
+            charRefTempBuffer.append(ch)
+            state = .numericCharacterReference
+        } else {
+            flushCharRefTempBuffer()
+            state = returnState
+            reconsume()
+        }
+    }
+
+    private func namedCharacterReferenceState() {
+        // Collect alphanumeric characters
+        var entityName = ""
+        var matchedEntity: String? = nil
+        var matchedLength = 0
+        var consumed = 0
+
+        while let ch = peek() {
+            if ch.isASCIILetter || ch.isASCIIDigit {
+                entityName.append(ch)
+                _ = consume()
+                consumed += 1
+
+                // Check for match
+                if let decoded = NAMED_ENTITIES[entityName] {
+                    matchedEntity = decoded
+                    matchedLength = consumed
+                }
+            } else {
+                break
+            }
+        }
+
+        // Check for semicolon
+        let hasSemicolon = peek() == ";"
+        if hasSemicolon && matchedEntity != nil {
+            _ = consume()  // consume the semicolon
+            emitCharRefString(matchedEntity!)
+            state = returnState
+            return
+        }
+
+        // Try to use the longest match
+        if let match = matchedEntity {
+            // In attributes, legacy entities without semicolon followed by alphanumeric or = are not decoded
+            if isInAttribute {
+                let nextChar = peek()
+                if nextChar != nil && (nextChar!.isASCIILetter || nextChar!.isASCIIDigit || nextChar! == "=") {
+                    // Don't decode - emit as is
+                    flushCharRefTempBuffer()
+                    emitCharRefString(entityName)
+                    state = returnState
+                    return
+                }
+            }
+
+            // Check if this is a legacy entity
+            let matchedName = String(entityName.prefix(matchedLength))
+            if LEGACY_ENTITIES.contains(matchedName) {
+                // Unconsume the extra characters
+                for _ in 0..<(consumed - matchedLength) {
+                    reconsume()
+                }
+                if !hasSemicolon {
+                    emitError("missing-semicolon-after-character-reference")
+                }
+                emitCharRefString(match)
+                state = returnState
+                return
+            }
+        }
+
+        // No match - emit everything as text
+        flushCharRefTempBuffer()
+        // Put back all consumed characters except the first (which is in tempBuffer)
+        for _ in 0..<consumed {
+            reconsume()
+        }
+        state = .ambiguousAmpersand
+    }
+
+    private func ambiguousAmpersandState() {
+        guard let ch = consume() else {
+            state = returnState
+            return
+        }
+
+        if ch.isASCIILetter || ch.isASCIIDigit {
+            if isInAttribute {
+                currentAttrValue.append(ch)
+            } else {
+                emitChar(ch)
+            }
+        } else if ch == ";" {
+            emitError("unknown-named-character-reference")
+            state = returnState
+            reconsume()
+        } else {
+            state = returnState
+            reconsume()
+        }
+    }
+
+    private func numericCharacterReferenceState() {
+        charRefCode = 0
+
+        guard let ch = consume() else {
+            state = .decimalCharacterReferenceStart
+            reconsume()
+            return
+        }
+
+        if ch == "x" || ch == "X" {
+            charRefTempBuffer.append(ch)
+            state = .hexadecimalCharacterReferenceStart
+        } else {
+            state = .decimalCharacterReferenceStart
+            reconsume()
+        }
+    }
+
+    private func hexadecimalCharacterReferenceStartState() {
+        guard let ch = consume() else {
+            emitError("absence-of-digits-in-numeric-character-reference")
+            flushCharRefTempBuffer()
+            state = returnState
+            return
+        }
+
+        if ch.isHexDigit {
+            state = .hexadecimalCharacterReference
+            reconsume()
+        } else {
+            emitError("absence-of-digits-in-numeric-character-reference")
+            flushCharRefTempBuffer()
+            state = returnState
+            reconsume()
+        }
+    }
+
+    private func decimalCharacterReferenceStartState() {
+        guard let ch = consume() else {
+            emitError("absence-of-digits-in-numeric-character-reference")
+            flushCharRefTempBuffer()
+            state = returnState
+            return
+        }
+
+        if ch.isASCIIDigit {
+            state = .decimalCharacterReference
+            reconsume()
+        } else {
+            emitError("absence-of-digits-in-numeric-character-reference")
+            flushCharRefTempBuffer()
+            state = returnState
+            reconsume()
+        }
+    }
+
+    private func hexadecimalCharacterReferenceState() {
+        guard let ch = consume() else {
+            state = .numericCharacterReferenceEnd
+            return
+        }
+
+        if ch.isASCIIDigit {
+            charRefCode = charRefCode &* 16 &+ UInt32(ch.asciiValue! - 0x30)
+        } else if ch >= "A" && ch <= "F" {
+            charRefCode = charRefCode &* 16 &+ UInt32(ch.asciiValue! - 0x37)
+        } else if ch >= "a" && ch <= "f" {
+            charRefCode = charRefCode &* 16 &+ UInt32(ch.asciiValue! - 0x57)
+        } else if ch == ";" {
+            state = .numericCharacterReferenceEnd
+        } else {
+            emitError("missing-semicolon-after-character-reference")
+            state = .numericCharacterReferenceEnd
+            reconsume()
+        }
+    }
+
+    private func decimalCharacterReferenceState() {
+        guard let ch = consume() else {
+            state = .numericCharacterReferenceEnd
+            return
+        }
+
+        if ch.isASCIIDigit {
+            charRefCode = charRefCode &* 10 &+ UInt32(ch.asciiValue! - 0x30)
+        } else if ch == ";" {
+            state = .numericCharacterReferenceEnd
+        } else {
+            emitError("missing-semicolon-after-character-reference")
+            state = .numericCharacterReferenceEnd
+            reconsume()
+        }
+    }
+
+    private func numericCharacterReferenceEndState() {
+        // Apply replacements and validation per spec
+        let decoded = decodeNumericEntity(String(charRefCode, radix: 10), isHex: false)
+
+        // Check for various error conditions
+        if charRefCode == 0 {
+            emitError("null-character-reference")
+        } else if charRefCode > 0x10FFFF {
+            emitError("character-reference-outside-unicode-range")
+        } else if charRefCode >= 0xD800 && charRefCode <= 0xDFFF {
+            emitError("surrogate-character-reference")
+        } else if (charRefCode >= 0xFDD0 && charRefCode <= 0xFDEF) ||
+                  (charRefCode & 0xFFFF) == 0xFFFE ||
+                  (charRefCode & 0xFFFF) == 0xFFFF {
+            emitError("noncharacter-character-reference")
+        } else if charRefCode < 0x20 && charRefCode != 0x09 && charRefCode != 0x0A && charRefCode != 0x0C ||
+                  (charRefCode >= 0x7F && charRefCode <= 0x9F) {
+            emitError("control-character-reference")
+        }
+
+        // Decode the code point (with possible replacement)
+        let result: String
+        if charRefCode == 0 {
+            result = "\u{FFFD}"
+        } else if charRefCode > 0x10FFFF {
+            result = "\u{FFFD}"
+        } else if charRefCode >= 0xD800 && charRefCode <= 0xDFFF {
+            result = "\u{FFFD}"
+        } else {
+            // Check for windows-1252 replacements
+            let replacements: [UInt32: UInt32] = [
+                0x80: 0x20AC, 0x82: 0x201A, 0x83: 0x0192, 0x84: 0x201E,
+                0x85: 0x2026, 0x86: 0x2020, 0x87: 0x2021, 0x88: 0x02C6,
+                0x89: 0x2030, 0x8A: 0x0160, 0x8B: 0x2039, 0x8C: 0x0152,
+                0x8E: 0x017D, 0x91: 0x2018, 0x92: 0x2019, 0x93: 0x201C,
+                0x94: 0x201D, 0x95: 0x2022, 0x96: 0x2013, 0x97: 0x2014,
+                0x98: 0x02DC, 0x99: 0x2122, 0x9A: 0x0161, 0x9B: 0x203A,
+                0x9C: 0x0153, 0x9E: 0x017E, 0x9F: 0x0178
+            ]
+            let finalCode = replacements[charRefCode] ?? charRefCode
+            if let scalar = Unicode.Scalar(finalCode) {
+                result = String(Character(scalar))
+            } else {
+                result = "\u{FFFD}"
+            }
+        }
+
+        charRefTempBuffer = ""
+        emitCharRefString(result)
+        state = returnState
+    }
+
+    // MARK: - CDATA States
+
+    private func cdataSectionState() {
+        guard let ch = consume() else {
+            emitError("eof-in-cdata")
+            return
+        }
+
+        if ch == "]" {
+            state = .cdataSectionBracket
+        } else {
+            emitChar(ch)
+        }
+    }
+
+    private func cdataSectionBracketState() {
+        guard let ch = consume() else {
+            emitChar("]")
+            state = .cdataSection
+            return
+        }
+
+        if ch == "]" {
+            state = .cdataSectionEnd
+        } else {
+            emitChar("]")
+            state = .cdataSection
+            reconsume()
+        }
+    }
+
+    private func cdataSectionEndState() {
+        guard let ch = consume() else {
+            emitString("]]")
+            state = .cdataSection
+            return
+        }
+
+        if ch == "]" {
+            emitChar("]")
+        } else if ch == ">" {
+            state = .data
+        } else {
+            emitString("]]")
+            state = .cdataSection
+            reconsume()
+        }
+    }
 }
 
 // MARK: - Character Extensions
@@ -1470,6 +1872,14 @@ public final class Tokenizer {
 extension Character {
     var isASCIILetter: Bool {
         return ("a"..."z").contains(self) || ("A"..."Z").contains(self)
+    }
+
+    var isASCIIDigit: Bool {
+        return ("0"..."9").contains(self)
+    }
+
+    var isHexDigit: Bool {
+        return isASCIIDigit || ("a"..."f").contains(self) || ("A"..."F").contains(self)
     }
 
     var asLowercaseCharacter: Character {

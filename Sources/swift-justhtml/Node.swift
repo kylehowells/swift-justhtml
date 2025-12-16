@@ -155,10 +155,8 @@ public final class Node {
         for child in children {
             child.collectText(into: &parts, strip: strip)
         }
-
-        if let templateContent = templateContent {
-            templateContent.collectText(into: &parts, strip: strip)
-        }
+        // Note: templateContent is intentionally NOT included
+        // Template contents are inert and should not be part of text extraction
     }
 
     /// Serialize to HTML

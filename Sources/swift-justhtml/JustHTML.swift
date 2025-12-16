@@ -47,14 +47,23 @@ public struct JustHTML {
 
         var opts = TokenizerOpts()
 
-        // Handle rawtext fragment contexts
-        if let ctx = fragmentContext, ctx.namespace == nil {
+        // Handle special fragment contexts that affect tokenizer initial state
+        if let ctx = fragmentContext, ctx.namespace == nil || ctx.namespace == .html {
             let tagName = ctx.tagName.lowercased()
-            if ["textarea", "title", "style"].contains(tagName) {
+            switch tagName {
+            case "title", "textarea":
+                opts.initialState = .rcdata
+                opts.initialRawtextTag = tagName
+            case "style", "xmp", "iframe", "noembed", "noframes":
                 opts.initialState = .rawtext
                 opts.initialRawtextTag = tagName
-            } else if tagName == "plaintext" || tagName == "script" {
+            case "script":
+                opts.initialState = .scriptData
+                opts.initialRawtextTag = tagName
+            case "plaintext":
                 opts.initialState = .plaintext
+            default:
+                break
             }
         }
 
@@ -74,7 +83,7 @@ public struct JustHTML {
     /// Initialize with raw bytes (auto-detects encoding)
     /// - Parameters:
     ///   - data: The raw bytes to parse
-    ///   - encoding: Optional transport-layer encoding override
+    ///   - transportEncoding: Optional transport-layer encoding override (e.g., from HTTP headers)
     ///   - fragmentContext: Optional fragment context for parsing fragments
     ///   - collectErrors: Whether to collect parse errors
     ///   - strict: Whether to throw on first parse error
@@ -83,24 +92,60 @@ public struct JustHTML {
     /// - Throws: StrictModeError if strict mode is enabled and a parse error occurs
     public init(
         data: Data,
-        encoding: String? = nil,
+        transportEncoding: String? = nil,
         fragmentContext: FragmentContext? = nil,
         collectErrors: Bool = false,
         strict: Bool = false,
         scripting: Bool = false,
         iframeSrcdoc: Bool = false
     ) throws {
-        // TODO: Implement proper encoding detection
-        // For now, assume UTF-8
-        let html = String(data: data, encoding: .utf8) ?? ""
-        try self.init(
-            html,
+        let (html, detectedEncoding) = decodeHTML(data, transportEncoding: transportEncoding)
+
+        self.fragmentContext = fragmentContext
+        self.encoding = detectedEncoding
+
+        let shouldCollect = collectErrors || strict
+
+        let treeBuilder = TreeBuilder(
             fragmentContext: fragmentContext,
-            collectErrors: collectErrors,
-            strict: strict,
-            scripting: scripting,
-            iframeSrcdoc: iframeSrcdoc
+            iframeSrcdoc: iframeSrcdoc,
+            collectErrors: shouldCollect,
+            scripting: scripting
         )
+
+        var opts = TokenizerOpts()
+
+        // Handle special fragment contexts that affect tokenizer initial state
+        if let ctx = fragmentContext, ctx.namespace == nil || ctx.namespace == .html {
+            let tagName = ctx.tagName.lowercased()
+            switch tagName {
+            case "title", "textarea":
+                opts.initialState = .rcdata
+                opts.initialRawtextTag = tagName
+            case "style", "xmp", "iframe", "noembed", "noframes":
+                opts.initialState = .rawtext
+                opts.initialRawtextTag = tagName
+            case "script":
+                opts.initialState = .scriptData
+                opts.initialRawtextTag = tagName
+            case "plaintext":
+                opts.initialState = .plaintext
+            default:
+                break
+            }
+        }
+
+        let tokenizer = Tokenizer(treeBuilder, opts: opts, collectErrors: shouldCollect)
+        treeBuilder.tokenizer = tokenizer
+
+        tokenizer.run(html)
+
+        self.root = treeBuilder.finish()
+        self.errors = tokenizer.errors + treeBuilder.errors
+
+        if strict && !errors.isEmpty {
+            throw StrictModeError(errors[0])
+        }
     }
 
     // MARK: - Convenience Methods

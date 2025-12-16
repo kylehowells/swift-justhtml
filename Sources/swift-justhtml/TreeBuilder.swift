@@ -84,6 +84,12 @@ public final class TreeBuilder: TokenSink {
     // Reference to tokenizer for switching states
     public weak var tokenizer: Tokenizer?
 
+    /// Current namespace of the current element (for tokenizer state switching)
+    public var currentNamespace: Namespace? {
+        guard let currentNode = openElements.last else { return nil }
+        return currentNode.namespace
+    }
+
     public init(
         fragmentContext: FragmentContext? = nil,
         iframeSrcdoc: Bool = false,
@@ -103,12 +109,56 @@ public final class TreeBuilder: TokenSink {
 
         // Set up fragment parsing context
         if let ctx = fragmentContext {
-            // Create context element
+            // Create context element (virtual, not part of the tree)
             let ctxElement = Node(name: ctx.tagName, namespace: ctx.namespace ?? .html)
             self.contextElement = ctxElement
 
-            // Reset insertion mode appropriately
-            resetInsertionMode()
+            // For template context, push inTemplate onto template insertion modes
+            if ctx.tagName == "template" {
+                templateInsertionModes.append(.inTemplate)
+            }
+
+            // Reset insertion mode based on context element
+            // Note: openElements is empty, so resetInsertionMode will fall through
+            // and use the context element at the "last" position
+            resetInsertionModeForFragment()
+        }
+    }
+
+    /// Reset insertion mode specifically for fragment parsing (empty open elements stack)
+    private func resetInsertionModeForFragment() {
+        guard let ctx = contextElement else {
+            insertionMode = .inBody
+            return
+        }
+
+        switch ctx.name {
+        case "select":
+            insertionMode = .inSelect
+        case "td", "th":
+            insertionMode = .inBody  // For fragment parsing, treat as inBody
+        case "tr":
+            insertionMode = .inRow
+        case "tbody", "thead", "tfoot":
+            insertionMode = .inTableBody
+        case "caption":
+            insertionMode = .inCaption
+        case "colgroup":
+            insertionMode = .inColumnGroup
+        case "table":
+            insertionMode = .inTable
+        case "template":
+            insertionMode = .inTemplate
+        case "head":
+            insertionMode = .inBody  // For fragment parsing, treat as inBody
+        case "body":
+            insertionMode = .inBody
+        case "frameset":
+            insertionMode = .inFrameset
+        case "html":
+            insertionMode = .beforeHead
+        default:
+            insertionMode = .inBody
         }
     }
 
@@ -279,6 +329,14 @@ public final class TreeBuilder: TokenSink {
                 parseRawtext(name: name, attrs: attrs)
             } else if name == "script" {
                 parseRawtext(name: name, attrs: attrs)
+            } else if name == "template" {
+                // Insert template element
+                let element = insertElement(name: name, attrs: attrs)
+                // Create content document fragment
+                element.templateContent = Node(name: "#document-fragment")
+                // Push onto template modes stack
+                templateInsertionModes.append(.inTemplate)
+                insertionMode = .inTemplate
             } else if name == "head" {
                 emitError("unexpected-start-tag")
             } else {
@@ -303,7 +361,11 @@ public final class TreeBuilder: TokenSink {
                 if let head = headElement {
                     openElements.append(head)
                 }
+                // Process using "in head" rules
+                let savedMode = insertionMode
+                insertionMode = .inHead
                 processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
+                insertionMode = savedMode
                 if let idx = openElements.lastIndex(where: { $0 === headElement }) {
                     openElements.remove(at: idx)
                 }
@@ -364,7 +426,11 @@ public final class TreeBuilder: TokenSink {
                 }
             }
         } else if ["base", "basefont", "bgsound", "link", "meta", "noframes", "script", "style", "template", "title"].contains(name) {
+            // Process using "in head" rules
+            let savedMode = insertionMode
+            insertionMode = .inHead
             processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
+            insertionMode = savedMode
         } else if name == "body" {
             emitError("unexpected-start-tag")
             if openElements.count >= 2, openElements[1].name == "body" {
@@ -735,6 +801,37 @@ public final class TreeBuilder: TokenSink {
             _ = insertElement(name: "br", attrs: [:])
             popCurrentElement()
             framesetOk = false
+        } else if name == "template" {
+            // Handle template end tag
+            if !hasElementInScope("template") {
+                emitError("unexpected-end-tag")
+                return
+            }
+            generateImpliedEndTags()
+            if currentNode?.name != "template" {
+                emitError("end-tag-too-early")
+            }
+            // Pop elements until template
+            while let current = currentNode {
+                let name = current.name
+                popCurrentElement()
+                if name == "template" {
+                    break
+                }
+            }
+            // Clear active formatting elements to last marker
+            while let last = activeFormattingElements.last {
+                activeFormattingElements.removeLast()
+                if last == nil {  // marker
+                    break
+                }
+            }
+            // Pop template insertion mode
+            if !templateInsertionModes.isEmpty {
+                templateInsertionModes.removeLast()
+            }
+            // Reset insertion mode
+            resetInsertionMode()
         } else {
             // Any other end tag
             anyOtherEndTag(name: name)
@@ -820,6 +917,16 @@ public final class TreeBuilder: TokenSink {
         openElements.last
     }
 
+    /// Returns the adjusted insertion target, redirecting to templateContent for template elements
+    private var adjustedInsertionTarget: Node {
+        guard let current = currentNode else { return document }
+        // If current node is a template, insert into its content document fragment
+        if current.name == "template", let content = current.templateContent {
+            return content
+        }
+        return current
+    }
+
     private func createElement(name: String, namespace: Namespace = .html, attrs: [String: String]) -> Node {
         return Node(name: name, namespace: namespace, attrs: attrs)
     }
@@ -833,20 +940,11 @@ public final class TreeBuilder: TokenSink {
     }
 
     private func insertNode(_ node: Node) {
-        if let current = currentNode {
-            current.appendChild(node)
-        } else {
-            document.appendChild(node)
-        }
+        adjustedInsertionTarget.appendChild(node)
     }
 
     private func insertCharacter(_ ch: Character) {
-        let target: Node
-        if let current = currentNode {
-            target = current
-        } else {
-            target = document
-        }
+        let target = adjustedInsertionTarget
 
         // Merge with previous text node if possible
         if let lastChild = target.children.last, lastChild.name == "#text" {
