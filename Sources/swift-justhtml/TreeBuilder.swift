@@ -241,6 +241,17 @@ public final class TreeBuilder: TokenSink {
                 processCharacter(ch)
             }
 
+        case .inHeadNoscript:
+            if isWhitespace(ch) {
+                insertCharacter(ch)
+            } else {
+                // Pop noscript and reprocess
+                emitError("unexpected-char")
+                popCurrentElement()
+                insertionMode = .inHead
+                processCharacter(ch)
+            }
+
         case .afterHead:
             if isWhitespace(ch) {
                 insertCharacter(ch)
@@ -342,7 +353,14 @@ public final class TreeBuilder: TokenSink {
                 popCurrentElement()
             } else if name == "title" {
                 parseRCDATA(name: name, attrs: attrs)
-            } else if ["noscript", "noframes", "style"].contains(name) {
+            } else if name == "noscript" {
+                if scripting {
+                    parseRawtext(name: name, attrs: attrs)
+                } else {
+                    _ = insertElement(name: name, attrs: attrs)
+                    insertionMode = .inHeadNoscript
+                }
+            } else if ["noframes", "style"].contains(name) {
                 parseRawtext(name: name, attrs: attrs)
             } else if name == "script" {
                 parseRawtext(name: name, attrs: attrs)
@@ -359,6 +377,31 @@ public final class TreeBuilder: TokenSink {
             } else {
                 popCurrentElement()  // head
                 insertionMode = .afterHead
+                processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
+            }
+
+        case .inHeadNoscript:
+            if name == "html" {
+                // Process using in body rules (merge attributes)
+                processStartTagInBody(name: name, attrs: attrs, selfClosing: selfClosing)
+            } else if ["basefont", "bgsound", "link", "meta", "noframes", "style"].contains(name) {
+                // Process using in head rules
+                let savedMode = insertionMode
+                insertionMode = .inHead
+                processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
+                // If parseRawtext switched to text mode, update originalInsertionMode
+                if insertionMode == .text {
+                    originalInsertionMode = savedMode
+                } else {
+                    insertionMode = savedMode
+                }
+            } else if ["head", "noscript"].contains(name) {
+                emitError("unexpected-start-tag")
+            } else {
+                // Pop noscript and reprocess
+                emitError("unexpected-start-tag")
+                popCurrentElement()
+                insertionMode = .inHead
                 processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
             }
 
@@ -687,6 +730,19 @@ public final class TreeBuilder: TokenSink {
                 emitError("unexpected-end-tag")
             }
 
+        case .inHeadNoscript:
+            if name == "noscript" {
+                popCurrentElement()
+                insertionMode = .inHead
+            } else if name == "br" {
+                emitError("unexpected-end-tag")
+                popCurrentElement()
+                insertionMode = .inHead
+                processEndTag(name: name)
+            } else {
+                emitError("unexpected-end-tag")
+            }
+
         case .afterHead:
             if name == "body" || name == "html" || name == "br" {
                 insertBodyElement()
@@ -931,6 +987,11 @@ public final class TreeBuilder: TokenSink {
         case .inHead:
             popCurrentElement()
             insertionMode = .afterHead
+            processEOF()
+        case .inHeadNoscript:
+            emitError("eof-in-noscript")
+            popCurrentElement()  // noscript
+            insertionMode = .inHead
             processEOF()
         case .afterHead:
             insertBodyElement()
