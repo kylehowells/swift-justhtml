@@ -1016,9 +1016,10 @@ public final class TreeBuilder: TokenSink {
                     popCurrentElement()
                 }
             } else if Self.foreignContentBreakoutElements.contains(name.lowercased()) ||
-                      name.lowercased() == "button" || name.lowercased() == "datalist" {
+                      name.lowercased() == "button" || name.lowercased() == "datalist" ||
+                      name.lowercased() == "menuitem" {
                 // Breakout elements that came from foreign content should be inserted
-                // Also button and datalist are allowed inside select
+                // Also button, datalist, and menuitem are allowed inside select
                 emitError("unexpected-start-tag-in-select")
                 let element = insertElement(name: name, attrs: attrs)
                 // Add formatting elements to active formatting list for reconstruction
@@ -2588,11 +2589,25 @@ public final class TreeBuilder: TokenSink {
             }
 
             // Step 7: Find furthest block (first special element after formatting element)
+            // Special elements must be in the correct namespace:
+            // - HTML elements in SPECIAL_ELEMENTS
+            // - SVG elements: foreignObject, desc, title only
+            // - MathML elements: mi, mo, mn, ms, mtext, annotation-xml
             var furthestBlock: Node?
             var furthestBlockIndex: Int?
             for i in (feStackIndex + 1)..<openElements.count {
                 let node = openElements[i]
-                if SPECIAL_ELEMENTS.contains(node.name) {
+                let isSpecial: Bool
+                if node.namespace == nil || node.namespace == .html {
+                    isSpecial = SPECIAL_ELEMENTS.contains(node.name)
+                } else if node.namespace == .svg {
+                    isSpecial = ["foreignObject", "desc", "title"].contains(node.name)
+                } else if node.namespace == .math {
+                    isSpecial = ["mi", "mo", "mn", "ms", "mtext", "annotation-xml"].contains(node.name)
+                } else {
+                    isSpecial = false
+                }
+                if isSpecial {
                     furthestBlock = node
                     furthestBlockIndex = i
                     break
@@ -2873,6 +2888,11 @@ public final class TreeBuilder: TokenSink {
 
             // Check if this element matches (case-insensitive for foreign, case-sensitive for HTML)
             if node.name.lowercased() == lowercaseName {
+                // Only pop if the element is in a foreign namespace
+                // HTML elements should be handled by normal processing
+                if node.namespace == nil || node.namespace == .html {
+                    return false
+                }
                 // Pop elements until we've popped this node
                 while openElements.count > i {
                     popCurrentElement()

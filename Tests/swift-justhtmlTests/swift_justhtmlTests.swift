@@ -558,8 +558,8 @@ func runTreeConstructionTests(files: [String]? = nil, showFailures: Bool = false
 
 @Test func debugFailures() async throws {
     // Show all remaining failures
-    let files = ["menuitem-element.dat", "namespace-sensitivity.dat",
-                 "template.dat", "tests10.dat", "tricky01.dat", "webkit02.dat"]
+    let files = ["adoption01.dat", "namespace-sensitivity.dat",
+                 "template.dat", "tricky01.dat", "webkit02.dat"]
     let (passed, failed, _, results) = runTreeConstructionTests(files: files, showFailures: true)
     print("\nTotal: \(passed)/\(passed + failed) passed")
 }
