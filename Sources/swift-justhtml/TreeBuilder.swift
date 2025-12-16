@@ -1554,48 +1554,218 @@ public final class TreeBuilder: TokenSink {
     }
 
     private func adoptionAgency(name: String) {
-        // Simplified adoption agency algorithm
+        // Step 1: If current node is the subject and not in active formatting, just pop it
+        if let current = currentNode, current.name == name {
+            if !hasActiveFormattingEntry(name) {
+                popUntil(name)
+                return
+            }
+        }
+
+        // Step 2: Outer loop (max 8 iterations)
         for _ in 0..<8 {
-            // Find formatting element
-            var formattingElement: Node?
-            var formattingIdx: Int?
+            // Step 3: Find formatting element in active formatting list
+            var formattingElementIndex: Int?
             for i in stride(from: activeFormattingElements.count - 1, through: 0, by: -1) {
                 guard let elem = activeFormattingElements[i] else {
                     break  // Hit marker
                 }
                 if elem.name == name {
-                    formattingElement = elem
-                    formattingIdx = i
+                    formattingElementIndex = i
                     break
                 }
             }
 
-            guard let fe = formattingElement, let _ = formattingIdx else {
+            guard let feIndex = formattingElementIndex,
+                  let formattingElement = activeFormattingElements[feIndex] else {
+                // No formatting element found - use any other end tag handling
                 anyOtherEndTag(name: name)
                 return
             }
 
-            guard let stackIdx = openElements.firstIndex(where: { $0 === fe }) else {
-                activeFormattingElements.removeAll { $0 === fe }
+            // Step 4: Check if formatting element is in open elements
+            guard let feStackIndex = openElements.firstIndex(where: { $0 === formattingElement }) else {
+                emitError("adoption-agency-1.3")
+                activeFormattingElements.remove(at: feIndex)
                 return
             }
 
+            // Step 5: Check if formatting element is in scope
             if !hasElementInScope(name) {
-                emitError("unexpected-end-tag")
+                emitError("adoption-agency-1.3")
                 return
             }
 
-            if currentNode !== fe {
-                emitError("end-tag-too-early")
+            // Step 6: If formatting element is not current node, emit error
+            if currentNode !== formattingElement {
+                emitError("adoption-agency-1.3")
             }
 
-            // Pop to formatting element
-            while openElements.count > stackIdx {
-                popCurrentElement()
+            // Step 7: Find furthest block (first special element after formatting element)
+            var furthestBlock: Node?
+            var furthestBlockIndex: Int?
+            for i in (feStackIndex + 1)..<openElements.count {
+                let node = openElements[i]
+                if SPECIAL_ELEMENTS.contains(node.name) {
+                    furthestBlock = node
+                    furthestBlockIndex = i
+                    break
+                }
             }
-            activeFormattingElements.removeAll { $0 === fe }
-            return
+
+            // Step 8: If no furthest block, pop to formatting element and remove from active formatting
+            guard let fb = furthestBlock, let fbIndex = furthestBlockIndex else {
+                while openElements.count > feStackIndex {
+                    popCurrentElement()
+                }
+                activeFormattingElements.remove(at: feIndex)
+                return
+            }
+
+            // Step 9: Common ancestor
+            // Safety check - formatting element must have a parent
+            if feStackIndex == 0 {
+                // No common ancestor - just pop to formatting element
+                while openElements.count > feStackIndex {
+                    popCurrentElement()
+                }
+                activeFormattingElements.remove(at: feIndex)
+                return
+            }
+            let commonAncestor = openElements[feStackIndex - 1]
+
+            // Step 10: Bookmark
+            var bookmark = feIndex + 1
+
+            // Step 11: Node and last node
+            var node = fb
+            var lastNode = fb
+            var nodeIndex = fbIndex
+
+            // Step 12: Inner loop
+            var innerLoopCounter = 0
+            while true {
+                innerLoopCounter += 1
+
+                // Safety check
+                if innerLoopCounter > 100 {
+                    break
+                }
+
+                // Step 12.1: Move node up the stack
+                nodeIndex -= 1
+                if nodeIndex < 0 || nodeIndex >= openElements.count {
+                    break
+                }
+                node = openElements[nodeIndex]
+
+                // Step 12.2: If node is formatting element, break
+                if node === formattingElement {
+                    break
+                }
+
+                // Step 12.3: Find node's entry in active formatting
+                var nodeFormattingIndex: Int?
+                for i in 0..<activeFormattingElements.count {
+                    if let elem = activeFormattingElements[i], elem === node {
+                        nodeFormattingIndex = i
+                        break
+                    }
+                }
+
+                // Step 12.4: If inner loop counter > 3 and node is in active formatting, remove it
+                if innerLoopCounter > 3, let nfi = nodeFormattingIndex {
+                    activeFormattingElements.remove(at: nfi)
+                    if nfi < bookmark {
+                        bookmark -= 1
+                    }
+                    nodeFormattingIndex = nil
+                }
+
+                // Step 12.5: If node is not in active formatting, remove from stack and continue
+                if nodeFormattingIndex == nil {
+                    openElements.remove(at: nodeIndex)
+                    // After removal, the element that was at nodeIndex+1 is now at nodeIndex
+                    // We need to increment nodeIndex so the next decrement gets the right element
+                    nodeIndex += 1
+                    continue
+                }
+
+                // Step 12.6: Create new element and replace in both lists
+                let newElement = Node(name: node.name, namespace: node.namespace ?? .html, attrs: node.attrs)
+
+                // Replace in active formatting
+                activeFormattingElements[nodeFormattingIndex!] = newElement
+
+                // Replace in open elements
+                openElements[nodeIndex] = newElement
+                node = newElement
+
+                // Step 12.7: If last node is furthest block, update bookmark
+                if lastNode === fb {
+                    bookmark = nodeFormattingIndex! + 1
+                }
+
+                // Step 12.8: Reparent last node
+                if let parent = lastNode.parent {
+                    parent.removeChild(lastNode)
+                }
+                node.appendChild(lastNode)
+
+                // Step 12.9: last node = node
+                lastNode = node
+            }
+
+            // Step 13: Insert last node into common ancestor
+            if let parent = lastNode.parent {
+                parent.removeChild(lastNode)
+            }
+            // Insert into common ancestor (or its template content if template)
+            if commonAncestor.name == "template", let content = commonAncestor.templateContent {
+                content.appendChild(lastNode)
+            } else {
+                commonAncestor.appendChild(lastNode)
+            }
+
+            // Step 14: Create new formatting element
+            let newFormattingElement = Node(name: formattingElement.name, namespace: formattingElement.namespace ?? .html, attrs: formattingElement.attrs)
+
+            // Step 15: Move children of furthest block to new formatting element
+            while !fb.children.isEmpty {
+                let child = fb.children[0]
+                fb.removeChild(child)
+                newFormattingElement.appendChild(child)
+            }
+
+            // Step 16: Append new formatting element to furthest block
+            fb.appendChild(newFormattingElement)
+
+            // Step 17: Remove formatting element from active formatting and insert new at bookmark
+            activeFormattingElements.remove(at: feIndex)
+            if bookmark > activeFormattingElements.count {
+                bookmark = activeFormattingElements.count
+            }
+            activeFormattingElements.insert(newFormattingElement, at: bookmark)
+
+            // Step 18: Remove formatting element from open elements and insert new after furthest block
+            openElements.removeAll { $0 === formattingElement }
+            if let newFbIndex = openElements.firstIndex(where: { $0 === fb }) {
+                openElements.insert(newFormattingElement, at: newFbIndex + 1)
+            }
         }
+    }
+
+    /// Check if there's an entry for the given name in active formatting elements (before any marker)
+    private func hasActiveFormattingEntry(_ name: String) -> Bool {
+        for i in stride(from: activeFormattingElements.count - 1, through: 0, by: -1) {
+            guard let elem = activeFormattingElements[i] else {
+                return false  // Hit marker
+            }
+            if elem.name == name {
+                return true
+            }
+        }
+        return false
     }
 
     // MARK: - Foreign Content
