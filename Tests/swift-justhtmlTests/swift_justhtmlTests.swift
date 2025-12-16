@@ -495,7 +495,7 @@ func runTreeConstructionTests(files: [String]? = nil, showFailures: Bool = false
 }
 
 @Test func debugFailures() async throws {
-    let (_, _, _, results) = runTreeConstructionTests(files: ["webkit01.dat"], showFailures: true)
+    let (_, _, _, results) = runTreeConstructionTests(files: ["menuitem-element.dat"], showFailures: true)
     print("Failures: \(results.filter { !$0.passed }.count)")
 }
 
