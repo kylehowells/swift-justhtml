@@ -7,7 +7,14 @@ public enum Serialize {
 
     /// Serialize node to html5lib test format
     public static func toTestFormat(_ node: Node) -> String {
-        if node.name == "#document" || node.name == "#document-fragment" {
+        if node.name == "#document" {
+            return node.children.map { nodeToTestFormat($0, indent: 0) }.joined(separator: "\n")
+        }
+        if node.name == "#document-fragment" {
+            // For fragment parsing, the html element is a wrapper - output its children
+            if let htmlElement = node.children.first(where: { $0.name == "html" }) {
+                return htmlElement.children.map { nodeToTestFormat($0, indent: 0) }.joined(separator: "\n")
+            }
             return node.children.map { nodeToTestFormat($0, indent: 0) }.joined(separator: "\n")
         }
         return nodeToTestFormat(node, indent: 0)

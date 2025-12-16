@@ -109,11 +109,16 @@ public final class TreeBuilder: TokenSink {
             self.document = Node(name: "#document")
         }
 
-        // Set up fragment parsing context
+        // Set up fragment parsing context per WHATWG spec
         if let ctx = fragmentContext {
             // Create context element (virtual, not part of the tree)
             let ctxElement = Node(name: ctx.tagName, namespace: ctx.namespace ?? .html)
             self.contextElement = ctxElement
+
+            // Create root html element and push onto stack (step 5-7 of fragment algorithm)
+            let htmlElement = Node(name: "html", namespace: .html)
+            document.appendChild(htmlElement)
+            openElements.append(htmlElement)
 
             // For template context, push inTemplate onto template insertion modes
             if ctx.tagName == "template" {
@@ -121,8 +126,6 @@ public final class TreeBuilder: TokenSink {
             }
 
             // Reset insertion mode based on context element
-            // Note: openElements is empty, so resetInsertionMode will fall through
-            // and use the context element at the "last" position
             resetInsertionModeForFragment()
         }
     }

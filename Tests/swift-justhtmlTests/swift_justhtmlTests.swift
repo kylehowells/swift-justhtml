@@ -495,25 +495,12 @@ func runTreeConstructionTests(files: [String]? = nil, showFailures: Bool = false
 }
 
 @Test func debugFailures() async throws {
-    // Test case: adoption agency with many nested non-formatting elements (> 3 iterations)
-    // This should trigger the "remove from active formatting" behavior
-    let html = "<b><em><f1><f2><f3><f4><aside></b>"
-    let doc = try JustHTML(html)
-    let output = doc.toTestFormat()
-    print("INPUT: \(html)")
-    print("OUTPUT:")
-    print(output)
-    print("")
-    // With 4 foo elements: iterations would be f4, f3, f2, f1, em
-    // innerLoopCounter at em would be 5 > 3, so em should be removed
-    // Expected: <aside> directly under body, no <em> wrapper
-
-    // Also test the original failing case
-    let html2 = "<b><em><dcell><postfield><postfield><postfield><postfield><missing_glyph><missing_glyph><missing_glyph><missing_glyph><hkern><aside></b></em>"
-    let doc2 = try JustHTML(html2)
-    let output2 = doc2.toTestFormat()
-    print("INPUT: \(html2)")
-    print("OUTPUT:")
-    print(output2)
+    let (_, _, _, results) = runTreeConstructionTests(files: ["webkit02.dat"], showFailures: true)
+    let failures = results.filter { !$0.passed }
+    print("\nTotal failures in webkit02.dat: \(failures.count)")
+    for f in failures.prefix(5) {
+        print("\n[\(f.file):\(f.index)]")
+        print("INPUT: \(f.input.prefix(80).replacingOccurrences(of: "\n", with: "\\n"))")
+    }
 }
 
