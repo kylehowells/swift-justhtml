@@ -593,6 +593,17 @@ swift test -v
 - [ ] Ensure Sendable conformance where appropriate
 - [ ] Consider `@objc` annotations for Objective-C interop (optional)
 - [ ] Create example projects / playground
+- [ ] Set up `swiftformat --lint . --reporter github-actions-log` GitHub Action
+
+### Milestone 8 — Benchmarking & Comparisons
+
+- [ ] Create benchmark suite with representative HTML files of varying sizes
+- [ ] Benchmark Swift implementation against pure Python version (justhtml)
+- [ ] Benchmark Swift implementation against pure JavaScript version (justjshtml)
+- [ ] Verify all implementations produce identical parse results for test HTML files
+- [ ] Create performance comparison table showing parsing speed differences
+- [ ] Document memory usage comparisons across implementations
+- [ ] Gate: All implementations return identical results for benchmark HTML files
 
 ---
 

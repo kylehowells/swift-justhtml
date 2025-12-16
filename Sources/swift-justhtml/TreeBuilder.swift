@@ -2537,16 +2537,27 @@ public final class TreeBuilder: TokenSink {
     /// MathML text integration points (affect how certain tags are processed, not general HTML processing)
     private static let mathmlTextIntegrationPoints: Set<String> = ["mi", "mo", "mn", "ms", "mtext"]
 
+    /// Get the adjusted current node per WHATWG spec
+    /// In fragment case with only one element on stack, use the context element instead
+    private var adjustedCurrentNode: Node? {
+        // If we're in fragment parsing and the stack only has the html element,
+        // use the context element for namespace decisions
+        if contextElement != nil && openElements.count == 1 {
+            return contextElement
+        }
+        return openElements.last
+    }
+
     /// Check if we should process start tags in foreign content mode
     /// Returns false only for SVG HTML integration points (not MathML text integration points)
     /// because MathML text integration points still process MOST start tags as foreign content
     private func shouldProcessInForeignContent() -> Bool {
-        guard let currentNode = openElements.last else { return false }
-        guard let ns = currentNode.namespace else { return false }
+        guard let node = adjustedCurrentNode else { return false }
+        guard let ns = node.namespace else { return false }
 
         // Check if we're in an SVG HTML integration point (foreignObject, desc, title)
         // These process start tags as HTML
-        if ns == .svg && Self.svgHtmlIntegrationPoints.contains(currentNode.name) {
+        if ns == .svg && Self.svgHtmlIntegrationPoints.contains(node.name) {
             return false
         }
 
@@ -2651,8 +2662,9 @@ public final class TreeBuilder: TokenSink {
             return false
         }
 
-        // Determine the namespace for the new element
-        guard let currentNs = currentNode?.namespace else { return false }
+        // Determine the namespace for the new element using adjusted current node
+        guard let adjNode = adjustedCurrentNode,
+              let currentNs = adjNode.namespace else { return false }
 
         // SVG and MathML elements inside foreign content should use their own namespace
         var ns: Namespace = currentNs
