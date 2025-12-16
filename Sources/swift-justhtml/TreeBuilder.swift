@@ -1907,8 +1907,16 @@ public final class TreeBuilder: TokenSink {
     }
 
     private func insertNode(_ node: Node) {
+        // Per spec: foster parenting only applies when the target is a table element
+        // (table, tbody, tfoot, thead, tr). If we're inside a formatting element,
+        // insert normally into that element.
         if fosterParentingEnabled {
-            fosterParentNode(node)
+            let target = adjustedInsertionTarget
+            if ["table", "tbody", "tfoot", "thead", "tr"].contains(target.name) {
+                fosterParentNode(node)
+            } else {
+                target.appendChild(node)
+            }
         } else {
             adjustedInsertionTarget.appendChild(node)
         }
@@ -1970,13 +1978,13 @@ public final class TreeBuilder: TokenSink {
     }
 
     private func insertCharacter(_ ch: Character) {
-        // Handle foster parenting for text in table contexts
-        if fosterParentingEnabled {
+        let target = adjustedInsertionTarget
+
+        // Per spec: foster parenting for text only applies when the target is a table element
+        if fosterParentingEnabled && ["table", "tbody", "tfoot", "thead", "tr"].contains(target.name) {
             insertCharacterWithFosterParenting(ch)
             return
         }
-
-        let target = adjustedInsertionTarget
 
         // Merge with previous text node if possible
         if let lastChild = target.children.last, lastChild.name == "#text" {
