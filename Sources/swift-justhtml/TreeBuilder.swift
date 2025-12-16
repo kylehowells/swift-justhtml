@@ -170,7 +170,103 @@ public final class TreeBuilder: TokenSink {
 
     /// Finish parsing and return the root
     public func finish() -> Node {
+        // Populate selectedcontent elements with content from selected option
+        populateSelectedcontent(document)
         return document
+    }
+
+    /// Populate selectedcontent elements with content from the selected option
+    /// Per HTML5 spec: selectedcontent mirrors the content of the selected option,
+    /// or the first option if none is selected.
+    private func populateSelectedcontent(_ root: Node) {
+        // Find all select elements
+        var selects: [Node] = []
+        findElements(root, name: "select", result: &selects)
+
+        for select in selects {
+            // Find selectedcontent element in this select
+            guard let selectedcontent = findElement(select, name: "selectedcontent") else {
+                continue
+            }
+
+            // Find all option elements
+            var options: [Node] = []
+            findElements(select, name: "option", result: &options)
+            if options.isEmpty {
+                continue
+            }
+
+            // Find selected option or use first one
+            var selectedOption: Node? = nil
+            for opt in options {
+                if opt.attrs["selected"] != nil {
+                    selectedOption = opt
+                    break
+                }
+            }
+            if selectedOption == nil {
+                selectedOption = options.first
+            }
+
+            // Clone content from selected option to selectedcontent
+            if let source = selectedOption {
+                cloneChildren(from: source, to: selectedcontent)
+            }
+        }
+    }
+
+    /// Recursively find all elements with given name
+    private func findElements(_ node: Node, name: String, result: inout [Node]) {
+        if node.name == name {
+            result.append(node)
+        }
+        for child in node.children {
+            findElements(child, name: name, result: &result)
+        }
+        // Also search in template content
+        if let content = node.templateContent {
+            for child in content.children {
+                findElements(child, name: name, result: &result)
+            }
+        }
+    }
+
+    /// Find first element with given name
+    private func findElement(_ node: Node, name: String) -> Node? {
+        if node.name == name {
+            return node
+        }
+        for child in node.children {
+            if let found = findElement(child, name: name) {
+                return found
+            }
+        }
+        // Also search in template content
+        if let content = node.templateContent {
+            for child in content.children {
+                if let found = findElement(child, name: name) {
+                    return found
+                }
+            }
+        }
+        return nil
+    }
+
+    /// Clone children from one node to another
+    private func cloneChildren(from source: Node, to dest: Node) {
+        for child in source.children {
+            let cloned = cloneNode(child)
+            dest.appendChild(cloned)
+        }
+    }
+
+    /// Deep clone a node
+    private func cloneNode(_ node: Node) -> Node {
+        let clone = Node(name: node.name, namespace: node.namespace, attrs: node.attrs, data: node.data)
+        for child in node.children {
+            clone.appendChild(cloneNode(child))
+        }
+        return clone
     }
 
     // MARK: - TokenSink

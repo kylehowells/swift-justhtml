@@ -557,9 +557,24 @@ func runTreeConstructionTests(files: [String]? = nil, showFailures: Bool = false
 }
 
 @Test func debugFailures() async throws {
-    // Placeholder for debugging test failures
-    // Currently all known issues are fixed
-    print("No specific test case being debugged")
+    // Debug webkit02.dat test 45 - selectedcontent
+    let html = "<select><button><selectedcontent></button><option>X"
+    print("INPUT: \(html)")
+
+    let doc = try JustHTML(html)
+    let output = doc.toTestFormat()
+    print("\nACTUAL:\n\(output)")
+
+    print("\nEXPECTED:")
+    print("| <html>")
+    print("|   <head>")
+    print("|   <body>")
+    print("|     <select>")
+    print("|       <button>")
+    print("|         <selectedcontent>")
+    print("|           \"X\"")
+    print("|       <option>")
+    print("|         \"X\"")
 }
 
 private func *(lhs: String, rhs: Int) -> String {
