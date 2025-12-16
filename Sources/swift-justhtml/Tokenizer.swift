@@ -2111,9 +2111,10 @@ public final class Tokenizer {
             }
         }
 
-        // Check for semicolon
+        // Check for semicolon immediately after the match
+        // (only valid if we consumed exactly the matched length of characters)
         let hasSemicolon = peek() == ";"
-        if hasSemicolon && matchedEntity != nil {
+        if hasSemicolon && matchedEntity != nil && consumed == matchedLength {
             _ = consume()  // consume the semicolon
             emitCharRefString(matchedEntity!)
             state = returnState
@@ -2123,9 +2124,19 @@ public final class Tokenizer {
         // Try to use the longest match
         if let match = matchedEntity {
             // In attributes, legacy entities without semicolon followed by alphanumeric or = are not decoded
-            if isInAttribute {
-                let nextChar = peek()
-                if nextChar != nil && (nextChar!.isASCIILetter || nextChar!.isASCIIDigit || nextChar! == "=") {
+            // We need to check the character AFTER the matched entity, not after all consumed chars
+            if isInAttribute && !hasSemicolon {
+                // The character after the match is at position matchedLength in entityName,
+                // or the current peek() if we consumed exactly matchedLength characters
+                let charAfterMatch: Character?
+                if consumed > matchedLength {
+                    // The char after match is in entityName
+                    let idx = entityName.index(entityName.startIndex, offsetBy: matchedLength)
+                    charAfterMatch = entityName[idx]
+                } else {
+                    charAfterMatch = peek()
+                }
+                if let ch = charAfterMatch, ch.isASCIILetter || ch.isASCIIDigit || ch == "=" {
                     // Don't decode - emit as is
                     flushCharRefTempBuffer()
                     emitCharRefString(entityName)
