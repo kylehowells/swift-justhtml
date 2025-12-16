@@ -644,6 +644,33 @@ public final class TreeBuilder: TokenSink {
                 processStartTagInBody(name: name, attrs: attrs, selfClosing: selfClosing)
             }
 
+        case .inColumnGroup:
+            if name == "html" {
+                processStartTagInBody(name: name, attrs: attrs, selfClosing: selfClosing)
+            } else if name == "col" {
+                _ = insertElement(name: name, attrs: attrs)
+                popCurrentElement()
+            } else if name == "template" {
+                // Process using "in head" rules
+                let savedMode = insertionMode
+                insertionMode = .inHead
+                processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
+                if insertionMode == .text {
+                    originalInsertionMode = savedMode
+                } else if insertionMode != .inTemplate {
+                    insertionMode = savedMode
+                }
+            } else {
+                // Close colgroup and reprocess
+                if currentNode?.name == "colgroup" {
+                    popCurrentElement()
+                    insertionMode = .inTable
+                    processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
+                } else {
+                    emitError("unexpected-start-tag")
+                }
+            }
+
         case .inCaption:
             // Table structure tags close the caption
             if ["caption", "col", "colgroup", "tbody", "td", "tfoot", "th", "thead", "tr"].contains(name) {
@@ -1170,6 +1197,30 @@ public final class TreeBuilder: TokenSink {
                 }
             }
 
+        case .inColumnGroup:
+            if name == "colgroup" {
+                if currentNode?.name == "colgroup" {
+                    popCurrentElement()
+                    insertionMode = .inTable
+                } else {
+                    emitError("unexpected-end-tag")
+                }
+            } else if name == "col" {
+                emitError("unexpected-end-tag")
+                // Ignore
+            } else if name == "template" {
+                processEndTagInBody(name: name)
+            } else {
+                // Close colgroup and reprocess
+                if currentNode?.name == "colgroup" {
+                    popCurrentElement()
+                    insertionMode = .inTable
+                    processEndTag(name: name)
+                } else {
+                    emitError("unexpected-end-tag")
+                }
+            }
+
         case .inTable:
             if name == "table" {
                 if !hasElementInTableScope("table") {
@@ -1427,11 +1478,8 @@ public final class TreeBuilder: TokenSink {
         case .initial, .beforeHtml, .afterAfterBody, .afterAfterFrameset:
             document.appendChild(comment)
         default:
-            if let current = currentNode {
-                current.appendChild(comment)
-            } else {
-                document.appendChild(comment)
-            }
+            // Use adjustedInsertionTarget to properly handle template content
+            adjustedInsertionTarget.appendChild(comment)
         }
     }
 
