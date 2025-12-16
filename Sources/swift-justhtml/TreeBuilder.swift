@@ -1260,11 +1260,13 @@ public final class TreeBuilder: TokenSink {
 
     private func processEndTag(name: String) {
         // Check for foreign content processing first
-        if shouldProcessInForeignContent() {
+        // Note: For end tags, we should try to close foreign elements even when inside
+        // an HTML integration point (unlike start tags which get processed as HTML)
+        if hasForeignElementInStack() {
             if processForeignContentEndTag(name: name) {
                 return  // Handled by foreign content rules
             }
-            // Fall through to normal processing if breakout element
+            // Fall through to normal processing if not handled
         }
 
         switch insertionMode {
@@ -2567,7 +2569,14 @@ public final class TreeBuilder: TokenSink {
         return currentNode.namespace == .svg && Self.svgHtmlIntegrationPoints.contains(currentNode.name)
     }
 
-    /// Process an end tag in foreign content
+    /// Check if there are any foreign (SVG/MathML) elements in the open elements stack
+    private func hasForeignElementInStack() -> Bool {
+        return openElements.contains { elem in
+            elem.namespace == .svg || elem.namespace == .math
+        }
+    }
+
+    /// Process an end tag in foreign content per WHATWG spec
     /// Returns true if handled, false if should fall through to normal processing
     private func processForeignContentEndTag(name: String) -> Bool {
         let lowercaseName = name.lowercased()
@@ -2586,13 +2595,27 @@ public final class TreeBuilder: TokenSink {
             return false
         }
 
-        // For other end tags, check if current node matches (case-insensitive for SVG)
-        if let current = currentNode, current.name.lowercased() == lowercaseName {
-            popCurrentElement()
-            return true
+        // Walk up the stack looking for a matching foreign element
+        // Per WHATWG: "Any other end tag" in foreign content
+        for i in stride(from: openElements.count - 1, through: 0, by: -1) {
+            let node = openElements[i]
+
+            // If we hit an HTML element, let normal processing handle it
+            if node.namespace == nil || node.namespace == .html {
+                return false
+            }
+
+            // Check if this foreign element matches (case-insensitive)
+            if node.name.lowercased() == lowercaseName {
+                // Pop elements until we've popped this node
+                while openElements.count > i {
+                    popCurrentElement()
+                }
+                return true
+            }
         }
 
-        // Otherwise, let normal processing handle it
+        // No matching foreign element found, let normal processing handle it
         return false
     }
 

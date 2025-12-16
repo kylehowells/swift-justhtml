@@ -495,12 +495,11 @@ func runTreeConstructionTests(files: [String]? = nil, showFailures: Bool = false
 }
 
 @Test func debugFailures() async throws {
-    let (_, _, _, results) = runTreeConstructionTests(files: ["webkit02.dat"], showFailures: true)
-    let failures = results.filter { !$0.passed }
-    print("\nTotal failures in webkit02.dat: \(failures.count)")
-    for f in failures.prefix(5) {
-        print("\n[\(f.file):\(f.index)]")
-        print("INPUT: \(f.input.prefix(80).replacingOccurrences(of: "\n", with: "\\n"))")
-    }
+    // Test specific case: SVG foreignObject
+    let html = "<svg><foreignObject></foreignObject><title></svg>foo"
+    let doc = try JustHTML(html)
+    print("INPUT: \(html)")
+    print("OUTPUT:")
+    print(doc.toTestFormat())
 }
 

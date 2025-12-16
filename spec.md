@@ -587,6 +587,7 @@ swift test -v
 
 ### Milestone 7 — Final Polish & Documentation
 
+- [ ] Run `swiftformat --lint .` and fix coding style and formatting issues
 - [ ] Add comprehensive DocC documentation
 - [ ] Performance optimization pass
 - [ ] Ensure Sendable conformance where appropriate
