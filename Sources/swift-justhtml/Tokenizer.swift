@@ -166,14 +166,20 @@ public final class Tokenizer {
             pos = html.index(after: pos)
         }
 
+        // Process all input
         while pos < input.endIndex {
             processState()
         }
 
-        // Flush any remaining character buffer
-        flushCharBuffer()
+        // Handle EOF - process remaining states until we reach data state
+        var eofIterations = 0
+        while state != .data && eofIterations < 100 {
+            processState()
+            eofIterations += 1
+        }
 
-        // Emit EOF
+        // Flush and emit EOF
+        flushCharBuffer()
         emit(.eof)
     }
 
@@ -461,7 +467,10 @@ public final class Tokenizer {
     // MARK: - Tokenizer States
 
     private func dataState() {
-        guard let ch = consume() else { return }
+        guard let ch = consume() else {
+            emit(.eof)
+            return
+        }
         switch ch {
         case "&":
             returnState = .data
@@ -477,7 +486,10 @@ public final class Tokenizer {
     }
 
     private func rcdataState() {
-        guard let ch = consume() else { return }
+        guard let ch = consume() else {
+            emit(.eof)
+            return
+        }
         switch ch {
         case "&":
             returnState = .rcdata
@@ -493,7 +505,10 @@ public final class Tokenizer {
     }
 
     private func rawtextState() {
-        guard let ch = consume() else { return }
+        guard let ch = consume() else {
+            emit(.eof)
+            return
+        }
         switch ch {
         case "<":
             state = .rawtextLessThan
@@ -506,7 +521,10 @@ public final class Tokenizer {
     }
 
     private func plaintextState() {
-        guard let ch = consume() else { return }
+        guard let ch = consume() else {
+            emit(.eof)
+            return
+        }
         if ch == "\0" {
             emitError("unexpected-null-character")
             emitChar("\u{FFFD}")
@@ -519,6 +537,7 @@ public final class Tokenizer {
         guard let ch = consume() else {
             emitError("eof-before-tag-name")
             emitChar("<")
+            state = .data
             return
         }
         switch ch {
@@ -550,6 +569,7 @@ public final class Tokenizer {
         guard let ch = consume() else {
             emitError("eof-before-tag-name")
             emitString("</")
+            state = .data
             return
         }
         if ch.isASCIILetter {
@@ -571,6 +591,7 @@ public final class Tokenizer {
     private func tagNameState() {
         guard let ch = consume() else {
             emitError("eof-in-tag")
+            state = .data
             return
         }
         switch ch {
@@ -762,6 +783,7 @@ public final class Tokenizer {
     private func beforeAttributeNameState() {
         guard let ch = consume() else {
             emitError("eof-in-tag")
+            state = .data
             return
         }
         switch ch {
@@ -787,6 +809,7 @@ public final class Tokenizer {
     private func attributeNameState() {
         guard let ch = consume() else {
             emitError("eof-in-tag")
+            state = .data
             return
         }
         switch ch {
@@ -812,6 +835,7 @@ public final class Tokenizer {
     private func afterAttributeNameState() {
         guard let ch = consume() else {
             emitError("eof-in-tag")
+            state = .data
             return
         }
         switch ch {
@@ -836,6 +860,7 @@ public final class Tokenizer {
     private func beforeAttributeValueState() {
         guard let ch = consume() else {
             emitError("eof-in-tag")
+            state = .data
             return
         }
         switch ch {
@@ -860,6 +885,7 @@ public final class Tokenizer {
     private func attributeValueDoubleQuotedState() {
         guard let ch = consume() else {
             emitError("eof-in-tag")
+            state = .data
             return
         }
         switch ch {
@@ -880,6 +906,7 @@ public final class Tokenizer {
     private func attributeValueSingleQuotedState() {
         guard let ch = consume() else {
             emitError("eof-in-tag")
+            state = .data
             return
         }
         switch ch {
@@ -900,6 +927,7 @@ public final class Tokenizer {
     private func attributeValueUnquotedState() {
         guard let ch = consume() else {
             emitError("eof-in-tag")
+            state = .data
             return
         }
         switch ch {
@@ -927,6 +955,7 @@ public final class Tokenizer {
     private func afterAttributeValueQuotedState() {
         guard let ch = consume() else {
             emitError("eof-in-tag")
+            state = .data
             return
         }
         switch ch {
@@ -947,6 +976,7 @@ public final class Tokenizer {
     private func selfClosingStartTagState() {
         guard let ch = consume() else {
             emitError("eof-in-tag")
+            state = .data
             return
         }
         switch ch {
@@ -964,6 +994,7 @@ public final class Tokenizer {
     private func bogusCommentState() {
         guard let ch = consume() else {
             emitCurrentComment()
+            state = .data
             return
         }
         switch ch {
@@ -1006,6 +1037,7 @@ public final class Tokenizer {
         guard let ch = consume() else {
             emitError("eof-in-comment")
             emitCurrentComment()
+            state = .data
             return
         }
         switch ch {
@@ -1025,6 +1057,7 @@ public final class Tokenizer {
         guard let ch = consume() else {
             emitError("eof-in-comment")
             emitCurrentComment()
+            state = .data
             return
         }
         switch ch {
@@ -1045,6 +1078,7 @@ public final class Tokenizer {
         guard let ch = consume() else {
             emitError("eof-in-comment")
             emitCurrentComment()
+            state = .data
             return
         }
         switch ch {
@@ -1065,6 +1099,7 @@ public final class Tokenizer {
         guard let ch = consume() else {
             emitError("eof-in-comment")
             emitCurrentComment()
+            state = .data
             return
         }
         switch ch {
@@ -1081,6 +1116,7 @@ public final class Tokenizer {
         guard let ch = consume() else {
             emitError("eof-in-comment")
             emitCurrentComment()
+            state = .data
             return
         }
         switch ch {
@@ -1102,6 +1138,7 @@ public final class Tokenizer {
         guard let ch = consume() else {
             emitError("eof-in-comment")
             emitCurrentComment()
+            state = .data
             return
         }
         switch ch {

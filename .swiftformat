@@ -1,0 +1,7 @@
+# SwiftFormat configuration
+
+# Require explicit self
+--self insert
+
+# Never use trailing closures
+--never-trailing
