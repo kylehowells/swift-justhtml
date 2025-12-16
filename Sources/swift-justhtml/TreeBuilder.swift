@@ -1848,8 +1848,10 @@ public final class TreeBuilder: TokenSink {
             processEOF()
         case .inTemplate:
             // EOF in template - pop template and close
-            if !hasElementInScope("template") {
-                // No template in scope - stop processing
+            // Check if template is in the stack (not in scope - table breaks scope but template is still there)
+            let hasTemplate = openElements.contains { $0.name == "template" }
+            if !hasTemplate {
+                // No template in stack - stop processing
                 break
             }
             emitError("eof-in-template")
