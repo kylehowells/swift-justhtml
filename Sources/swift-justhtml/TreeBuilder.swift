@@ -1031,7 +1031,16 @@ public final class TreeBuilder: TokenSink {
                     popCurrentElement()
                 }
             } else {
+                // Table-related elements should be ignored in select mode per spec
+                // Other unknown elements should be inserted (matching browser behavior)
+                let tableElements: Set<String> = ["caption", "table", "tbody", "tfoot", "thead", "tr", "td", "th", "colgroup", "col"]
                 emitError("unexpected-start-tag-in-select")
+                if !tableElements.contains(name.lowercased()) {
+                    _ = insertElement(name: name, attrs: attrs)
+                    if VOID_ELEMENTS.contains(name.lowercased()) || selfClosing {
+                        popCurrentElement()
+                    }
+                }
             }
 
         case .inSelectInTable:

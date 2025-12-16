@@ -557,10 +557,18 @@ func runTreeConstructionTests(files: [String]? = nil, showFailures: Bool = false
 }
 
 @Test func debugFailures() async throws {
-    // Show all remaining failures for debugging
-    let files = ["namespace-sensitivity.dat", "template.dat", "tricky01.dat", "webkit02.dat"]
-    let (passed, failed, _, _) = runTreeConstructionTests(files: files, showFailures: true)
-    print("\nRemaining failures: \(failed) of \(passed + failed)")
+    // Debug the tokenizer issue with <XH<optgroup>
+    // Fragment parsing with "select" context
+    let html = "<option><XH<optgroup></optgroup>"
+    print("INPUT: \(html)")
+
+    let doc = try JustHTML(html, fragmentContext: FragmentContext("select"))
+    let output = doc.toTestFormat()
+    print("\nACTUAL:\n\(output)")
+
+    print("\nEXPECTED:")
+    print("| <option>")
+    print("|   <xh<optgroup>")
 }
 
 private func *(lhs: String, rhs: Int) -> String {
