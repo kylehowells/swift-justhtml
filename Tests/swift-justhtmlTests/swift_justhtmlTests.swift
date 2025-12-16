@@ -495,14 +495,19 @@ func runTreeConstructionTests(files: [String]? = nil, showFailures: Bool = false
 }
 
 @Test func debugFailures() async throws {
-    let (_, _, _, results) = runTreeConstructionTests(files: ["domjs-unsafe.dat"], showFailures: true)
+    // Run all tests to find failures
+    let (_, _, _, results) = runTreeConstructionTests(showFailures: false)
     let failures = results.filter { !$0.passed }
-    print("\nTotal failures in domjs-unsafe.dat: \(failures.count)")
+
+    // Group by file
+    var failuresByFile: [String: Int] = [:]
     for f in failures {
-        print("\n[\(f.file):\(f.index)]")
-        print("INPUT: \(f.input.replacingOccurrences(of: "\n", with: "\\n"))")
-        print("\nEXPECTED:\n\(f.expected)")
-        print("\nACTUAL:\n\(f.actual)")
+        failuresByFile[f.file, default: 0] += 1
+    }
+
+    print("\nFailures by file:")
+    for (file, count) in failuresByFile.sorted(by: { $0.key < $1.key }) {
+        print("  \(file): \(count) failures")
     }
 }
 

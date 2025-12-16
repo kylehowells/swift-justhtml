@@ -2405,6 +2405,10 @@ public final class TreeBuilder: TokenSink {
                 return false
             }
         }
+        // Check context element for fragment parsing
+        if let ctx = contextElement, ctx.name == name {
+            return true
+        }
         return false
     }
 
