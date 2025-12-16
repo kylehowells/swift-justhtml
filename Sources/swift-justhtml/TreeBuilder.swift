@@ -205,6 +205,37 @@ public final class TreeBuilder: TokenSink {
             }
         }
 
+        // HTML integration points (MathML text integration points and SVG HTML integration points)
+        // process characters as HTML but should NOT foster-parent (insert directly into the element)
+        // Check this BEFORE foreign content check since shouldProcessInForeignContent returns true for math namespace
+        if isInMathMLTextIntegrationPoint() || isInSVGHtmlIntegrationPoint() {
+            if ch == "\0" {
+                emitError("unexpected-null-character")
+            } else if isWhitespace(ch) {
+                reconstructActiveFormattingElements()
+                insertCharacter(ch)
+            } else {
+                reconstructActiveFormattingElements()
+                insertCharacter(ch)
+                framesetOk = false
+            }
+            return
+        }
+
+        // Check for foreign content - process characters according to foreign content rules
+        if shouldProcessInForeignContent() {
+            if ch == "\0" {
+                emitError("unexpected-null-character")
+                insertCharacter("\u{FFFD}")
+            } else {
+                insertCharacter(ch)
+                if !isWhitespace(ch) {
+                    framesetOk = false
+                }
+            }
+            return
+        }
+
         switch insertionMode {
         case .initial:
             if isWhitespace(ch) {
@@ -328,10 +359,36 @@ public final class TreeBuilder: TokenSink {
                 // Ignore
             }
 
-        case .inTable, .inTableBody, .inRow, .inColumnGroup:
-            // In table contexts, pending table characters are accumulated
-            // For simplicity, insert directly (TODO: proper table text handling)
-            insertCharacter(ch)
+        case .inColumnGroup:
+            if isWhitespace(ch) {
+                insertCharacter(ch)
+            } else {
+                // Non-whitespace: pop colgroup and reprocess in inTable
+                if currentNode?.name == "colgroup" {
+                    popCurrentElement()
+                    insertionMode = .inTable
+                    processCharacter(ch)
+                } else {
+                    emitError("unexpected-char-in-column-group")
+                }
+            }
+
+        case .inTable, .inTableBody, .inRow:
+            if ch == "\0" {
+                emitError("unexpected-null-character")
+            } else if isWhitespace(ch) {
+                // Whitespace in table context: insert into current node
+                insertCharacter(ch)
+            } else {
+                // Non-whitespace in table context: foster parent
+                emitError("unexpected-char-in-table")
+                fosterParentingEnabled = true
+                // Process using inBody rules with foster parenting
+                reconstructActiveFormattingElements()
+                insertCharacter(ch)
+                framesetOk = false
+                fosterParentingEnabled = false
+            }
 
         case .inCell, .inCaption:
             // Process using inBody rules
@@ -1867,6 +1924,12 @@ public final class TreeBuilder: TokenSink {
     }
 
     private func insertCharacter(_ ch: Character) {
+        // Handle foster parenting for text in table contexts
+        if fosterParentingEnabled {
+            insertCharacterWithFosterParenting(ch)
+            return
+        }
+
         let target = adjustedInsertionTarget
 
         // Merge with previous text node if possible
@@ -1879,6 +1942,86 @@ public final class TreeBuilder: TokenSink {
 
         let textNode = Node(name: "#text", data: .text(String(ch)))
         target.appendChild(textNode)
+    }
+
+    private func insertCharacterWithFosterParenting(_ ch: Character) {
+        // Find the foster parent location (before the table)
+        var lastTableIndex: Int? = nil
+        var lastTemplateIndex: Int? = nil
+
+        for i in stride(from: openElements.count - 1, through: 0, by: -1) {
+            let element = openElements[i]
+            if element.name == "table" && lastTableIndex == nil {
+                lastTableIndex = i
+            }
+            if element.name == "template" && lastTemplateIndex == nil {
+                lastTemplateIndex = i
+            }
+        }
+
+        // If last template is after last table, or there's no table, use template contents
+        if let templateIndex = lastTemplateIndex {
+            if lastTableIndex == nil || templateIndex > lastTableIndex! {
+                if let content = openElements[templateIndex].templateContent {
+                    // Merge with previous text node if possible
+                    if let lastChild = content.children.last, lastChild.name == "#text" {
+                        if case .text(let existing) = lastChild.data {
+                            lastChild.data = .text(existing + String(ch))
+                            return
+                        }
+                    }
+                    let textNode = Node(name: "#text", data: .text(String(ch)))
+                    content.appendChild(textNode)
+                    return
+                }
+            }
+        }
+
+        // If no table found
+        guard let tableIndex = lastTableIndex else {
+            let target = adjustedInsertionTarget
+            if let lastChild = target.children.last, lastChild.name == "#text" {
+                if case .text(let existing) = lastChild.data {
+                    lastChild.data = .text(existing + String(ch))
+                    return
+                }
+            }
+            let textNode = Node(name: "#text", data: .text(String(ch)))
+            target.appendChild(textNode)
+            return
+        }
+
+        let tableElement = openElements[tableIndex]
+
+        // Insert before the table
+        if let parent = tableElement.parent {
+            // Check if there's a text node right before the table that we can merge with
+            if let tableIdx = parent.children.firstIndex(where: { $0 === tableElement }),
+               tableIdx > 0 {
+                let prevNode = parent.children[tableIdx - 1]
+                if prevNode.name == "#text" {
+                    if case .text(let existing) = prevNode.data {
+                        prevNode.data = .text(existing + String(ch))
+                        return
+                    }
+                }
+            }
+            let textNode = Node(name: "#text", data: .text(String(ch)))
+            parent.insertBefore(textNode, reference: tableElement)
+        } else {
+            // Table has no parent - use the element before table in stack
+            if tableIndex > 0 {
+                let target = openElements[tableIndex - 1]
+                if let lastChild = target.children.last, lastChild.name == "#text" {
+                    if case .text(let existing) = lastChild.data {
+                        lastChild.data = .text(existing + String(ch))
+                        return
+                    }
+                }
+                let textNode = Node(name: "#text", data: .text(String(ch)))
+                target.appendChild(textNode)
+            }
+        }
     }
 
     private func popCurrentElement() {
@@ -2316,17 +2459,22 @@ public final class TreeBuilder: TokenSink {
     /// MathML text integration points (affect how certain tags are processed, not general HTML processing)
     private static let mathmlTextIntegrationPoints: Set<String> = ["mi", "mo", "mn", "ms", "mtext"]
 
-    /// Check if we should process in foreign content mode
+    /// Check if we should process start tags in foreign content mode
+    /// Returns false only for SVG HTML integration points (not MathML text integration points)
+    /// because MathML text integration points still process MOST start tags as foreign content
     private func shouldProcessInForeignContent() -> Bool {
         guard let currentNode = openElements.last else { return false }
         guard let ns = currentNode.namespace else { return false }
 
-        // Check if we're in an HTML integration point (SVG only - foreignObject, desc, title)
-        // Note: MathML text integration points (mi, mo, mn, ms, mtext) do NOT prevent foreign content processing
-        // They only affect processing of specific breakout elements
+        // Check if we're in an SVG HTML integration point (foreignObject, desc, title)
+        // These process start tags as HTML
         if ns == .svg && Self.svgHtmlIntegrationPoints.contains(currentNode.name) {
             return false
         }
+
+        // Note: MathML text integration points (mi, mo, mn, ms, mtext) still process
+        // most start tags as foreign content - only breakout elements are handled as HTML
+        // So we don't return false for them here
 
         return ns == .svg || ns == .math
     }
@@ -2335,6 +2483,12 @@ public final class TreeBuilder: TokenSink {
     private func isInMathMLTextIntegrationPoint() -> Bool {
         guard let currentNode = openElements.last else { return false }
         return currentNode.namespace == .math && Self.mathmlTextIntegrationPoints.contains(currentNode.name)
+    }
+
+    /// Check if current node is an SVG HTML integration point
+    private func isInSVGHtmlIntegrationPoint() -> Bool {
+        guard let currentNode = openElements.last else { return false }
+        return currentNode.namespace == .svg && Self.svgHtmlIntegrationPoints.contains(currentNode.name)
     }
 
     /// Process an end tag in foreign content
