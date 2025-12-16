@@ -71,6 +71,7 @@ public final class TreeBuilder: TokenSink {
 
     // Flags
     private var framesetOk: Bool = true
+    private var skipNextNewline: Bool = false  // For pre/listing/textarea leading newline
     private var scripting: Bool = false
     private var iframeSrcdoc: Bool = false
 
@@ -195,6 +196,14 @@ public final class TreeBuilder: TokenSink {
     }
 
     private func processCharacter(_ ch: Character) {
+        // Skip first newline after pre/listing/textarea
+        if skipNextNewline {
+            skipNextNewline = false
+            if ch == "\n" {
+                return
+            }
+        }
+
         switch insertionMode {
         case .initial:
             if isWhitespace(ch) {
@@ -481,6 +490,7 @@ public final class TreeBuilder: TokenSink {
             }
             _ = insertElement(name: name, attrs: attrs)
             framesetOk = false
+            skipNextNewline = true  // Ignore first newline after pre/listing
         } else if name == "form" {
             if formElement != nil {
                 emitError("unexpected-start-tag")
@@ -578,8 +588,9 @@ public final class TreeBuilder: TokenSink {
             processStartTag(name: "img", attrs: attrs, selfClosing: selfClosing)
         } else if name == "textarea" {
             _ = insertElement(name: name, attrs: attrs)
-            // Skip next newline
+            skipNextNewline = true  // Ignore first newline after textarea
             framesetOk = false
+            originalInsertionMode = insertionMode
             insertionMode = .text
         } else if name == "xmp" {
             if hasElementInButtonScope("p") {
