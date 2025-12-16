@@ -1518,6 +1518,9 @@ public final class TreeBuilder: TokenSink {
             } else if ["body", "caption", "col", "colgroup", "html", "td", "th"].contains(name) {
                 emitError("unexpected-end-tag")
                 // Ignore
+            } else if name == "template" {
+                // Template end tag is handled directly without mode restoration
+                processEndTagInBody(name: name)
             } else {
                 // Process using "in table" rules
                 let savedMode = insertionMode
@@ -1549,6 +1552,9 @@ public final class TreeBuilder: TokenSink {
             } else if ["body", "caption", "col", "colgroup", "html", "td", "th", "tr"].contains(name) {
                 emitError("unexpected-end-tag")
                 // Ignore
+            } else if name == "template" {
+                // Template end tag is handled directly without mode restoration
+                processEndTagInBody(name: name)
             } else {
                 // Process using "in table" rules
                 let savedMode = insertionMode

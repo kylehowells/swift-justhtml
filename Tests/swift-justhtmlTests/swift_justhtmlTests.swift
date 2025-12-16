@@ -557,9 +557,27 @@ func runTreeConstructionTests(files: [String]? = nil, showFailures: Bool = false
 }
 
 @Test func debugFailures() async throws {
-    // Placeholder for debugging test failures
-    // Current pass rate: 99.6% (1763/1770 tests)
-    // Remaining 7 edge cases are documented in the codebase
+    // Debug template.dat test 69
+    let html = "<body><template><thead></thead><template><tr></tr></template><tr></tr><tfoot></tfoot></template>"
+    print("INPUT: \(html)")
+
+    let doc = try JustHTML(html)
+    let output = doc.toTestFormat()
+    print("\nACTUAL:\n\(output)")
+
+    print("\nEXPECTED:")
+    print("| <html>")
+    print("|   <head>")
+    print("|   <body>")
+    print("|     <template>")
+    print("|       content")
+    print("|         <thead>")
+    print("|         <template>")
+    print("|           content")
+    print("|             <tr>")
+    print("|         <tbody>")
+    print("|           <tr>")
+    print("|         <tfoot>")
 }
 
 private func *(lhs: String, rhs: Int) -> String {
