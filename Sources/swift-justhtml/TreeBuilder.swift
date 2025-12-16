@@ -1034,13 +1034,43 @@ public final class TreeBuilder: TokenSink {
             }
         } else if name == "li" {
             framesetOk = false
-            // TODO: close li elements
+            // Close any open li elements in list item scope
+            for node in openElements.reversed() {
+                if node.name == "li" {
+                    generateImpliedEndTags(except: "li")
+                    if currentNode?.name != "li" {
+                        emitError("end-tag-too-early")
+                    }
+                    popUntil("li")
+                    break
+                }
+                // Stop at list item scope boundary elements
+                if LIST_ITEM_SCOPE_ELEMENTS.contains(node.name) {
+                    break
+                }
+            }
             if hasElementInButtonScope("p") {
                 closePElement()
             }
             _ = insertElement(name: name, attrs: attrs)
         } else if ["dd", "dt"].contains(name) {
             framesetOk = false
+            // Close any open dd or dt elements in scope
+            for node in openElements.reversed() {
+                if node.name == "dd" || node.name == "dt" {
+                    generateImpliedEndTags(except: node.name)
+                    if currentNode?.name != node.name {
+                        emitError("end-tag-too-early")
+                    }
+                    popUntil(node.name)
+                    break
+                }
+                // Stop at scope boundary elements
+                if SCOPE_ELEMENTS.contains(node.name) ||
+                   SPECIAL_ELEMENTS.contains(node.name) {
+                    break
+                }
+            }
             if hasElementInButtonScope("p") {
                 closePElement()
             }
