@@ -924,7 +924,11 @@ public final class TreeBuilder: TokenSink {
                 let savedMode = insertionMode
                 insertionMode = .inHead
                 processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
-                if insertionMode != .text {
+                if insertionMode == .text {
+                    // Script processing set up text mode, update originalInsertionMode to return to select
+                    originalInsertionMode = savedMode
+                } else if insertionMode != .inTemplate {
+                    // Restore unless template took us to inTemplate mode
                     insertionMode = savedMode
                 }
             } else if name == "svg" {
