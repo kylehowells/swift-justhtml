@@ -547,7 +547,8 @@ public final class TreeBuilder: TokenSink {
                 processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
                 if insertionMode == .text {
                     originalInsertionMode = savedMode
-                } else {
+                } else if insertionMode != .inTemplate {
+                    // Don't restore if we're now in template mode
                     insertionMode = savedMode
                 }
             } else if name == "input" {
@@ -707,6 +708,60 @@ public final class TreeBuilder: TokenSink {
                 emitError("unexpected-start-tag-after-frameset")
             }
 
+        case .inTemplate:
+            // Handle start tags in "in template" insertion mode
+            if ["base", "basefont", "bgsound", "link", "meta", "noframes", "script", "style", "template", "title"].contains(name) {
+                // Process using "in head" rules
+                let savedMode = insertionMode
+                insertionMode = .inHead
+                processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
+                if insertionMode == .text {
+                    originalInsertionMode = savedMode
+                } else {
+                    insertionMode = savedMode
+                }
+            } else if ["caption", "colgroup", "tbody", "tfoot", "thead"].contains(name) {
+                // Pop template mode and push inTable
+                if !templateInsertionModes.isEmpty {
+                    templateInsertionModes.removeLast()
+                }
+                templateInsertionModes.append(.inTable)
+                insertionMode = .inTable
+                processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
+            } else if name == "col" {
+                // Pop template mode and push inColumnGroup
+                if !templateInsertionModes.isEmpty {
+                    templateInsertionModes.removeLast()
+                }
+                templateInsertionModes.append(.inColumnGroup)
+                insertionMode = .inColumnGroup
+                processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
+            } else if name == "tr" {
+                // Pop template mode and push inTableBody
+                if !templateInsertionModes.isEmpty {
+                    templateInsertionModes.removeLast()
+                }
+                templateInsertionModes.append(.inTableBody)
+                insertionMode = .inTableBody
+                processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
+            } else if ["td", "th"].contains(name) {
+                // Pop template mode and push inRow
+                if !templateInsertionModes.isEmpty {
+                    templateInsertionModes.removeLast()
+                }
+                templateInsertionModes.append(.inRow)
+                insertionMode = .inRow
+                processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
+            } else {
+                // Pop template mode and push inBody
+                if !templateInsertionModes.isEmpty {
+                    templateInsertionModes.removeLast()
+                }
+                templateInsertionModes.append(.inBody)
+                insertionMode = .inBody
+                processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
+            }
+
         default:
             processStartTagInBody(name: name, attrs: attrs, selfClosing: selfClosing)
         }
@@ -728,7 +783,8 @@ public final class TreeBuilder: TokenSink {
             // If parseRawtext/parseRCDATA switched to .text mode, update originalInsertionMode
             if insertionMode == .text {
                 originalInsertionMode = savedMode
-            } else {
+            } else if insertionMode != .inTemplate {
+                // Don't restore if we're now in template mode
                 insertionMode = savedMode
             }
         } else if name == "body" {
@@ -814,12 +870,13 @@ public final class TreeBuilder: TokenSink {
             reconstructActiveFormattingElements()
             if hasElementInScope("nobr") {
                 emitError("unexpected-start-tag")
-                // Run adoption agency
-                _ = insertElement(name: name, attrs: attrs)
-            } else {
-                let element = insertElement(name: name, attrs: attrs)
-                pushFormattingElement(element)
+                // Run adoption agency to close the existing nobr
+                adoptionAgency(name: "nobr")
+                // Reconstruct active formatting elements again
+                reconstructActiveFormattingElements()
             }
+            let element = insertElement(name: name, attrs: attrs)
+            pushFormattingElement(element)
         } else if ["applet", "marquee", "object"].contains(name) {
             reconstructActiveFormattingElements()
             _ = insertElement(name: name, attrs: attrs)
@@ -1009,6 +1066,125 @@ public final class TreeBuilder: TokenSink {
             insertionMode = .inBody
             processEndTag(name: name)
 
+        case .inCell:
+            if ["td", "th"].contains(name) {
+                if !hasElementInTableScope(name) {
+                    emitError("unexpected-end-tag")
+                    return
+                }
+                generateImpliedEndTags()
+                if currentNode?.name != name {
+                    emitError("end-tag-too-early")
+                }
+                popUntil(name)
+                clearActiveFormattingElementsToLastMarker()
+                insertionMode = .inRow
+            } else if ["body", "caption", "col", "colgroup", "html"].contains(name) {
+                emitError("unexpected-end-tag")
+                // Ignore
+            } else if ["table", "tbody", "tfoot", "thead", "tr"].contains(name) {
+                if !hasElementInTableScope(name) {
+                    emitError("unexpected-end-tag")
+                    return
+                }
+                closeCell()
+                processEndTag(name: name)
+            } else {
+                processEndTagInBody(name: name)
+            }
+
+        case .inRow:
+            if name == "tr" {
+                if !hasElementInTableScope("tr") {
+                    emitError("unexpected-end-tag")
+                    return
+                }
+                clearStackBackToTableRowContext()
+                popCurrentElement()
+                insertionMode = .inTableBody
+            } else if name == "table" {
+                if !hasElementInTableScope("tr") {
+                    emitError("unexpected-end-tag")
+                    return
+                }
+                clearStackBackToTableRowContext()
+                popCurrentElement()
+                insertionMode = .inTableBody
+                processEndTag(name: name)
+            } else if ["tbody", "tfoot", "thead"].contains(name) {
+                if !hasElementInTableScope(name) {
+                    emitError("unexpected-end-tag")
+                    return
+                }
+                if !hasElementInTableScope("tr") {
+                    return
+                }
+                clearStackBackToTableRowContext()
+                popCurrentElement()
+                insertionMode = .inTableBody
+                processEndTag(name: name)
+            } else if ["body", "caption", "col", "colgroup", "html", "td", "th"].contains(name) {
+                emitError("unexpected-end-tag")
+                // Ignore
+            } else {
+                // Process using "in table" rules
+                let savedMode = insertionMode
+                insertionMode = .inTable
+                processEndTag(name: name)
+                if insertionMode == .inTable {
+                    insertionMode = savedMode
+                }
+            }
+
+        case .inTableBody:
+            if ["tbody", "tfoot", "thead"].contains(name) {
+                if !hasElementInTableScope(name) {
+                    emitError("unexpected-end-tag")
+                    return
+                }
+                clearStackBackToTableBodyContext()
+                popCurrentElement()
+                insertionMode = .inTable
+            } else if name == "table" {
+                if !hasElementInTableScope("tbody") && !hasElementInTableScope("thead") && !hasElementInTableScope("tfoot") {
+                    emitError("unexpected-end-tag")
+                    return
+                }
+                clearStackBackToTableBodyContext()
+                popCurrentElement()
+                insertionMode = .inTable
+                processEndTag(name: name)
+            } else if ["body", "caption", "col", "colgroup", "html", "td", "th", "tr"].contains(name) {
+                emitError("unexpected-end-tag")
+                // Ignore
+            } else {
+                // Process using "in table" rules
+                let savedMode = insertionMode
+                insertionMode = .inTable
+                processEndTag(name: name)
+                if insertionMode == .inTable {
+                    insertionMode = savedMode
+                }
+            }
+
+        case .inTable:
+            if name == "table" {
+                if !hasElementInTableScope("table") {
+                    emitError("unexpected-end-tag")
+                    return
+                }
+                popUntil("table")
+                resetInsertionMode()
+            } else if ["body", "caption", "col", "colgroup", "html", "tbody", "td", "tfoot", "th", "thead", "tr"].contains(name) {
+                emitError("unexpected-end-tag")
+                // Ignore
+            } else if name == "template" {
+                processEndTagInBody(name: name)
+            } else {
+                emitError("unexpected-end-tag")
+                // Ignore (no foster parenting for end tags)
+            }
+
         case .inCaption:
             if name == "caption" {
                 if !hasElementInTableScope("caption") {
@@ -1066,6 +1242,16 @@ public final class TreeBuilder: TokenSink {
         case .afterAfterFrameset:
             emitError("unexpected-end-tag-after-frameset")
             // Ignore
+
+        case .inTemplate:
+            // In template mode, only template end tag is processed
+            if name == "template" {
+                // Process using in body rules
+                processEndTagInBody(name: name)
+            } else {
+                // All other end tags are parse errors and ignored
+                emitError("unexpected-end-tag-in-template")
+            }
 
         default:
             processEndTagInBody(name: name)
