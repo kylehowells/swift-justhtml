@@ -933,6 +933,7 @@ public final class TreeBuilder: TokenSink {
                 if let current = currentNode, current.name == "option" {
                     popCurrentElement()
                 }
+                reconstructActiveFormattingElements()
                 _ = insertElement(name: name, attrs: attrs)
             } else if name == "optgroup" {
                 if let current = currentNode, current.name == "option" {
@@ -1018,7 +1019,15 @@ public final class TreeBuilder: TokenSink {
                 // Breakout elements that came from foreign content should be inserted
                 // Also button and datalist are allowed inside select
                 emitError("unexpected-start-tag-in-select")
-                _ = insertElement(name: name, attrs: attrs)
+                let element = insertElement(name: name, attrs: attrs)
+                // Add formatting elements to active formatting list for reconstruction
+                if FORMATTING_ELEMENTS.contains(name.lowercased()) {
+                    pushFormattingElement(element)
+                }
+                // Void elements should be immediately popped
+                if VOID_ELEMENTS.contains(name.lowercased()) || selfClosing {
+                    popCurrentElement()
+                }
             } else {
                 emitError("unexpected-start-tag-in-select")
             }
