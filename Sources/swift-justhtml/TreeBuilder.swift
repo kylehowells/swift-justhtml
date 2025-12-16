@@ -485,9 +485,10 @@ public final class TreeBuilder: TokenSink {
                 processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
                 // If parseRawtext/parseRCDATA switched to .text mode, update originalInsertionMode
                 // so the end tag returns to afterHead, not inHead
+                // Also don't reset if template set us to inTemplate mode
                 if insertionMode == .text {
                     originalInsertionMode = savedMode
-                } else {
+                } else if insertionMode != .inTemplate {
                     insertionMode = savedMode
                 }
                 if let idx = openElements.lastIndex(where: { $0 === headElement }) {
@@ -1181,8 +1182,8 @@ public final class TreeBuilder: TokenSink {
                 insertionMode = .afterHead
                 processEndTag(name: name)
             } else if name == "template" {
-                // TODO: handle template
-                emitError("unexpected-end-tag")
+                // Process template end tag using in body rules
+                processEndTagInBody(name: name)
             } else {
                 emitError("unexpected-end-tag")
             }
@@ -1206,7 +1207,8 @@ public final class TreeBuilder: TokenSink {
                 insertionMode = .inBody
                 processEndTag(name: name)
             } else if name == "template" {
-                // Process in head
+                // Process template end tag using in body rules
+                processEndTagInBody(name: name)
             } else {
                 emitError("unexpected-end-tag")
             }

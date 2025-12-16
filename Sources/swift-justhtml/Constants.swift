@@ -49,8 +49,15 @@ public let P_CLOSING_ELEMENTS: Set<String> = [
 ]
 
 /// Scope elements for checking element scope
+/// HTML namespace: applet, caption, html, table, td, th, marquee, object, template
+/// MathML namespace: mi, mo, mn, ms, mtext, annotation-xml
+/// SVG namespace: foreignObject, desc, title
 public let SCOPE_ELEMENTS: Set<String> = [
-    "applet", "caption", "html", "table", "td", "th", "marquee", "object", "template"
+    "applet", "caption", "html", "table", "td", "th", "marquee", "object", "template",
+    // MathML elements (namespace-specific but we match by name)
+    "mi", "mo", "mn", "ms", "mtext", "annotation-xml",
+    // SVG elements (namespace-specific but we match by name)
+    "foreignObject", "desc", "title"
 ]
 
 /// List item scope elements
