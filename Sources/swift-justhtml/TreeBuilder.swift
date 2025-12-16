@@ -296,6 +296,37 @@ public final class TreeBuilder: TokenSink {
                 processCharacter(ch)
             }
 
+        case .inFrameset:
+            if isWhitespace(ch) {
+                insertCharacter(ch)
+            } else if ch == "\0" {
+                emitError("unexpected-null-character")
+            } else {
+                emitError("unexpected-char-in-frameset")
+                // Ignore
+            }
+
+        case .afterFrameset:
+            if isWhitespace(ch) {
+                insertCharacter(ch)
+            } else if ch == "\0" {
+                emitError("unexpected-null-character")
+            } else {
+                emitError("unexpected-char-after-frameset")
+                // Ignore
+            }
+
+        case .afterAfterFrameset:
+            if isWhitespace(ch) {
+                // Process as in body
+                insertCharacter(ch)
+            } else if ch == "\0" {
+                emitError("unexpected-null-character")
+            } else {
+                emitError("unexpected-char-after-frameset")
+                // Ignore
+            }
+
         default:
             insertCharacter(ch)
         }
@@ -476,6 +507,204 @@ public final class TreeBuilder: TokenSink {
                 emitError("unexpected-start-tag-after-body")
                 insertionMode = .inBody
                 processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
+            }
+
+        case .inTable:
+            if name == "caption" {
+                clearStackBackToTableContext()
+                insertMarker()
+                _ = insertElement(name: name, attrs: attrs)
+                insertionMode = .inCaption
+            } else if name == "colgroup" {
+                clearStackBackToTableContext()
+                _ = insertElement(name: name, attrs: attrs)
+                insertionMode = .inColumnGroup
+            } else if name == "col" {
+                clearStackBackToTableContext()
+                _ = insertElement(name: "colgroup", attrs: [:])
+                insertionMode = .inColumnGroup
+                processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
+            } else if ["tbody", "tfoot", "thead"].contains(name) {
+                clearStackBackToTableContext()
+                _ = insertElement(name: name, attrs: attrs)
+                insertionMode = .inTableBody
+            } else if ["td", "th", "tr"].contains(name) {
+                clearStackBackToTableContext()
+                _ = insertElement(name: "tbody", attrs: [:])
+                insertionMode = .inTableBody
+                processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
+            } else if name == "table" {
+                emitError("unexpected-start-tag-implies-end-tag")
+                if hasElementInTableScope("table") {
+                    popUntil("table")
+                    resetInsertionMode()
+                    processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
+                }
+            } else if ["style", "script", "template"].contains(name) {
+                // Process using "in head" rules
+                let savedMode = insertionMode
+                insertionMode = .inHead
+                processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
+                if insertionMode == .text {
+                    originalInsertionMode = savedMode
+                } else {
+                    insertionMode = savedMode
+                }
+            } else if name == "input" {
+                if attrs["type"]?.lowercased() == "hidden" {
+                    emitError("unexpected-hidden-input-in-table")
+                    _ = insertElement(name: name, attrs: attrs)
+                    popCurrentElement()
+                } else {
+                    // Foster parenting - insert in body instead
+                    emitError("unexpected-start-tag-in-table")
+                    processStartTagInBody(name: name, attrs: attrs, selfClosing: selfClosing)
+                }
+            } else if name == "form" {
+                emitError("unexpected-start-tag-in-table")
+                if formElement == nil && !hasElementInScope("template") {
+                    let element = insertElement(name: name, attrs: attrs)
+                    formElement = element
+                    popCurrentElement()
+                }
+            } else {
+                // Foster parenting - process using "in body" rules
+                emitError("unexpected-start-tag-in-table")
+                processStartTagInBody(name: name, attrs: attrs, selfClosing: selfClosing)
+            }
+
+        case .inTableBody:
+            if name == "tr" {
+                clearStackBackToTableBodyContext()
+                _ = insertElement(name: name, attrs: attrs)
+                insertionMode = .inRow
+            } else if ["th", "td"].contains(name) {
+                emitError("unexpected-cell-in-table-body")
+                clearStackBackToTableBodyContext()
+                _ = insertElement(name: "tr", attrs: [:])
+                insertionMode = .inRow
+                processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
+            } else if ["caption", "col", "colgroup", "tbody", "tfoot", "thead"].contains(name) {
+                if !hasElementInTableScope("tbody") && !hasElementInTableScope("thead") && !hasElementInTableScope("tfoot") {
+                    emitError("unexpected-start-tag")
+                    return
+                }
+                clearStackBackToTableBodyContext()
+                popCurrentElement()
+                insertionMode = .inTable
+                processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
+            } else {
+                // Process using "in table" rules
+                let savedMode = insertionMode
+                insertionMode = .inTable
+                processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
+                if insertionMode == .inTable {
+                    insertionMode = savedMode
+                }
+            }
+
+        case .inRow:
+            if ["th", "td"].contains(name) {
+                clearStackBackToTableRowContext()
+                _ = insertElement(name: name, attrs: attrs)
+                insertionMode = .inCell
+                insertMarker()
+            } else if ["caption", "col", "colgroup", "tbody", "tfoot", "thead", "tr"].contains(name) {
+                if !hasElementInTableScope("tr") {
+                    emitError("unexpected-start-tag")
+                    return
+                }
+                clearStackBackToTableRowContext()
+                popCurrentElement()
+                insertionMode = .inTableBody
+                processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
+            } else {
+                // Process using "in table" rules
+                let savedMode = insertionMode
+                insertionMode = .inTable
+                processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
+                if insertionMode == .inTable {
+                    insertionMode = savedMode
+                }
+            }
+
+        case .inCell:
+            if ["caption", "col", "colgroup", "tbody", "td", "tfoot", "th", "thead", "tr"].contains(name) {
+                if !hasElementInTableScope("td") && !hasElementInTableScope("th") {
+                    emitError("unexpected-start-tag")
+                    return
+                }
+                closeCell()
+                processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
+            } else {
+                processStartTagInBody(name: name, attrs: attrs, selfClosing: selfClosing)
+            }
+
+        case .inCaption:
+            // Table structure tags close the caption
+            if ["caption", "col", "colgroup", "tbody", "td", "tfoot", "th", "thead", "tr"].contains(name) {
+                if !hasElementInTableScope("caption") {
+                    emitError("unexpected-start-tag")
+                    return
+                }
+                generateImpliedEndTags()
+                if currentNode?.name != "caption" {
+                    emitError("end-tag-too-early")
+                }
+                popUntil("caption")
+                clearActiveFormattingElementsToLastMarker()
+                insertionMode = .inTable
+                processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
+            } else {
+                // Process using inBody rules
+                processStartTagInBody(name: name, attrs: attrs, selfClosing: selfClosing)
+            }
+
+        case .inFrameset:
+            if name == "html" {
+                // Merge attributes with existing html element
+                if let html = openElements.first {
+                    for (key, value) in attrs where html.attrs[key] == nil {
+                        html.attrs[key] = value
+                    }
+                }
+            } else if name == "frameset" {
+                _ = insertElement(name: name, attrs: attrs)
+            } else if name == "frame" {
+                _ = insertElement(name: name, attrs: attrs)
+                popCurrentElement()
+            } else if name == "noframes" {
+                parseRawtext(name: name, attrs: attrs)
+            } else {
+                emitError("unexpected-start-tag-in-frameset")
+            }
+
+        case .afterFrameset:
+            if name == "html" {
+                // Merge attributes
+                if let html = openElements.first {
+                    for (key, value) in attrs where html.attrs[key] == nil {
+                        html.attrs[key] = value
+                    }
+                }
+            } else if name == "noframes" {
+                parseRawtext(name: name, attrs: attrs)
+            } else {
+                emitError("unexpected-start-tag-after-frameset")
+            }
+
+        case .afterAfterFrameset:
+            if name == "html" {
+                // Merge attributes
+                if let html = openElements.first {
+                    for (key, value) in attrs where html.attrs[key] == nil {
+                        html.attrs[key] = value
+                    }
+                }
+            } else if name == "noframes" {
+                parseRawtext(name: name, attrs: attrs)
+            } else {
+                emitError("unexpected-start-tag-after-frameset")
             }
 
         default:
@@ -779,6 +1008,64 @@ public final class TreeBuilder: TokenSink {
             emitError("unexpected-end-tag-after-body")
             insertionMode = .inBody
             processEndTag(name: name)
+
+        case .inCaption:
+            if name == "caption" {
+                if !hasElementInTableScope("caption") {
+                    emitError("unexpected-end-tag")
+                    return
+                }
+                generateImpliedEndTags()
+                if currentNode?.name != "caption" {
+                    emitError("end-tag-too-early")
+                }
+                popUntil("caption")
+                clearActiveFormattingElementsToLastMarker()
+                insertionMode = .inTable
+            } else if name == "table" {
+                if !hasElementInTableScope("caption") {
+                    emitError("unexpected-end-tag")
+                    return
+                }
+                generateImpliedEndTags()
+                if currentNode?.name != "caption" {
+                    emitError("end-tag-too-early")
+                }
+                popUntil("caption")
+                clearActiveFormattingElementsToLastMarker()
+                insertionMode = .inTable
+                processEndTag(name: name)
+            } else if ["body", "col", "colgroup", "html", "tbody", "td", "tfoot", "th", "thead", "tr"].contains(name) {
+                emitError("unexpected-end-tag")
+                // Ignore
+            } else {
+                processEndTagInBody(name: name)
+            }
+
+        case .inFrameset:
+            if name == "frameset" {
+                if currentNode?.name == "html" {
+                    emitError("unexpected-end-tag")
+                    return
+                }
+                popCurrentElement()
+                if currentNode?.name != "frameset" {
+                    insertionMode = .afterFrameset
+                }
+            } else {
+                emitError("unexpected-end-tag-in-frameset")
+            }
+
+        case .afterFrameset:
+            if name == "html" {
+                insertionMode = .afterAfterFrameset
+            } else {
+                emitError("unexpected-end-tag-after-frameset")
+            }
+
+        case .afterAfterFrameset:
+            emitError("unexpected-end-tag-after-frameset")
+            // Ignore
 
         default:
             processEndTagInBody(name: name)
@@ -1090,6 +1377,54 @@ public final class TreeBuilder: TokenSink {
         }
     }
 
+    /// Clear the stack back to a table context (table, template, or html)
+    private func clearStackBackToTableContext() {
+        while let current = currentNode {
+            if ["table", "template", "html"].contains(current.name) {
+                break
+            }
+            popCurrentElement()
+        }
+    }
+
+    /// Clear the stack back to a table body context (tbody, tfoot, thead, template, or html)
+    private func clearStackBackToTableBodyContext() {
+        while let current = currentNode {
+            if ["tbody", "tfoot", "thead", "template", "html"].contains(current.name) {
+                break
+            }
+            popCurrentElement()
+        }
+    }
+
+    /// Clear the stack back to a table row context (tr, template, or html)
+    private func clearStackBackToTableRowContext() {
+        while let current = currentNode {
+            if ["tr", "template", "html"].contains(current.name) {
+                break
+            }
+            popCurrentElement()
+        }
+    }
+
+    /// Close the current cell (td or th)
+    private func closeCell() {
+        generateImpliedEndTags()
+        if let current = currentNode, current.name != "td" && current.name != "th" {
+            emitError("end-tag-too-early")
+        }
+        // Pop until td or th
+        while let current = currentNode {
+            let name = current.name
+            popCurrentElement()
+            if name == "td" || name == "th" {
+                break
+            }
+        }
+        clearActiveFormattingElementsToLastMarker()
+        insertionMode = .inRow
+    }
+
     private func insertHtmlElement() {
         let html = createElement(name: "html", attrs: [:])
         document.appendChild(html)
@@ -1118,6 +1453,10 @@ public final class TreeBuilder: TokenSink {
 
     private func hasElementInListItemScope(_ name: String) -> Bool {
         return hasElementInScope(name, scopeElements: LIST_ITEM_SCOPE_ELEMENTS)
+    }
+
+    private func hasElementInTableScope(_ name: String) -> Bool {
+        return hasElementInScope(name, scopeElements: TABLE_SCOPE_ELEMENTS)
     }
 
     private func hasElementInScope(_ name: String, scopeElements: Set<String>) -> Bool {
