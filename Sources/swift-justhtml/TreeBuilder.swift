@@ -1182,10 +1182,19 @@ public final class TreeBuilder: TokenSink {
         "strong", "strike", "sub", "sup", "table", "tt", "u", "ul", "var"
     ]
 
+    /// HTML integration points in SVG
+    private static let svgHtmlIntegrationPoints: Set<String> = ["foreignObject", "desc", "title"]
+
     /// Check if we should process in foreign content mode
     private func shouldProcessInForeignContent() -> Bool {
         guard let currentNode = openElements.last else { return false }
         guard let ns = currentNode.namespace else { return false }
+
+        // Check if we're in an HTML integration point
+        if ns == .svg && Self.svgHtmlIntegrationPoints.contains(currentNode.name) {
+            return false
+        }
+
         return ns == .svg || ns == .math
     }
 
@@ -1200,10 +1209,11 @@ public final class TreeBuilder: TokenSink {
             (attrs.keys.contains { $0.lowercased() == "color" || $0.lowercased() == "face" || $0.lowercased() == "size" })
 
         if Self.foreignContentBreakoutElements.contains(lowercaseName) || isFontBreakout {
-            // Pop until we leave foreign content
+            // Pop until we leave foreign content (but not HTML integration points)
             while let current = currentNode,
                   let ns = current.namespace,
-                  (ns == .svg || ns == .math) {
+                  (ns == .svg || ns == .math),
+                  !(ns == .svg && Self.svgHtmlIntegrationPoints.contains(current.name)) {
                 popCurrentElement()
             }
             // Process as normal HTML
@@ -1212,7 +1222,14 @@ public final class TreeBuilder: TokenSink {
 
         // Insert element in current foreign namespace
         guard let ns = currentNode?.namespace else { return false }
-        _ = insertElement(name: name, namespace: ns, attrs: attrs)
+
+        // Apply SVG tag name adjustments
+        var adjustedName = name
+        if ns == .svg {
+            adjustedName = SVG_ELEMENT_ADJUSTMENTS[lowercaseName] ?? name
+        }
+
+        _ = insertElement(name: adjustedName, namespace: ns, attrs: attrs)
 
         if selfClosing {
             popCurrentElement()
