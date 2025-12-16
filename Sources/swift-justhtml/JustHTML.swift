@@ -1,0 +1,139 @@
+// JustHTML.swift - Main parser entry point
+
+import Foundation
+
+/// JustHTML - A dependency-free HTML5 parser for Swift
+public struct JustHTML {
+    /// The parsed document root (#document or #document-fragment)
+    public let root: Node
+
+    /// Parse errors encountered (empty unless collectErrors or strict mode)
+    public let errors: [ParseError]
+
+    /// Detected encoding when parsing from Data (nil for String input)
+    public let encoding: String?
+
+    /// Fragment context if parsing a fragment
+    public let fragmentContext: FragmentContext?
+
+    /// Initialize with an HTML string
+    /// - Parameters:
+    ///   - html: The HTML string to parse
+    ///   - fragmentContext: Optional fragment context for parsing fragments
+    ///   - collectErrors: Whether to collect parse errors
+    ///   - strict: Whether to throw on first parse error
+    ///   - scripting: Whether scripting is enabled
+    ///   - iframeSrcdoc: Whether parsing iframe srcdoc content
+    /// - Throws: StrictModeError if strict mode is enabled and a parse error occurs
+    public init(
+        _ html: String,
+        fragmentContext: FragmentContext? = nil,
+        collectErrors: Bool = false,
+        strict: Bool = false,
+        scripting: Bool = false,
+        iframeSrcdoc: Bool = false
+    ) throws {
+        self.fragmentContext = fragmentContext
+        self.encoding = nil
+
+        let shouldCollect = collectErrors || strict
+
+        let treeBuilder = TreeBuilder(
+            fragmentContext: fragmentContext,
+            iframeSrcdoc: iframeSrcdoc,
+            collectErrors: shouldCollect,
+            scripting: scripting
+        )
+
+        var opts = TokenizerOpts()
+
+        // Handle rawtext fragment contexts
+        if let ctx = fragmentContext, ctx.namespace == nil {
+            let tagName = ctx.tagName.lowercased()
+            if ["textarea", "title", "style"].contains(tagName) {
+                opts.initialState = .rawtext
+                opts.initialRawtextTag = tagName
+            } else if tagName == "plaintext" || tagName == "script" {
+                opts.initialState = .plaintext
+            }
+        }
+
+        let tokenizer = Tokenizer(treeBuilder, opts: opts, collectErrors: shouldCollect)
+        treeBuilder.tokenizer = tokenizer
+
+        tokenizer.run(html)
+
+        self.root = treeBuilder.finish()
+        self.errors = tokenizer.errors + treeBuilder.errors
+
+        if strict && !errors.isEmpty {
+            throw StrictModeError(errors[0])
+        }
+    }
+
+    /// Initialize with raw bytes (auto-detects encoding)
+    /// - Parameters:
+    ///   - data: The raw bytes to parse
+    ///   - encoding: Optional transport-layer encoding override
+    ///   - fragmentContext: Optional fragment context for parsing fragments
+    ///   - collectErrors: Whether to collect parse errors
+    ///   - strict: Whether to throw on first parse error
+    ///   - scripting: Whether scripting is enabled
+    ///   - iframeSrcdoc: Whether parsing iframe srcdoc content
+    /// - Throws: StrictModeError if strict mode is enabled and a parse error occurs
+    public init(
+        data: Data,
+        encoding: String? = nil,
+        fragmentContext: FragmentContext? = nil,
+        collectErrors: Bool = false,
+        strict: Bool = false,
+        scripting: Bool = false,
+        iframeSrcdoc: Bool = false
+    ) throws {
+        // TODO: Implement proper encoding detection
+        // For now, assume UTF-8
+        let html = String(data: data, encoding: .utf8) ?? ""
+        try self.init(
+            html,
+            fragmentContext: fragmentContext,
+            collectErrors: collectErrors,
+            strict: strict,
+            scripting: scripting,
+            iframeSrcdoc: iframeSrcdoc
+        )
+    }
+
+    // MARK: - Convenience Methods
+
+    /// Query the document using a CSS selector
+    /// - Parameter selector: The CSS selector
+    /// - Returns: Array of matching nodes
+    public func query(_ selector: String) throws -> [Node] {
+        // TODO: Implement selector matching
+        return []
+    }
+
+    /// Serialize the document to HTML
+    /// - Parameters:
+    ///   - pretty: Whether to format with indentation
+    ///   - indentSize: Number of spaces per indent level
+    /// - Returns: HTML string
+    public func toHTML(pretty: Bool = true, indentSize: Int = 2) -> String {
+        return root.toHTML(pretty: pretty, indentSize: indentSize)
+    }
+
+    /// Extract all text content from the document
+    /// - Parameters:
+    ///   - separator: String to join text nodes
+    ///   - strip: Whether to strip whitespace from text nodes
+    /// - Returns: Concatenated text content
+    public func toText(separator: String = " ", strip: Bool = true) -> String {
+        return root.toText(separator: separator, strip: strip)
+    }
+
+    /// Convert to html5lib test format
+    /// - Returns: Test format string
+    public func toTestFormat() -> String {
+        return root.toTestFormat()
+    }
+}
