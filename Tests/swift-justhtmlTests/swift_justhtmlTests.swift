@@ -557,24 +557,11 @@ func runTreeConstructionTests(files: [String]? = nil, showFailures: Bool = false
 }
 
 @Test func debugFailures() async throws {
-    // Debug webkit02.dat test 45 - selectedcontent
-    let html = "<select><button><selectedcontent></button><option>X"
-    print("INPUT: \(html)")
-
-    let doc = try JustHTML(html)
-    let output = doc.toTestFormat()
-    print("\nACTUAL:\n\(output)")
-
-    print("\nEXPECTED:")
-    print("| <html>")
-    print("|   <head>")
-    print("|   <body>")
-    print("|     <select>")
-    print("|       <button>")
-    print("|         <selectedcontent>")
-    print("|           \"X\"")
-    print("|       <option>")
-    print("|         \"X\"")
+    // Placeholder for debugging test failures
+    // Remaining 2 failures (99.9% pass rate):
+    // 1. webkit02.dat test 46: Adoption agency with formatting elements in select
+    // 2. tricky01.dat test 8: Complex nested table foster parenting
+    print("No specific test case being debugged")
 }
 
 private func *(lhs: String, rhs: Int) -> String {
