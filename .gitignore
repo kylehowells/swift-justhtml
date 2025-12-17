@@ -29,3 +29,7 @@ fastlane/report.xml
 fastlane/Preview.html
 fastlane/screenshots/**/*.png
 fastlane/test_output
+
+# Benchmark sample files (downloaded HTML)
+Benchmarks/samples/
+Benchmarks/*.json
