@@ -72,6 +72,26 @@ public let TABLE_SCOPE_ELEMENTS: Set<String> = ["html", "table", "template"]
 /// Select scope elements
 public let SELECT_SCOPE_ELEMENTS: Set<String> = [] // optgroup and option are NOT scope markers
 
+// MARK: - TagID-based scope elements (fast integer comparisons)
+
+/// Scope elements for checking element scope (TagID version)
+public let SCOPE_ELEMENTS_ID: Set<TagID> = [
+	.applet, .caption, .html, .table, .td, .th, .marquee, .object, .template,
+	// MathML elements
+	.mi, .mo, .mn, .ms, .mtext, .annotationXml,
+	// SVG elements
+	.foreignObject, .desc, .title,
+]
+
+/// List item scope elements (TagID version)
+public let LIST_ITEM_SCOPE_ELEMENTS_ID: Set<TagID> = SCOPE_ELEMENTS_ID.union([.ol, .ul])
+
+/// Button scope elements (TagID version)
+public let BUTTON_SCOPE_ELEMENTS_ID: Set<TagID> = SCOPE_ELEMENTS_ID.union([.button])
+
+/// Table scope elements (TagID version)
+public let TABLE_SCOPE_ELEMENTS_ID: Set<TagID> = [.html, .table, .template]
+
 /// Elements that are implicitly closed by certain other elements
 public let IMPLIED_END_TAGS: Set<String> = [
 	"dd", "dt", "li", "optgroup", "option", "p", "rb", "rp", "rt", "rtc",
