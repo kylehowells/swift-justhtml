@@ -74,6 +74,31 @@ swift build
 swift build -c release
 ```
 
+## Cross-Implementation Benchmarks
+
+Compare performance and output consistency across Swift, Python, and JavaScript implementations.
+
+```bash
+# Run comparison (downloads sample files automatically)
+python3 Benchmarks/compare.py
+
+# Or run individual benchmarks
+swift run -c release benchmark          # Swift
+python3 Benchmarks/benchmark_python.py  # Python
+node Benchmarks/benchmark_js.mjs        # JavaScript
+```
+
+Requires:
+- Python justhtml: `../justhtml/src/`
+- JavaScript justjshtml: `../justjshtml/src/`
+
+Performance results (approximate):
+- JavaScript: fastest (V8 JIT optimization)
+- Swift: ~3x slower than JS, ~1.3x faster than Python
+- Python: slowest (interpreted)
+
+All implementations produce identical output.
+
 ## CI/CD
 
 GitHub Actions runs on every push and pull request:
