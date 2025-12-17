@@ -106,17 +106,20 @@ public struct TokenizerOpts {
   public var initialRawtextTag: String? = nil
   public var xmlCoercion: Bool
   public var discardBom: Bool
+  public var scripting: Bool
 
   public init(
     initialState: Tokenizer.State = .data,
     initialRawtextTag: String? = nil,
     xmlCoercion: Bool = false,
-    discardBom: Bool = false
+    discardBom: Bool = false,
+    scripting: Bool = false
   ) {
     self.initialState = initialState
     self.initialRawtextTag = initialRawtextTag
     self.xmlCoercion = xmlCoercion
     self.discardBom = discardBom
+    self.scripting = scripting
   }
 }
 
@@ -626,6 +629,9 @@ public final class Tokenizer {
         if RCDATA_ELEMENTS.contains(self.currentTagName) {
           self.state = .rcdata
         } else if RAWTEXT_ELEMENTS.contains(self.currentTagName) {
+          self.state = .rawtext
+        } else if self.currentTagName == "noscript" && self.opts.scripting {
+          // When scripting is enabled, noscript content is raw text
           self.state = .rawtext
         } else if self.currentTagName == SCRIPT_ELEMENT {
           self.state = .scriptData

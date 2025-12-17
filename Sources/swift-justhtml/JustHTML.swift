@@ -49,6 +49,7 @@ public struct JustHTML {
 
     var opts = TokenizerOpts()
     opts.xmlCoercion = xmlCoercion
+    opts.scripting = scripting
 
     // Handle special fragment contexts that affect tokenizer initial state
     // Note: We DON'T set initialRawtextTag for fragments because no start tag was emitted,
@@ -60,6 +61,10 @@ public struct JustHTML {
         opts.initialState = .rcdata
 
       case "style", "xmp", "iframe", "noembed", "noframes":
+        opts.initialState = .rawtext
+
+      case "noscript" where scripting:
+        // When scripting is enabled, noscript content is raw text
         opts.initialState = .rawtext
 
       case "script":
@@ -123,6 +128,7 @@ public struct JustHTML {
 
     var opts = TokenizerOpts()
     opts.xmlCoercion = xmlCoercion
+    opts.scripting = scripting
 
     // Handle special fragment contexts that affect tokenizer initial state
     // Note: We DON'T set initialRawtextTag for fragments because no start tag was emitted,
@@ -134,6 +140,10 @@ public struct JustHTML {
         opts.initialState = .rcdata
 
       case "style", "xmp", "iframe", "noembed", "noframes":
+        opts.initialState = .rawtext
+
+      case "noscript" where scripting:
+        // When scripting is enabled, noscript content is raw text
         opts.initialState = .rawtext
 
       case "script":

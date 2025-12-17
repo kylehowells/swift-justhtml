@@ -1275,7 +1275,7 @@ public final class TreeBuilder: TokenSink {
     } else if [
       "base", "basefont", "bgsound", "link", "meta", "noframes", "script", "style", "template",
       "title",
-    ].contains(name) {
+    ].contains(name) || (name == "noscript" && self.scripting) {
       // Process using "in head" rules
       let savedMode = self.insertionMode
       self.insertionMode = .inHead

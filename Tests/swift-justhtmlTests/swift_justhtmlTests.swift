@@ -582,6 +582,10 @@ func listDatFiles(in directory: URL) -> [URL] {
 
   var datFiles: [URL] = []
   for case let fileURL as URL in enumerator {
+    // Skip the scripted directory - those tests require JavaScript execution
+    if fileURL.path.contains("/scripted/") {
+      continue
+    }
     if fileURL.pathExtension == "dat" {
       datFiles.append(fileURL)
     }
@@ -631,12 +635,6 @@ func runTreeConstructionTests(
     let tests = parseDatFile(content)
 
     for (idx, test) in tests.enumerated() {
-      // Skip script-on tests for now
-      if test.scriptDirective == "script-on" {
-        skipped += 1
-        continue
-      }
-
       if debug {
         print(
           "[\(filename):\(idx)] Parsing: \(test.input.prefix(40).replacingOccurrences(of: "\n", with: "\\n"))..."
@@ -814,16 +812,11 @@ func runTreeConstructionTests(
     var skipped = 0
 
     for test in tests {
-      if test.scriptDirective == "script-on" {
-        skipped += 1
-        continue
-      }
-
       do {
         let doc = try JustHTML(
           test.input,
           fragmentContext: test.fragmentContext,
-          scripting: false,
+          scripting: test.scriptDirective == "script-on",
           iframeSrcdoc: test.iframeSrcdoc,
           xmlCoercion: test.xmlCoercion
         )
