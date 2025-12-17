@@ -27,7 +27,7 @@
 
 ## Benchmarking
 
-- [ ] **Large Synthetic HTML File**
+- [x] **Large Synthetic HTML File**
   - Create a script to generate a 10-50MB synthetic HTML file
   - Include nested tags, tables, entities, attributes, comments
   - Use for stress testing and benchmarking (not committed to repo)
