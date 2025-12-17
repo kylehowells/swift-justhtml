@@ -5,16 +5,17 @@ on:
   pull_request:
 
 jobs:
-  lint:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
+  # Temporarily disabled - macOS runner
+  # lint:
+  #   runs-on: macos-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
 
-      - name: Install swiftformat
-        run: brew install swiftformat
+  #     - name: Install swiftformat
+  #       run: brew install swiftformat
 
-      - name: Lint
-        run: swiftformat --lint . --reporter github-actions-log
+  #     - name: Lint
+  #       run: swiftformat --lint . --reporter github-actions-log
 
   smoke:
     runs-on: ubuntu-latest
@@ -38,20 +39,20 @@ jobs:
       - name: Run tests
         run: swift test
 
-  # Test on macOS as well
-  macos:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
+  # Temporarily disabled - macOS runner
+  # macos:
+  #   runs-on: macos-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
 
-      - name: Checkout html5lib-tests
-        uses: actions/checkout@v4
-        with:
-          repository: html5lib/html5lib-tests
-          path: html5lib-tests
+  #     - name: Checkout html5lib-tests
+  #       uses: actions/checkout@v4
+  #       with:
+  #         repository: html5lib/html5lib-tests
+  #         path: html5lib-tests
 
-      - name: Build
-        run: swift build
+  #     - name: Build
+  #       run: swift build
 
-      - name: Run tests
-        run: swift test
+  #     - name: Run tests
+  #       run: swift test
