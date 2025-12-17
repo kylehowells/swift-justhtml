@@ -143,6 +143,8 @@ swift-justhtml is optimized for performance, matching or exceeding JavaScript im
 
 *Benchmark: Parsing 2.5MB of HTML across 5 Wikipedia articles*
 
+See [Benchmarks/BENCHMARK_RESULTS.md](Benchmarks/BENCHMARK_RESULTS.md) for detailed performance comparison.
+
 ### Memory Usage
 
 | Implementation | Peak RSS | Comparison |
