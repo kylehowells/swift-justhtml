@@ -4,7 +4,7 @@ A dependency-free Swift implementation of an HTML5 parser following the WHATWG H
 
 ## Project Overview
 
-- **Correctness first**: Passes the full `html5lib-tests` suite (1770/1770 tree construction tests)
+- **Correctness first**: Passes all tree construction tests (1831/1831)
 - **Zero runtime dependencies**: Pure Swift only, no external packages
 - **Cross-platform**: Supports macOS, iOS, tvOS, watchOS, visionOS, and Linux
 - **Swift 6.0**: Built with Swift 6.0 tools version
@@ -34,10 +34,13 @@ swift test --verbose
 ```
 
 The test suite includes:
-- Tree construction tests (1770 tests)
-- Serializer tests (205 tests)
+- Tree construction tests (1831 tests)
+- Tokenizer tests (6810 tests)
+- Serializer tests (230 tests)
 - Encoding detection tests (82 tests)
-- Unit tests and benchmarks
+- Unit tests, fuzzer, and benchmarks
+
+See `current_state.md` for current pass/fail status.
 
 ## Code Formatting
 

@@ -641,14 +641,14 @@ Following Simon Willison's blog post approach:
 
 ### Test Progress Tracking
 
-Track progress with a summary format similar to the Python version:
+Track progress with a summary format:
 
 ```
-tree-construction/tests1.dat: 93/112 (83%) [....x..x....]
-tree-construction/tests2.dat: 45/45 (100%) [.............]
-tokenizer/test1.test: 100/100 (100%) [.............]
+tree-construction/tests1.dat: 112/112 (100%)
+tree-construction/tests2.dat: 63/63 (100%)
+tokenizer/test1.test: 67/69 (97%)
 
-PASSED: 1750/1782 passed (98.2%), 12 skipped
+PASSED: 1831/1831 tree construction, 5979/6810 tokenizer
 ```
 
 ---
