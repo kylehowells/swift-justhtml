@@ -2,7 +2,7 @@
 // Generated from html.entities.html5
 
 /// Named HTML character entities (without semicolon)
-public let NAMED_ENTITIES: [String: String] = [
+let NAMED_ENTITIES: [String: String] = [
 	"AElig": "\u{00C6}",
 	"AMP": "&",
 	"Aacute": "\u{00C1}",

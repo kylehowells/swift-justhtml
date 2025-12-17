@@ -37,6 +37,7 @@ let html = doc.toHTML()
 ### Guides
 
 - <doc:GettingStarted>
+- <doc:Examples>
 - <doc:Performance>
 - <doc:Benchmarking>
 

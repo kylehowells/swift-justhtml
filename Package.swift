@@ -30,6 +30,14 @@ let package = Package(
 			name: "htmltool",
 			targets: ["HTMLTool"]
 		),
+		.executable(
+			name: "html2md",
+			targets: ["HTML2MD"]
+		),
+		.executable(
+			name: "extractlinks",
+			targets: ["ExtractLinks"]
+		),
 	],
 	dependencies: [
 		.package(url: "https://github.com/swiftlang/swift-docc-plugin", from: "1.4.3"),
@@ -49,6 +57,16 @@ let package = Package(
 			name: "HTMLTool",
 			dependencies: ["swift-justhtml"],
 			path: "Examples/htmltool"
+		),
+		.executableTarget(
+			name: "HTML2MD",
+			dependencies: ["swift-justhtml"],
+			path: "Examples/html2md"
+		),
+		.executableTarget(
+			name: "ExtractLinks",
+			dependencies: ["swift-justhtml"],
+			path: "Examples/extractlinks"
 		),
 		.testTarget(
 			name: "swift-justhtmlTests",

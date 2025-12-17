@@ -1,10 +1,39 @@
 # Getting Started with swift-justhtml
 
-Learn how to parse HTML documents, query elements, and extract content.
+Learn how to install, parse HTML documents, query elements, and extract content.
 
 ## Overview
 
-swift-justhtml provides a simple, intuitive API for working with HTML in Swift. This guide covers the most common use cases.
+swift-justhtml provides a simple, intuitive API for working with HTML in Swift. This guide covers installation and the most common use cases.
+
+## Installation
+
+### Swift Package Manager
+
+Add swift-justhtml to your `Package.swift` dependencies:
+
+```swift
+dependencies: [
+    .package(url: "https://github.com/kylehowells/swift-justhtml.git", from: "0.2.0")
+]
+```
+
+Then add it to your target's dependencies:
+
+```swift
+targets: [
+    .target(
+        name: "YourTarget",
+        dependencies: ["swift-justhtml"]
+    )
+]
+```
+
+### Xcode
+
+1. File > Add Package Dependencies...
+2. Enter: `https://github.com/kylehowells/swift-justhtml.git`
+3. Select version: 0.2.0 or later
 
 ## Parsing HTML
 

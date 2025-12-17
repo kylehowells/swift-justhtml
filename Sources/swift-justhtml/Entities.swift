@@ -3,7 +3,7 @@
 import Foundation
 
 /// Legacy entities that can be used without a semicolon
-public let LEGACY_ENTITIES: Set<String> = [
+let LEGACY_ENTITIES: Set<String> = [
 	"gt", "lt", "amp", "quot", "nbsp",
 	"AMP", "QUOT", "GT", "LT", "COPY", "REG",
 	"AElig", "Aacute", "Acirc", "Agrave", "Aring", "Atilde", "Auml",
