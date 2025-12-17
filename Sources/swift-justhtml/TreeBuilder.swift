@@ -1202,6 +1202,15 @@ public final class TreeBuilder: TokenSink {
         self.reconstructActiveFormattingElements()
         _ = self.insertElement(name: name, attrs: attrs)
         self.popCurrentElement()
+      } else if [
+        "caption", "col", "colgroup", "table", "tbody", "td", "tfoot", "th", "thead", "tr",
+      ]
+      .contains(name.lowercased()) {
+        // Per WHATWG spec: table structure elements close the select and reprocess
+        self.emitError("unexpected-start-tag-implies-end-tag")
+        self.popUntil("select")
+        self.resetInsertionMode()
+        self.processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
       } else {
         // Per HTML5 spec: unknown elements in inSelect mode are ignored
         // (fragment parsing uses inBody mode which allows insertion)
@@ -2177,8 +2186,12 @@ public final class TreeBuilder: TokenSink {
     // 3. PUBLIC identifier exists and matches certain patterns
     // 4. SYSTEM identifier exists without PUBLIC identifier
     // 5. SYSTEM identifier is certain legacy values
+    // BUT: iframeSrcdoc mode always forces no-quirks (after force_quirks check)
     if doctype.forceQuirks {
       self.quirksMode = true
+    } else if self.iframeSrcdoc {
+      // iframe srcdoc content is always in no-quirks mode per WHATWG spec
+      self.quirksMode = false
     } else if doctype.name?.lowercased() != "html" {
       self.quirksMode = true
     } else if doctype.publicId != nil {
@@ -3287,8 +3300,12 @@ public final class TreeBuilder: TokenSink {
         }
       }
 
+      // Per WHATWG spec: most reset checks only apply to HTML namespace elements
+      let isHTML = node.namespace == nil || node.namespace == .html
+
       switch node.name {
       case "select":
+        // Select doesn't check isHTML per spec
         // Per spec: check if there's a table ancestor to determine inSelect vs inSelectInTable
         if !last {
           // Check ancestors for table or template
@@ -3308,58 +3325,75 @@ public final class TreeBuilder: TokenSink {
         return
 
       case "td", "th":
-        if !last {
+        if !last, isHTML {
           self.insertionMode = .inCell
           return
         }
 
       case "tr":
-        self.insertionMode = .inRow
-        return
+        if isHTML {
+          self.insertionMode = .inRow
+          return
+        }
 
       case "tbody", "thead", "tfoot":
-        self.insertionMode = .inTableBody
-        return
+        if isHTML {
+          self.insertionMode = .inTableBody
+          return
+        }
 
       case "caption":
-        self.insertionMode = .inCaption
-        return
+        if isHTML {
+          self.insertionMode = .inCaption
+          return
+        }
 
       case "colgroup":
-        self.insertionMode = .inColumnGroup
-        return
+        if isHTML {
+          self.insertionMode = .inColumnGroup
+          return
+        }
 
       case "table":
-        self.insertionMode = .inTable
-        return
+        if isHTML {
+          self.insertionMode = .inTable
+          return
+        }
 
       case "template":
+        // Template doesn't check namespace per spec
         if let mode = templateInsertionModes.last {
           self.insertionMode = mode
         }
         return
 
       case "head":
-        if !last {
+        if !last, isHTML {
           self.insertionMode = .inHead
           return
         }
 
       case "body":
-        self.insertionMode = .inBody
-        return
+        if isHTML {
+          self.insertionMode = .inBody
+          return
+        }
 
       case "frameset":
-        self.insertionMode = .inFrameset
-        return
+        if isHTML {
+          self.insertionMode = .inFrameset
+          return
+        }
 
       case "html":
-        if self.headElement == nil {
-          self.insertionMode = .beforeHead
-        } else {
-          self.insertionMode = .afterHead
+        if isHTML {
+          if self.headElement == nil {
+            self.insertionMode = .beforeHead
+          } else {
+            self.insertionMode = .afterHead
+          }
+          return
         }
-        return
 
       default:
         break
