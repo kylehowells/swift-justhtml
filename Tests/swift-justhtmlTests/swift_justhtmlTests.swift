@@ -519,7 +519,8 @@ func runTreeConstructionTests(files: [String]? = nil, showFailures: Bool = false
         var failed = 0
         var skipped = 0
 
-        for test in tests {
+        let showDetails = filename.contains("unsafe")
+        for (idx, test) in tests.enumerated() {
             if test.scriptDirective == "script-on" {
                 skipped += 1
                 continue
@@ -538,9 +539,21 @@ func runTreeConstructionTests(files: [String]? = nil, showFailures: Bool = false
                     passed += 1
                 } else {
                     failed += 1
+                    if showDetails {
+                        print("  FAIL \(filename):\(idx)")
+                        print("  INPUT: \(test.input.prefix(60).debugDescription)")
+                        print("  INPUT bytes: \(Array(test.input.utf8).prefix(30))")
+                        print("  EXPECTED:")
+                        print(test.expected)
+                        print("  ACTUAL:")
+                        print(actual)
+                    }
                 }
             } catch {
                 failed += 1
+                if showDetails {
+                    print("  ERROR \(filename):\(idx): \(error)")
+                }
             }
         }
 
