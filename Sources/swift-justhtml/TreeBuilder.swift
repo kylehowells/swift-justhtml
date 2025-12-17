@@ -316,6 +316,45 @@ public final class TreeBuilder: TokenSink {
 	// MARK: - Token Processing
 
 	private func processCharacters(_ text: String) {
+		// Fast path for .text mode (script/style/etc content) - insert entire string at once
+		if self.insertionMode == .text {
+			// Handle skipNextNewline for textarea/pre/listing
+			if self.skipNextNewline {
+				self.skipNextNewline = false
+				if text.first == "\n" {
+					// Skip the first newline
+					let remaining = String(text.dropFirst())
+					if !remaining.isEmpty {
+						self.insertText(remaining)
+					}
+					return
+				}
+			}
+			self.insertText(text)
+			return
+		}
+
+		// Fast path for .inBody mode - batch consecutive non-null characters
+		if self.insertionMode == .inBody, !self.skipNextNewline,
+		   !self.isInMathMLTextIntegrationPoint(), !self.isInSVGHtmlIntegrationPoint(),
+		   !self.isInMathMLAnnotationXmlIntegrationPoint(), !self.shouldProcessInForeignContent()
+		{
+			// Check if text contains any null characters
+			if !text.contains("\0") {
+				self.reconstructActiveFormattingElements()
+				self.insertText(text)
+				// Set framesetOk = false if there's any non-whitespace
+				for ch in text {
+					if !self.isWhitespace(ch) {
+						self.framesetOk = false
+						break
+					}
+				}
+				return
+			}
+		}
+
+		// Fall back to character-by-character processing for complex cases
 		for ch in text {
 			self.processCharacter(ch)
 		}
@@ -2726,13 +2765,45 @@ public final class TreeBuilder: TokenSink {
 
 		// Merge with previous text node if possible
 		if let lastChild = target.children.last, lastChild.name == "#text" {
-			if case let .text(existing) = lastChild.data {
-				lastChild.data = .text(existing + String(ch))
+			if case var .text(existing) = lastChild.data {
+				existing.append(ch)
+				lastChild.data = .text(existing)
 				return
 			}
 		}
 
 		let textNode = Node(name: "#text", data: .text(String(ch)))
+		target.appendChild(textNode)
+	}
+
+	/// Insert a string of text directly (batch insertion for performance)
+	@inline(__always)
+	private func insertText(_ text: String) {
+		guard !text.isEmpty else { return }
+
+		let target = self.adjustedInsertionTarget
+
+		// Per spec: foster parenting for text only applies when the target is a table element
+		if self.fosterParentingEnabled,
+		   ["table", "tbody", "tfoot", "thead", "tr"].contains(target.name)
+		{
+			// Fall back to character-by-character for foster parenting
+			for ch in text {
+				self.insertCharacterWithFosterParenting(ch)
+			}
+			return
+		}
+
+		// Merge with previous text node if possible
+		if let lastChild = target.children.last, lastChild.name == "#text" {
+			if case var .text(existing) = lastChild.data {
+				existing.append(text)
+				lastChild.data = .text(existing)
+				return
+			}
+		}
+
+		let textNode = Node(name: "#text", data: .text(text))
 		target.appendChild(textNode)
 	}
 

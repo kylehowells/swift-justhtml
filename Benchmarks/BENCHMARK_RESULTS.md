@@ -1,12 +1,12 @@
 # Cross-Implementation Benchmark Results
 
-**Generated:** 2025-12-17 09:33:38
+**Generated:** 2025-12-17 09:41:38
 
 ## Repository Versions
 
 | Project | Branch | Commit | Date |
 |---------|--------|--------|------|
-| swift-justhtml | turbo | `62313f749b5e` | 2025-12-17 |
+| swift-justhtml | turbo | `887bea9baf42` | 2025-12-17 |
 | justhtml (Python) | main | `63c29b26be64` | 2025-12-16 |
 | justjshtml (JavaScript) | main | `e29dbd3166e9` | 2025-12-16 |
 
@@ -26,23 +26,23 @@ All implementations produce **identical output** for all test files.
 
 | File | Size | Swift | Python | JavaScript | Swift vs Python | Swift vs JS |
 |------|------|-------|--------|------------|-----------------|-------------|
-| hackernews.html | 34 KB | 3.28 ms | 7.98 ms | 1.76 ms | 2.43x faster | 1.86x slower |
-| wikipedia_countries.html | 360 KB | 35.90 ms | 63.44 ms | 15.63 ms | 1.77x faster | 2.30x slower |
-| wikipedia_html.html | 472 KB | 54.30 ms | 81.91 ms | 20.24 ms | 1.51x faster | 2.68x slower |
-| wikipedia_swift.html | 411 KB | 45.47 ms | 69.34 ms | 17.41 ms | 1.52x faster | 2.61x slower |
-| wikipedia_ww2.html | 1204 KB | 121.85 ms | 187.00 ms | 48.51 ms | 1.53x faster | 2.51x slower |
-| **TOTAL** | | **261 ms** | **410 ms** | **104 ms** | **1.57x faster** | **2.52x slower** |
+| hackernews.html | 34 KB | 3.26 ms | 7.88 ms | 1.97 ms | 2.42x faster | 1.66x slower |
+| wikipedia_countries.html | 360 KB | 26.85 ms | 64.62 ms | 15.78 ms | 2.41x faster | 1.70x slower |
+| wikipedia_html.html | 472 KB | 35.63 ms | 82.99 ms | 20.50 ms | 2.33x faster | 1.74x slower |
+| wikipedia_swift.html | 411 KB | 31.35 ms | 68.61 ms | 17.63 ms | 2.19x faster | 1.78x slower |
+| wikipedia_ww2.html | 1204 KB | 84.45 ms | 182.65 ms | 47.68 ms | 2.16x faster | 1.77x slower |
+| **TOTAL** | | **182 ms** | **407 ms** | **104 ms** | **2.24x faster** | **1.75x slower** |
 
 ## Summary
 
-- **Swift** total parse time: 261 ms
-- **Python** total parse time: 410 ms
+- **Swift** total parse time: 182 ms
+- **Python** total parse time: 407 ms
 - **JavaScript** total parse time: 104 ms
 
 **JavaScript** is the fastest implementation (V8 JIT optimization).
 
-Swift is **1.6x faster** than Python.
-JavaScript is **2.5x faster** than Swift.
+Swift is **2.2x faster** than Python.
+JavaScript is **1.8x faster** than Swift.
 
 ## Test Files
 
