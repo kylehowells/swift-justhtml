@@ -3104,14 +3104,13 @@ public final class TreeBuilder: TokenSink {
 			// HTML elements in scopeElements, or MathML/SVG integration points
 			if scopeElements.contains(node.name) {
 				// For MathML/SVG scope boundaries, check namespace
-				let mathScopeBoundaries: Set<String> = ["mi", "mo", "mn", "ms", "mtext", "annotation-xml"]
-				let svgScopeBoundaries: Set<String> = ["foreignObject", "desc", "title"]
-				if mathScopeBoundaries.contains(node.name) {
+				// Use module-level kMathMLIntegrationTags and kSVGIntegrationTags
+				if kMathMLIntegrationTags.contains(node.name) {
 					if node.namespace == .math {
 						return false
 					}
 				}
-				else if svgScopeBoundaries.contains(node.name) {
+				else if kSVGIntegrationTags.contains(node.name) {
 					if node.namespace == .svg {
 						return false
 					}
