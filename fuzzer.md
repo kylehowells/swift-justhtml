@@ -1,191 +1,155 @@
-# Fuzzer Notes for swift-justhtml
+# Fuzzer for swift-justhtml
 
-Reference material for Milestone 10 (Fuzz Testing & Hardening).
+This document describes the fuzzer implementation for testing parser robustness.
 
-## Source Material
+## Overview
 
-The Python justhtml repository (`../justhtml`) contains:
+The fuzzer is implemented in `Tests/swift-justhtmlTests/FuzzerTests.swift` and consists of two main components:
 
-1. **Fuzzer**: `benchmarks/fuzz.py` - comprehensive HTML5 fuzzer
-2. **Regression tests**: `tests/justhtml-tests/` - tests added from fuzzing/coverage work
+1. **Structured HTML Fuzzer** - Generates malformed but HTML-like input using weighted random selection from various generator strategies
+2. **Random Data Fuzzer** - Sends completely random bytes/strings to test crash resilience against arbitrary junk input
 
-## Regression Tests from justhtml
-
-These tests were added after running the fuzzer and coverage analysis. They should be ported to Swift and used as a starting point for our fuzzing efforts.
-
-### Tree Construction Tests (.dat format)
-
-| File | Tests | Coverage |
-|------|-------|----------|
-| `empty_stack_edge_cases.dat` | 3 | SVG/MathML integration points with empty stacks |
-| `treebuilder_coverage.dat` | 17 | DOCTYPE, form feed in MathML, template end tags, dd/dt, caption, frameset, noscript |
-| `branch_coverage.dat` | 33 | Null in MathML, hidden inputs, annotation-xml encoding, selectedcontent, SVG breakout |
-| `iframe_srcdoc.dat` | 1 | `#iframe-srcdoc` parsing mode |
-| `xml_coercion.dat` | 4 | `#xml-coercion` mode |
-
-### Tokenizer Tests (.test JSON format)
-
-| File | Tests | Coverage |
-|------|-------|----------|
-| `tokenizer_edge_cases.test` | 34 | BOM, CR/LF, bogus comments, null chars, EOF states, script escaping, attributes |
-| `coverage_gaps.test` | 9 | Null in attribute names/values, missing values, RCDATA switching |
-| `xml_coercion_coverage.test` | 2 | Form feed → space, non-characters |
-
-## Fuzzer Strategies (~60 total)
-
-The Python fuzzer uses weighted random selection from these strategies:
-
-### Basic Element Fuzzing
-- `fuzz_open_tag` - Malformed opening tags
-- `fuzz_close_tag` - Malformed closing tags
-- `fuzz_comment` - Malformed comments
-- `fuzz_doctype` - Malformed doctypes
-- `fuzz_text` - Text with edge cases
-- `fuzz_nested_structure` - Nested (possibly invalid) structures
-
-### Raw Text & RCDATA
-- `fuzz_script` - Malformed script content
-- `fuzz_style` - Malformed style content
-- `fuzz_raw_text` - Raw text elements (script, style, xmp, iframe, noembed, noframes, noscript)
-- `fuzz_rcdata` - RCDATA elements (title, textarea)
-
-### Tree Builder Algorithms
-- `fuzz_adoption_agency` - Classic misnested formatting triggers
-- `fuzz_adoption_agency_complex` - Complex AAA scenarios (8+ iterations, table cells, links)
-- `fuzz_foster_parenting` - Content in invalid table positions
-- `fuzz_formatting_boundary` - Active formatting with markers (applet, object, marquee, button)
-
-### Foreign Content (SVG/MathML)
-- `fuzz_svg_math` - SVG and MathML parsing
-- `fuzz_integration_points` - HTML/MathML integration points (annotation-xml, foreignObject, desc, title, mi, mtext)
-- `fuzz_cdata_foreign` - CDATA in SVG/MathML
-- `fuzz_math_annotation` - MathML annotation elements
-- `fuzz_foreign_self_closing` - Self-closing in foreign content
-
-### Table Parsing
-- `fuzz_table_scoping` - Table element scoping rules
-- `fuzz_template_in_table` - Template inside table structures
-- `fuzz_colgroup_handling` - Colgroup edge cases
-
-### Special Elements
-- `fuzz_template` - Template elements
-- `fuzz_template_nesting` - Deeply nested templates
-- `fuzz_select_element` - Select parsing mode
-- `fuzz_frameset_mode` - Frameset parsing mode
-- `fuzz_noscript_handling` - Noscript (scripting-dependent)
-
-### Implicit Tag Handling
-- `fuzz_implicit_tags` - Implicit tag opening/closing
-- `fuzz_li_dd_dt_nesting` - li/dd/dt implicit closing
-- `fuzz_heading_nesting` - h1-h6 nesting
-- `fuzz_form_nesting` - Form element nesting
-- `fuzz_ruby_elements` - Ruby elements (rb, rt, rp, rtc)
-
-### Document Structure
-- `fuzz_document_structure` - Malformed document structure
-- `fuzz_body_start_variations` - Body start tag variations
-- `fuzz_html_start_variations` - Html start tag variations
-- `fuzz_scope_terminators` - Elements that terminate scopes
-- `fuzz_mode_switching` - Parser mode transitions
-
-### Tokenizer Edge Cases
-- `fuzz_entity_edge_cases` - Entity decoding edge cases
-- `fuzz_attribute_states` - Attribute tokenizer states
-- `fuzz_null_handling` - NULL byte handling
-- `fuzz_whitespace_handling` - Whitespace in various contexts
-- `fuzz_eof_handling` - EOF in various parsing states
-
-### Script Parsing
-- `fuzz_script_escaping` - Script double-escape states
-
-### Stress Testing
-- `fuzz_deeply_nested` - Very deep nesting (100-500 levels)
-- `fuzz_many_attributes` - Many/large attributes (100-500)
-- `fuzz_unclosed_formatting` - Many unclosed formatting elements
-
-### Deprecated/Legacy Elements
-- `fuzz_isindex_handling` - isindex element
-- `fuzz_image_element` - image → img conversion
-- `fuzz_menuitem_handling` - menuitem element
-- `fuzz_object_embed` - object and embed elements
-- `fuzz_plaintext_mode` - plaintext element
-- `fuzz_xmp_listing_pre` - xmp, listing, pre elements
-- `fuzz_empty_elements` - Void elements in wrong contexts
-
-### DOCTYPE & Quirks
-- `fuzz_doctype_variations` - Quirks-triggering doctypes
-- `fuzz_quirks_doctype` - Specific quirks mode triggers
-- `fuzz_after_after_modes` - After body/frameset modes
-
-### Encoding
-- `fuzz_encoding_edge_cases` - BOM, null bytes, high bytes, line endings
-- `fuzz_processing_instruction` - XML processing instructions
-
-## Key Edge Cases to Test
-
-Based on the fuzzer and regression tests, these are critical areas:
-
-### Null Character Handling
-- Null in tag names → replacement character
-- Null in attribute names → replacement character
-- Null in attribute values → replacement character
-- Null in text → depends on context (data state emits error, some contexts replace)
-- Null in comments → replacement character
-- Null in script/style → replacement character
-- Null in RCDATA → replacement character
-
-### CR/LF Normalization
-- CR → LF
-- CR LF → LF
-- CR in attributes, comments, text content
-
-### Integration Points (Foreign Content)
-- `annotation-xml` with `encoding="text/html"` or `encoding="application/xhtml+xml"` IS an integration point
-- `annotation-xml` without encoding or with other values is NOT
-- SVG `foreignObject`, `desc`, `title` are always integration points
-- MathML `mi`, `mo`, `mn`, `ms`, `mtext` are text integration points
-
-### Adoption Agency Algorithm
-- Limit of 8 iterations
-- Formatting across block elements
-- Multiple nested formatting tags
-- Formatting across table cells
-
-### Foster Parenting
-- Text directly in table
-- Elements in wrong table positions
-- Nested tables with foster parenting
-
-### Template Element
-- Template content is in a separate document fragment
-- Template in table has special handling
-- Template mode stack
-
-## Running the Python Fuzzer
+## Running the Fuzzer
 
 ```bash
-cd ../justhtml
-python benchmarks/fuzz.py --parser justhtml --num-tests 10000 --verbose
+# Run all fuzzer tests
+swift test --filter Fuzzer
+
+# Run just the main structured HTML fuzzer
+swift test --filter fuzzTest
+
+# Run just the random data fuzzers
+swift test --filter testRandomData
 ```
 
-Options:
-- `--parser`: justhtml, html5lib, lxml, bs4
-- `--num-tests`: Number of test cases (default 1000)
-- `--seed`: Random seed for reproducibility
-- `--verbose`: Show progress
-- `--save-failures`: Save failures to file
-- `--sample N`: Print N sample fuzzed documents without parsing
+## Test Summary
 
-## Swift Fuzzer Implementation Plan
+| Test | CI Count | Description |
+|------|----------|-------------|
+| `fuzzTest` | 10,000 | Main structured HTML fuzzer |
+| `testFuzzerComprehensive` | 450 | Tests each generator individually |
+| `testRandomDataFuzzer` | 2,500 | Random data (0-1KB) |
+| `testRandomDataFuzzerLongInputs` | 250 | Long random data (1-10KB) |
+| `testRandomDataFragmentFuzzer` | 1,000 | Random data across 10 fragment contexts |
+| `testSelectFragmentCrash` | 1 | Regression test for select fragment bug |
+| `testSelectFragmentNonCrashingCases` | 4 | Additional select fragment tests |
 
-1. Port the fuzzing strategies from Python to Swift
-2. Create a `Benchmarks/` directory with the fuzzer
-3. Use Swift's random number generation with seedable RNG
-4. Output failures in a format that can be added as regression tests
-5. Target: Pass 3+ million generated documents without crashes
+**Total CI tests: ~13,750 inputs in ~2.5 seconds**
 
-## References
+## Stress Test Results
 
-- Original author's experience: "I asked the agent to write a html5 fuzzer that tried really hard to generate HTML that broke the parser. It did break the parser, and for each breaking case I asked it to fix it, and write a new test for the test suite. Passed 3 million generated webpages without any crashes, and hardened the codebase again."
-- Python fuzzer: `../justhtml/benchmarks/fuzz.py`
-- Regression tests: `../justhtml/tests/justhtml-tests/`
+Extended testing was performed before reducing values for CI:
+
+| Test | Count | Duration | Result |
+|------|-------|----------|--------|
+| `fuzzTest` | 250,000 | 56.0s | PASSED |
+| `testRandomDataFuzzer` | 50,000 | 41.2s | PASSED |
+| `testRandomDataFuzzerLongInputs` | 5,000 | 48.9s | PASSED |
+| `testRandomDataFragmentFuzzer` | 20,000 | 8.8s | PASSED |
+| **Total** | **325,000** | **~56s** | **0 crashes** |
+
+The parser successfully handled **325,000 fuzz tests** with **zero crashes**.
+
+## Structured HTML Fuzzer
+
+### Generator Strategies (15 total)
+
+The structured fuzzer uses weighted random selection from these generators:
+
+| Generator | Weight | Description |
+|-----------|--------|-------------|
+| `fuzzOpenTag` | 20 | Malformed opening tags with random attributes |
+| `fuzzCloseTag` | 10 | Malformed closing tags (`</tag`, `</ tag>`, etc.) |
+| `fuzzComment` | 8 | Malformed comments (`<!--`, `<!->`, `<!---->`, etc.) |
+| `fuzzText` | 15 | Text with entities, special chars, partial tags |
+| `fuzzScript` | 4 | Malformed script elements |
+| `fuzzSvgMath` | 5 | SVG and MathML with integration points |
+| `fuzzTemplate` | 3 | Template elements and nesting |
+| `fuzzAdoptionAgency` | 5 | Misnested formatting elements (triggers AAA) |
+| `fuzzFosterParenting` | 5 | Content in invalid table positions |
+| `fuzzDeeplyNested` | 1 | Deep nesting (10-30 levels) |
+| `fuzzNullHandling` | 4 | NULL bytes in various positions |
+| `fuzzEofHandling` | 3 | Truncated/incomplete constructs |
+| `fuzzSelectElement` | 4 | Select element edge cases |
+| `fuzzTableScoping` | 5 | Table scoping and nesting |
+| `fuzzIntegrationPoints` | 4 | SVG/MathML integration points |
+
+### Tag and Character Sets
+
+**Tags tested:**
+- Standard: `div`, `span`, `p`, `a`, `img`, `table`, `tr`, `td`, `th`, `ul`, `ol`, `li`
+- Form: `form`, `input`, `button`, `select`, `option`, `textarea`
+- Document: `head`, `body`, `html`, `title`, `meta`, `link`
+- Special: `script`, `style`, `template`, `noscript`, `iframe`
+- Foreign: `svg`, `math`
+- Legacy: `frameset`, `frame`, `noframes`, `plaintext`, `xmp`, `marquee`
+
+**Formatting tags (for adoption agency):**
+`a`, `b`, `big`, `code`, `em`, `font`, `i`, `nobr`, `s`, `small`, `strike`, `strong`, `tt`, `u`
+
+**Special characters:**
+`\u{0000}` (NULL), `\u{000B}` (VT), `\u{000C}` (FF), `\u{FFFD}` (replacement), `\u{00A0}` (NBSP), `\u{FEFF}` (BOM)
+
+**Entity edge cases:**
+`&amp;`, `&lt;`, `&gt;`, `&quot;`, `&nbsp;`, `&`, `&amp`, `&#`, `&#x`, `&#123`, `&#x1f;`, `&#0;`, `&#x0;`, `&#xD800;`, `&#xDFFF;`, `&#x10FFFF;`
+
+### Document Generation
+
+Each fuzzed document:
+1. Optionally starts with a malformed DOCTYPE (50% chance)
+2. Contains 1-15 randomly generated elements using weighted selection
+3. Elements are concatenated without guaranteed well-formedness
+
+## Random Data Fuzzer
+
+### Generation Strategies
+
+| Strategy | Description |
+|----------|-------------|
+| `generateRandomData` | Pure random bytes (0-255), converted to UTF-8 with replacement |
+| `generateRandomASCII` | Random ASCII with HTML-like characters (`<>\"'=/!?-&;#`) |
+| `generateRandomHTMLish` | Mix of ASCII, random bytes, HTML special chars, whitespace/null |
+| Mixed | Combination of all three strategies |
+
+### Test Modes
+
+1. **Standard** (`testRandomDataFuzzer`): 0-1KB inputs
+2. **Long inputs** (`testRandomDataFuzzerLongInputs`): 1-10KB inputs
+3. **Fragment contexts** (`testRandomDataFragmentFuzzer`): Tests across 10 different fragment parsing contexts:
+   - `div`, `table`, `template`, `svg`, `math`, `select`, `script`, `style`, `title`, `textarea`
+
+## Regression Tests
+
+### Select Fragment Crash (Fixed)
+
+**Bug:** Infinite recursion when parsing `<table></table><li><table></table>` with `select` as fragment context.
+
+**Cause:** Table tag in `inSelect` mode with select as context-only element (not on open elements stack).
+
+**Test:** `testSelectFragmentCrash` and `testSelectFragmentNonCrashingCases`
+
+## Key Areas Tested
+
+Based on the fuzzer strategies, these critical parser areas are exercised:
+
+### Tokenizer
+- NULL character handling in various states
+- CR/LF normalization
+- Entity decoding edge cases
+- EOF handling in all states
+- Malformed comments and DOCTYPEs
+
+### Tree Builder
+- Adoption Agency Algorithm (misnested formatting)
+- Foster parenting (content in wrong table positions)
+- Template element handling
+- Foreign content (SVG/MathML)
+- Integration points
+- Table scoping
+- Select element parsing mode
+
+### Robustness
+- Deep nesting (up to 30 levels)
+- Arbitrary binary data
+- Invalid UTF-8 sequences
+- Truncated/incomplete input
