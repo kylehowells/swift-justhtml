@@ -73,14 +73,27 @@ class ProfilerStats {
 
 // MARK: - Sample File Loader
 
+private let kSampleFilesBasePath = "/home/kyle/Development/justhtml/swift-justhtml/Benchmarks/samples"
+
+/// Check if sample files are available (skip tests on CI)
+func sampleFilesAvailable() -> Bool {
+	FileManager.default.fileExists(atPath: kSampleFilesBasePath)
+}
+
 func loadSampleFile(_ name: String) throws -> String {
-	let path = "/home/kyle/Development/justhtml/swift-justhtml/Benchmarks/samples/\(name)"
+	let path = "\(kSampleFilesBasePath)/\(name)"
 	return try String(contentsOfFile: path, encoding: .utf8)
 }
 
 // MARK: - Profiling Tests
 
 @Test func profileRealWorldFiles() async throws {
+	// Skip this test on CI where sample files aren't available
+	guard sampleFilesAvailable() else {
+		print("Skipping profileRealWorldFiles: sample files not available")
+		return
+	}
+
 	print("\n" + String(repeating: "=", count: 70))
 	print("PERFORMANCE PROFILING - Real World HTML Files")
 	print(String(repeating: "=", count: 70))
@@ -143,6 +156,12 @@ func loadSampleFile(_ name: String) throws -> String {
 }
 
 @Test func profileTokenizerVsTreeBuilder() async throws {
+	// Skip this test on CI where sample files aren't available
+	guard sampleFilesAvailable() else {
+		print("Skipping profileTokenizerVsTreeBuilder: sample files not available")
+		return
+	}
+
 	print("\n" + String(repeating: "=", count: 70))
 	print("TOKENIZER VS TREE BUILDER - Phase Breakdown")
 	print(String(repeating: "=", count: 70))
@@ -332,6 +351,12 @@ func loadSampleFile(_ name: String) throws -> String {
 }
 
 @Test func profileMemoryAllocation() async throws {
+	// Skip this test on CI where sample files aren't available
+	guard sampleFilesAvailable() else {
+		print("Skipping profileMemoryAllocation: sample files not available")
+		return
+	}
+
 	print("\n" + String(repeating: "=", count: 70))
 	print("MEMORY ALLOCATION ANALYSIS")
 	print(String(repeating: "=", count: 70))
@@ -450,6 +475,12 @@ func loadSampleFile(_ name: String) throws -> String {
 }
 
 @Test func profileComprehensiveSummary() async throws {
+	// Skip this test on CI where sample files aren't available
+	guard sampleFilesAvailable() else {
+		print("Skipping profileComprehensiveSummary: sample files not available")
+		return
+	}
+
 	print("\n" + String(repeating: "=", count: 70))
 	print("COMPREHENSIVE PERFORMANCE SUMMARY")
 	print(String(repeating: "=", count: 70))
