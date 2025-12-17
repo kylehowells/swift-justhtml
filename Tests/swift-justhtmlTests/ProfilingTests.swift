@@ -558,3 +558,364 @@ func loadSampleFile(_ name: String) throws -> String {
 	print(String(format: "Total time: %.2f ms", grandTotal))
 	print(String(format: "Average throughput: %.2f MB/s", Double(grandTotalSize) / 1024 / grandTotal * 1000))
 }
+
+// MARK: - Tokenizer Micro-Benchmarks
+
+@Test func profileTokenizerMicroBenchmarks() async throws {
+	print("\n" + String(repeating: "=", count: 70))
+	print("TOKENIZER MICRO-BENCHMARKS")
+	print(String(repeating: "=", count: 70))
+
+	// Test 1: Pure text scanning speed (no tags, no entities)
+	let pureText = String(repeating: "Hello world this is a test. ", count: 10000)
+	let pureTextHTML = "<!DOCTYPE html><html><body>\(pureText)</body></html>"
+
+	// Test 2: Tag-heavy content (many short tags)
+	var tagHeavy = "<!DOCTYPE html><html><body>"
+	for i in 0..<5000 {
+		tagHeavy += "<span>x\(i)</span>"
+	}
+	tagHeavy += "</body></html>"
+
+	// Test 3: Attribute-heavy content
+	var attrHeavy = "<!DOCTYPE html><html><body>"
+	for i in 0..<2000 {
+		attrHeavy += "<div id=\"id\(i)\" class=\"cls\(i)\" data-value=\"val\(i)\">x</div>"
+	}
+	attrHeavy += "</body></html>"
+
+	// Test 4: Entity-heavy content
+	var entityHeavy = "<!DOCTYPE html><html><body>"
+	for i in 0..<2000 {
+		entityHeavy += "<p>&amp;\(i) &lt; &gt; &quot;</p>"
+	}
+	entityHeavy += "</body></html>"
+
+	// Test 5: Whitespace-heavy content
+	let whitespace = String(repeating: " \t\n", count: 5000)
+	let whitespaceHTML = "<!DOCTYPE html><html><body>\(whitespace)</body></html>"
+
+	let testCases = [
+		("Pure text (300KB)", pureTextHTML),
+		("Tag-heavy (5000 spans)", tagHeavy),
+		("Attribute-heavy (2000 divs)", attrHeavy),
+		("Entity-heavy (2000 entities)", entityHeavy),
+		("Whitespace-heavy", whitespaceHTML),
+	]
+
+	print("\n| Test Case | Size | Parse Time | Throughput |")
+	print("|-----------|------|------------|------------|")
+
+	for (name, html) in testCases {
+		let iterations = 10
+		var times: [Double] = []
+		var timer = PrecisionTimer()
+
+		// Warmup
+		for _ in 0..<3 {
+			_ = try JustHTML(html)
+		}
+
+		// Measure
+		for _ in 0..<iterations {
+			timer.begin()
+			_ = try JustHTML(html)
+			timer.stop()
+			times.append(timer.elapsedMilliseconds)
+		}
+
+		let avgMs = times.reduce(0, +) / Double(times.count)
+		let sizeKB = html.utf8.count / 1024
+		let throughput = Double(sizeKB) / avgMs * 1000 / 1024 // MB/s
+
+		let namePadded = name.padding(toLength: 28, withPad: " ", startingAt: 0)
+		print("| \(namePadded) | \(String(format: "%4dKB", sizeKB)) | \(String(format: "%8.2f ms", avgMs)) | \(String(format: "%6.2f MB/s", throughput)) |")
+	}
+
+	print("\n=== Analysis ===")
+	print("Compare throughput across test cases to identify bottlenecks:")
+	print("- If 'Pure text' is much faster → tag parsing is the bottleneck")
+	print("- If 'Tag-heavy' is slow → state machine overhead is high")
+	print("- If 'Entity-heavy' is slow → entity decoding is expensive")
+	print("- If 'Attribute-heavy' is slow → attribute parsing needs work")
+}
+
+@Test func profileTokenizerOperations() async throws {
+	print("\n" + String(repeating: "=", count: 70))
+	print("TOKENIZER OPERATION COSTS")
+	print(String(repeating: "=", count: 70))
+
+	let iterations = 100_000
+
+	// Test: String append (character)
+	var timer = PrecisionTimer()
+	var str1 = ""
+	str1.reserveCapacity(iterations)
+	timer.begin()
+	for _ in 0..<iterations {
+		str1.append("x")
+	}
+	timer.stop()
+	let strAppendCharNs = Double(timer.elapsedNanoseconds) / Double(iterations)
+
+	// Test: String append (string)
+	var str2 = ""
+	str2.reserveCapacity(iterations * 5)
+	timer.begin()
+	for _ in 0..<iterations {
+		str2.append("hello")
+	}
+	timer.stop()
+	let strAppendStrNs = Double(timer.elapsedNanoseconds) / Double(iterations)
+
+	// Test: Byte array append
+	var bytes1 = ContiguousArray<UInt8>()
+	bytes1.reserveCapacity(iterations)
+	timer.begin()
+	for _ in 0..<iterations {
+		bytes1.append(0x78) // 'x'
+	}
+	timer.stop()
+	let byteAppendNs = Double(timer.elapsedNanoseconds) / Double(iterations)
+
+	// Test: Byte array append contiguous
+	var bytes2 = ContiguousArray<UInt8>()
+	bytes2.reserveCapacity(iterations * 5)
+	let fiveBytes: [UInt8] = [0x68, 0x65, 0x6c, 0x6c, 0x6f] // "hello"
+	timer.begin()
+	for _ in 0..<iterations {
+		bytes2.append(contentsOf: fiveBytes)
+	}
+	timer.stop()
+	let byteAppendMultiNs = Double(timer.elapsedNanoseconds) / Double(iterations)
+
+	// Test: String(decoding:as:) conversion
+	let testBytes = ContiguousArray<UInt8>(repeating: 0x78, count: 100)
+	timer.begin()
+	for _ in 0..<iterations {
+		let _ = String(decoding: testBytes, as: UTF8.self)
+	}
+	timer.stop()
+	let strDecodeNs = Double(timer.elapsedNanoseconds) / Double(iterations)
+
+	// Test: Character creation from UInt8
+	timer.begin()
+	for _ in 0..<iterations {
+		let _ = Character(UnicodeScalar(0x78))
+	}
+	timer.stop()
+	let charCreateNs = Double(timer.elapsedNanoseconds) / Double(iterations)
+
+	// Test: Dictionary lookup
+	let dict: [String: Int] = ["amp": 1, "lt": 2, "gt": 3, "nbsp": 4]
+	timer.begin()
+	for _ in 0..<iterations {
+		let _ = dict["amp"]
+	}
+	timer.stop()
+	let dictLookupNs = Double(timer.elapsedNanoseconds) / Double(iterations)
+
+	// Test: Set contains
+	let set: Set<String> = ["div", "span", "p", "a", "table"]
+	timer.begin()
+	for _ in 0..<iterations {
+		let _ = set.contains("div")
+	}
+	timer.stop()
+	let setContainsNs = Double(timer.elapsedNanoseconds) / Double(iterations)
+
+	print()
+	print("Operation costs (nanoseconds per operation):")
+	print(String(format: "  String.append(char):       %6.1f ns", strAppendCharNs))
+	print(String(format: "  String.append(string):     %6.1f ns", strAppendStrNs))
+	print(String(format: "  Byte array append:         %6.1f ns", byteAppendNs))
+	print(String(format: "  Byte array append multi:   %6.1f ns", byteAppendMultiNs))
+	print(String(format: "  String(decoding:) 100B:    %6.1f ns", strDecodeNs))
+	print(String(format: "  Character creation:        %6.1f ns", charCreateNs))
+	print(String(format: "  Dictionary lookup:         %6.1f ns", dictLookupNs))
+	print(String(format: "  Set.contains:              %6.1f ns", setContainsNs))
+
+	print()
+	print("Key insights:")
+	print(String(format: "  Byte append is %.1fx faster than String.append(char)", strAppendCharNs / byteAppendNs))
+	print(String(format: "  Batch String decode is %.1f ns per char (for 100 chars)", strDecodeNs / 100.0))
+}
+
+@Test func profileInputScanningStrategies() async throws {
+	print("\n" + String(repeating: "=", count: 70))
+	print("INPUT SCANNING STRATEGY COMPARISON")
+	print(String(repeating: "=", count: 70))
+
+	guard sampleFilesAvailable() else {
+		print("Skipping: sample files not available")
+		return
+	}
+
+	let html = try loadSampleFile("wikipedia_ww2.html")
+	let bytes = ContiguousArray(html.utf8)
+	let iterations = 100
+
+	var timer = PrecisionTimer()
+
+	// Strategy 1: Scan for '<' using byte comparison
+	timer.begin()
+	for _ in 0..<iterations {
+		var count = 0
+		for byte in bytes {
+			if byte == 0x3C { count += 1 }
+		}
+		_ = count
+	}
+	timer.stop()
+	let byteScanMs = timer.elapsedMilliseconds / Double(iterations)
+
+	// Strategy 2: Scan using array index
+	timer.begin()
+	for _ in 0..<iterations {
+		var count = 0
+		for i in 0..<bytes.count {
+			if bytes[i] == 0x3C { count += 1 }
+		}
+		_ = count
+	}
+	timer.stop()
+	let indexScanMs = timer.elapsedMilliseconds / Double(iterations)
+
+	// Strategy 3: Scan using withUnsafeBufferPointer
+	timer.begin()
+	for _ in 0..<iterations {
+		var count = 0
+		bytes.withUnsafeBufferPointer { ptr in
+			for i in 0..<ptr.count {
+				if ptr[i] == 0x3C { count += 1 }
+			}
+		}
+		_ = count
+	}
+	timer.stop()
+	let unsafeScanMs = timer.elapsedMilliseconds / Double(iterations)
+
+	// Strategy 4: Character iteration
+	timer.begin()
+	for _ in 0..<iterations {
+		var count = 0
+		for ch in html {
+			if ch == "<" { count += 1 }
+		}
+		_ = count
+	}
+	timer.stop()
+	let charScanMs = timer.elapsedMilliseconds / Double(iterations)
+
+	print()
+	print("Scanning for '<' in wikipedia_ww2.html (1.2MB):")
+	print(String(format: "  Byte iteration:            %6.2f ms", byteScanMs))
+	print(String(format: "  Index-based access:        %6.2f ms", indexScanMs))
+	print(String(format: "  Unsafe buffer pointer:     %6.2f ms", unsafeScanMs))
+	print(String(format: "  Character iteration:       %6.2f ms", charScanMs))
+	print()
+	print(String(format: "Character scan is %.1fx slower than byte scan", charScanMs / byteScanMs))
+	print(String(format: "Unsafe pointer is %.2fx vs index-based", indexScanMs / unsafeScanMs))
+}
+
+// MARK: - Tree Builder Micro-Benchmarks
+
+@Test func profileTreeBuilderOperations() async throws {
+	print("\n" + String(repeating: "=", count: 70))
+	print("TREE BUILDER OPERATION COSTS")
+	print(String(repeating: "=", count: 70))
+
+	let iterations = 100_000
+	var timer = PrecisionTimer()
+
+	// Test 1: Node creation cost
+	timer.begin()
+	for _ in 0..<iterations {
+		let node = Node(name: "div", namespace: .html)
+		_ = node
+	}
+	timer.stop()
+	let nodeCreateNs = Double(timer.elapsedNanoseconds) / Double(iterations)
+
+	// Test 2: Node creation with attributes
+	timer.begin()
+	for _ in 0..<iterations {
+		let node = Node(name: "div", namespace: .html, attrs: ["id": "test", "class": "foo bar"])
+		_ = node
+	}
+	timer.stop()
+	let nodeWithAttrsNs = Double(timer.elapsedNanoseconds) / Double(iterations)
+
+	// Test 3: appendChild cost
+	let parent = Node(name: "div")
+	let children: [Node] = (0..<iterations).map { _ in Node(name: "span") }
+	timer.begin()
+	for child in children {
+		parent.appendChild(child)
+	}
+	timer.stop()
+	let appendChildNs = Double(timer.elapsedNanoseconds) / Double(iterations)
+
+	// Test 4: Array push/pop (simulating open elements stack)
+	var stack: [Node] = []
+	stack.reserveCapacity(100)
+	let stackNodes: [Node] = (0..<100).map { _ in Node(name: "div") }
+	timer.begin()
+	for _ in 0..<iterations {
+		for node in stackNodes {
+			stack.append(node)
+		}
+		for _ in 0..<stackNodes.count {
+			_ = stack.removeLast()
+		}
+	}
+	timer.stop()
+	let stackOpsNs = Double(timer.elapsedNanoseconds) / Double(iterations) / Double(stackNodes.count * 2)
+
+	// Test 5: String comparison (tag name matching)
+	let tagNames = ["div", "span", "p", "a", "script", "style", "table", "tr", "td"]
+	let testTag = "table"
+	timer.begin()
+	var matchCount = 0
+	for _ in 0..<iterations {
+		for tag in tagNames {
+			if tag == testTag { matchCount += 1 }
+		}
+	}
+	timer.stop()
+	let stringCompareNs = Double(timer.elapsedNanoseconds) / Double(iterations * tagNames.count)
+
+	// Test 6: TagID comparison (integer matching)
+	let tagIds: [TagID] = [.div, .span, .p, .a, .script, .style, .table, .tr, .td]
+	let testTagId = TagID.table
+	timer.begin()
+	var tagIdMatchCount = 0
+	for _ in 0..<iterations {
+		for tagId in tagIds {
+			if tagId == testTagId { tagIdMatchCount += 1 }
+		}
+	}
+	timer.stop()
+	let tagIdCompareNs = Double(timer.elapsedNanoseconds) / Double(iterations * tagIds.count)
+
+	// Test 7: Text node creation
+	timer.begin()
+	for _ in 0..<iterations {
+		let node = Node(name: "#text", data: .text("Sample text content"))
+		_ = node
+	}
+	timer.stop()
+	let textNodeCreateNs = Double(timer.elapsedNanoseconds) / Double(iterations)
+
+	print("\nOperation costs (nanoseconds per operation):")
+	print(String(format: "  Node creation:           %6.1f ns", nodeCreateNs))
+	print(String(format: "  Node with attrs:         %6.1f ns", nodeWithAttrsNs))
+	print(String(format: "  Text node creation:      %6.1f ns", textNodeCreateNs))
+	print(String(format: "  appendChild:             %6.1f ns", appendChildNs))
+	print(String(format: "  Stack push/pop:          %6.1f ns", stackOpsNs))
+	print(String(format: "  String comparison:       %6.1f ns", stringCompareNs))
+	print(String(format: "  TagID comparison:        %6.1f ns", tagIdCompareNs))
+	print()
+	print(String(format: "TagID is %.1fx faster than string comparison", stringCompareNs / tagIdCompareNs))
+	print(String(format: "Attrs add %.1f ns overhead to node creation", nodeWithAttrsNs - nodeCreateNs))
+}
