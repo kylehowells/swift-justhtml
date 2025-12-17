@@ -17,8 +17,58 @@
 # Else on next line
 --enable elseOnSameLine
 --else-position next-line
+--guard-else auto
 
 # Space inside empty braces
 --enable emptyBraces
 --empty-braces spaced
 
+--enable acronyms
+--acronyms
+
+--enable andOperator, anyObjectProtocol, assertionFailures, blankLineAfterImports, 
+
+--enable blankLineAfterSwitchCase
+--blank-line-after-switch-case always
+
+--enable blankLinesAfterGuardStatements
+--line-between-guards "true"
+
+--enable blankLinesAroundMark
+--line-after-marks true
+
+--enable blankLinesAtStartOfScope, blankLinesAtEndOfScope
+--type-blank-lines preserve
+--type-blank-lines preserve
+
+--enable blankLinesBetweenChainedFunctions, blankLinesBetweenImports, blankLinesBetweenScopes, consecutiveBlankLines, consecutiveSpaces, consistentSwitchCaseSpacing, docComments, docCommentsBeforeModifiers, duplicateImports, emptyExtensions, enumNamespaces, extensionAccessControl, headerFileName, hoistAwait, hoistPatternLet, hoistTry
+
+--enable indent
+--indent tab
+--tab-width 4
+--smart-tabs enabled
+--indent-case true
+
+--enable initCoderUnavailable, leadingDelimiters
+
+--enable markTypes
+--mark-types always
+
+--enable modifiersOnSameLine, preferForLoop
+
+--enable redundantNilInit
+--nil-init insert
+
+--enable redundantType
+--property-types explicit
+
+--enable singlePropertyPerLine, spaceAroundBrackets, spaceAroundOperators, spaceAroundParens, spaceInsideComments, todos
+
+
+--enable trailingCommas
+--trailing-commas collections-only
+
+--enable trailingSpace
+--trim-whitespace nonblank-lines
+
+--enable void, wrapEnumCases, wrapLoopBodies, wrapMultilineFunctionChains, wrapMultilineStatementBraces
