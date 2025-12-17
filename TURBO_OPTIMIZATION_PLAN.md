@@ -153,7 +153,27 @@ swiftformat .
 | **Current** | **173** | **1.75x** | Module-level Set constants |
 | Target | 106 | 2.85x | Match JS |
 
-**Summary:** Achieved 43% speedup (302ms → 173ms). Still ~63% slower than JavaScript (173ms vs 106ms).
+**Summary:** Achieved 43% speedup (302ms → 173ms). Still ~65% slower than JavaScript (173ms vs 105ms).
+
+### Optimizations Applied
+1. **UTF-8 Byte-Based Tokenizer** (14% speedup) - Changed input from String to ContiguousArray<UInt8>
+2. **Batch Text Insertion** (30% speedup) - Added insertText() for bulk character insertion
+3. **Static Set Lookups** (5% speedup) - Moved 55+ array literals to module-level Set constants
+4. **ASCII String Operations** (neutral) - Added asciiCaseInsensitiveEquals() and asciiLowercased()
+5. **Module-Level Constants** (small gain) - Removed inline Set allocations from hot paths
+
+### Why JavaScript is Faster
+The remaining 65% gap is likely due to fundamental language differences:
+- **V8 JIT compilation** - JavaScript benefits from runtime optimization
+- **ARC vs GC** - Swift's reference counting has per-operation overhead
+- **String handling** - Swift strings are Unicode-correct, adding complexity
+- **Object allocation** - Each HTML element creates a new Node object
+
+### Potential Future Optimizations
+- Integer tag IDs instead of string names (significant refactoring)
+- Object pooling for Node instances (complex implementation)
+- Custom memory allocator (requires unsafe code)
+- SIMD operations for byte scanning (limited applicability)
 
 ---
 
