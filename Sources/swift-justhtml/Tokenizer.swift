@@ -1026,7 +1026,7 @@ public final class Tokenizer {
 
 		switch ch {
 			case "\t", "\n", "\u{0C}", " ":
-				if self.tempBuffer.lowercased() == self.lastStartTagName.lowercased() {
+				if self.tempBuffer.asciiCaseInsensitiveEquals(self.lastStartTagName) {
 					self.state = .beforeAttributeName
 				}
 				else {
@@ -1037,7 +1037,7 @@ public final class Tokenizer {
 				}
 
 			case "/":
-				if self.tempBuffer.lowercased() == self.lastStartTagName.lowercased() {
+				if self.tempBuffer.asciiCaseInsensitiveEquals(self.lastStartTagName) {
 					self.state = .selfClosingStartTag
 				}
 				else {
@@ -1048,8 +1048,8 @@ public final class Tokenizer {
 				}
 
 			case ">":
-				if self.tempBuffer.lowercased() == self.lastStartTagName.lowercased() {
-					self.currentTagName = self.tempBuffer.lowercased()
+				if self.tempBuffer.asciiCaseInsensitiveEquals(self.lastStartTagName) {
+					self.currentTagName = self.tempBuffer.asciiLowercased()
 					self.state = .data
 					self.emitCurrentTag()
 				}
@@ -1122,7 +1122,7 @@ public final class Tokenizer {
 
 		switch ch {
 			case "\t", "\n", "\u{0C}", " ":
-				if self.tempBuffer.lowercased() == self.lastStartTagName.lowercased() {
+				if self.tempBuffer.asciiCaseInsensitiveEquals(self.lastStartTagName) {
 					self.state = .beforeAttributeName
 				}
 				else {
@@ -1133,7 +1133,7 @@ public final class Tokenizer {
 				}
 
 			case "/":
-				if self.tempBuffer.lowercased() == self.lastStartTagName.lowercased() {
+				if self.tempBuffer.asciiCaseInsensitiveEquals(self.lastStartTagName) {
 					self.state = .selfClosingStartTag
 				}
 				else {
@@ -1144,8 +1144,8 @@ public final class Tokenizer {
 				}
 
 			case ">":
-				if self.tempBuffer.lowercased() == self.lastStartTagName.lowercased() {
-					self.currentTagName = self.tempBuffer.lowercased()
+				if self.tempBuffer.asciiCaseInsensitiveEquals(self.lastStartTagName) {
+					self.currentTagName = self.tempBuffer.asciiLowercased()
 					self.state = .data
 					self.emitCurrentTag()
 				}
@@ -1244,7 +1244,7 @@ public final class Tokenizer {
 
 		switch ch {
 			case "\t", "\n", "\u{0C}", " ":
-				if self.tempBuffer.lowercased() == self.lastStartTagName.lowercased() {
+				if self.tempBuffer.asciiCaseInsensitiveEquals(self.lastStartTagName) {
 					self.state = .beforeAttributeName
 				}
 				else {
@@ -1255,7 +1255,7 @@ public final class Tokenizer {
 				}
 
 			case "/":
-				if self.tempBuffer.lowercased() == self.lastStartTagName.lowercased() {
+				if self.tempBuffer.asciiCaseInsensitiveEquals(self.lastStartTagName) {
 					self.state = .selfClosingStartTag
 				}
 				else {
@@ -1266,8 +1266,8 @@ public final class Tokenizer {
 				}
 
 			case ">":
-				if self.tempBuffer.lowercased() == self.lastStartTagName.lowercased() {
-					self.currentTagName = self.tempBuffer.lowercased()
+				if self.tempBuffer.asciiCaseInsensitiveEquals(self.lastStartTagName) {
+					self.currentTagName = self.tempBuffer.asciiLowercased()
 					self.state = .data
 					self.emitCurrentTag()
 				}
@@ -1460,7 +1460,7 @@ public final class Tokenizer {
 
 		switch ch {
 			case "\t", "\n", "\u{0C}", " ":
-				if self.tempBuffer.lowercased() == self.lastStartTagName.lowercased() {
+				if self.tempBuffer.asciiCaseInsensitiveEquals(self.lastStartTagName) {
 					self.state = .beforeAttributeName
 				}
 				else {
@@ -1471,7 +1471,7 @@ public final class Tokenizer {
 				}
 
 			case "/":
-				if self.tempBuffer.lowercased() == self.lastStartTagName.lowercased() {
+				if self.tempBuffer.asciiCaseInsensitiveEquals(self.lastStartTagName) {
 					self.state = .selfClosingStartTag
 				}
 				else {
@@ -1482,8 +1482,8 @@ public final class Tokenizer {
 				}
 
 			case ">":
-				if self.tempBuffer.lowercased() == self.lastStartTagName.lowercased() {
-					self.currentTagName = self.tempBuffer.lowercased()
+				if self.tempBuffer.asciiCaseInsensitiveEquals(self.lastStartTagName) {
+					self.currentTagName = self.tempBuffer.asciiLowercased()
 					self.state = .data
 					self.emitCurrentTag()
 				}
@@ -1516,7 +1516,7 @@ public final class Tokenizer {
 
 		switch ch {
 			case "\t", "\n", "\u{0C}", " ", "/", ">":
-				if self.tempBuffer.lowercased() == "script" {
+				if self.tempBuffer.asciiCaseInsensitiveEquals("script") {
 					self.state = .scriptDataDoubleEscaped
 				}
 				else {
@@ -1643,7 +1643,7 @@ public final class Tokenizer {
 
 		switch ch {
 			case "\t", "\n", "\u{0C}", " ", "/", ">":
-				if self.tempBuffer.lowercased() == "script" {
+				if self.tempBuffer.asciiCaseInsensitiveEquals("script") {
 					self.state = .scriptDataEscaped
 				}
 				else {
@@ -3031,9 +3031,58 @@ extension Character {
 		return self.isASCIIDigit || ("a" ... "f").contains(self) || ("A" ... "F").contains(self)
 	}
 
-	/// Convert to lowercase character
+	/// Convert to lowercase character (ASCII optimized)
 	@inline(__always)
 	var asLowercaseCharacter: Character {
-		return Character(String(self).lowercased())
+		if let ascii = self.asciiValue, ascii >= 65, ascii <= 90 {
+			return Character(UnicodeScalar(ascii + 32))
+		}
+		return self
+	}
+}
+
+// MARK: - String Extensions for ASCII Case-Insensitive Operations
+
+extension String {
+	/// Fast ASCII case-insensitive comparison using UTF-8 bytes
+	/// Returns true if strings are equal ignoring ASCII case
+	@inline(__always)
+	func asciiCaseInsensitiveEquals(_ other: String) -> Bool {
+		let selfUTF8 = self.utf8
+		let otherUTF8 = other.utf8
+
+		guard selfUTF8.count == otherUTF8.count else { return false }
+
+		var selfIter = selfUTF8.makeIterator()
+		var otherIter = otherUTF8.makeIterator()
+
+		while let b1 = selfIter.next(), let b2 = otherIter.next() {
+			if b1 != b2 {
+				// Check if they differ only by ASCII case
+				let lower1 = b1 >= 65 && b1 <= 90 ? b1 + 32 : b1
+				let lower2 = b2 >= 65 && b2 <= 90 ? b2 + 32 : b2
+				if lower1 != lower2 {
+					return false
+				}
+			}
+		}
+
+		return true
+	}
+
+	/// Fast ASCII lowercase (for HTML tag/attribute names which are ASCII)
+	@inline(__always)
+	func asciiLowercased() -> String {
+		var bytes = ContiguousArray<UInt8>()
+		bytes.reserveCapacity(self.utf8.count)
+		for byte in self.utf8 {
+			if byte >= 65, byte <= 90 {
+				bytes.append(byte + 32)
+			}
+			else {
+				bytes.append(byte)
+			}
+		}
+		return String(decoding: bytes, as: UTF8.self)
 	}
 }
