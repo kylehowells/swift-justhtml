@@ -18,6 +18,42 @@ private let RAWTEXT_ELEMENTS: Set<String> = ["style", "xmp", "iframe", "noembed"
 /// Script element needs SCRIPT DATA state
 private let SCRIPT_ELEMENT = "script"
 
+/// Preprocess line endings per HTML5 spec
+/// CR (U+000D) followed by LF (U+000A) → LF
+/// CR (U+000D) not followed by LF → LF
+/// Uses scalar iteration for consistent cross-platform behavior
+private func preprocessLineEndings(_ html: String) -> String {
+    // Fast path: check if there's any CR to process
+    var hasCR = false
+    for scalar in html.unicodeScalars {
+        if scalar == "\r" {
+            hasCR = true
+            break
+        }
+    }
+    if !hasCR { return html }
+
+    // Process CR/CRLF to LF
+    var result = ""
+    result.reserveCapacity(html.count)
+    var prevWasCR = false
+
+    for scalar in html.unicodeScalars {
+        if scalar == "\r" {
+            result.append("\n")
+            prevWasCR = true
+        } else if scalar == "\n" && prevWasCR {
+            // Skip LF after CR (already converted CR to LF)
+            prevWasCR = false
+        } else {
+            result.unicodeScalars.append(scalar)
+            prevWasCR = false
+        }
+    }
+
+    return result
+}
+
 /// Tokenizer options
 public struct TokenizerOpts {
     public var initialState: Tokenizer.State
@@ -175,11 +211,8 @@ public final class Tokenizer {
         // Preprocess input: normalize line endings per HTML5 spec
         // CR (U+000D) followed by LF (U+000A) → LF
         // CR (U+000D) not followed by LF → LF
-        var preprocessed = html
-        if html.contains("\r") {
-            preprocessed = html.replacingOccurrences(of: "\r\n", with: "\n")
-                               .replacingOccurrences(of: "\r", with: "\n")
-        }
+        // Note: Always process, don't rely on contains() which may have platform differences
+        let preprocessed = preprocessLineEndings(html)
 
         self.input = preprocessed
         self.pos = preprocessed.startIndex
