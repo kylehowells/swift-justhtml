@@ -105,3 +105,7 @@ GitHub Actions runs on every push and pull request:
 - **lint**: SwiftFormat lint check on macOS
 - **smoke**: Build and test on Ubuntu with Swift 6.0
 - **macos**: Build and test on macOS
+
+## Development Workflow
+
+When you fix another set of tests. Re-run all the tests to check for regressions. Format the swift code, check it still builds, git commit, and git push to remote.

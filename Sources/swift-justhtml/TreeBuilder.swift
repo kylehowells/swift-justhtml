@@ -147,7 +147,9 @@ public final class TreeBuilder: TokenSink {
 
     switch ctx.name {
     case "select":
-      self.insertionMode = .inSelect
+      // Per html5lib behavior: select fragments use inBody mode, not inSelect
+      // This allows unknown elements to be inserted inside select context
+      self.insertionMode = .inBody
 
     case "td", "th":
       self.insertionMode = .inBody  // For fragment parsing, treat as inBody
@@ -1186,35 +1188,24 @@ public final class TreeBuilder: TokenSink {
         self.reconstructActiveFormattingElements()
         let element = self.insertElement(name: name, attrs: attrs)
         self.pushFormattingElement(element)
-      } else if Self.foreignContentBreakoutElements.contains(name.lowercased())
-        || name.lowercased() == "button" || name.lowercased() == "datalist"
-        || name.lowercased() == "menuitem"
+      } else if ["p", "div", "span", "button", "datalist", "selectedcontent", "menuitem"].contains(
+        name.lowercased())
       {
-        // Breakout elements that came from foreign content should be inserted
-        // Also button, datalist, and menuitem are allowed inside select
-        self.emitError("unexpected-start-tag-in-select")
-        let element = self.insertElement(name: name, attrs: attrs)
-        // Add formatting elements to active formatting list for reconstruction
-        if FORMATTING_ELEMENTS.contains(name.lowercased()) {
-          self.pushFormattingElement(element)
-        }
-        // Void elements should be immediately popped
-        if VOID_ELEMENTS.contains(name.lowercased()) || selfClosing {
+        // Per HTML5 spec: these elements are allowed inside select
+        self.reconstructActiveFormattingElements()
+        _ = self.insertElement(name: name, attrs: attrs)
+        if selfClosing {
           self.popCurrentElement()
         }
+      } else if name.lowercased() == "br" || name.lowercased() == "img" {
+        // Per HTML5 spec: br and img are inserted as void elements in select
+        self.reconstructActiveFormattingElements()
+        _ = self.insertElement(name: name, attrs: attrs)
+        self.popCurrentElement()
       } else {
-        // Table-related elements should be ignored in select mode per spec
-        // Other unknown elements should be inserted (matching browser behavior)
-        let tableElements: Set<String> = [
-          "caption", "table", "tbody", "tfoot", "thead", "tr", "td", "th", "colgroup", "col",
-        ]
+        // Per HTML5 spec: unknown elements in inSelect mode are ignored
+        // (fragment parsing uses inBody mode which allows insertion)
         self.emitError("unexpected-start-tag-in-select")
-        if !tableElements.contains(name.lowercased()) {
-          _ = self.insertElement(name: name, attrs: attrs)
-          if VOID_ELEMENTS.contains(name.lowercased()) || selfClosing {
-            self.popCurrentElement()
-          }
-        }
       }
 
     case .inSelectInTable:
@@ -1906,27 +1897,36 @@ public final class TreeBuilder: TokenSink {
         // Handle formatting element end tags with adoption agency
         // Per HTML5 spec: formatting elements in select use adoption agency
         self.adoptionAgency(name: name)
-      } else if Self.foreignContentBreakoutElements.contains(name.lowercased())
-        || name.lowercased() == "button" || name.lowercased() == "datalist"
+      } else if ["p", "div", "span", "button", "datalist", "selectedcontent", "menuitem"].contains(
+        name.lowercased())
       {
-        // Handle end tags for elements that were inserted in select
-        // Only close if the element is INSIDE the select (after select on the stack)
-        self.emitError("unexpected-end-tag")
-        if let selectIndex = self.openElements.lastIndex(where: { $0.name == "select" }),
-          let elementIndex = self.openElements.lastIndex(where: { $0.name == name.lowercased() }),
-          elementIndex > selectIndex
-        {
-          // Element is inside select, so close it
-          while let current = currentNode, current.name != name.lowercased() {
+        // Per HTML5 spec: these end tags in select mode close the element if it's on the stack
+        // But we must not pop across the select boundary
+        let lowered = name.lowercased()
+        var selectIndex: Int? = nil
+        var targetIndex: Int? = nil
+        for (i, node) in self.openElements.enumerated() {
+          if node.name == "select" && selectIndex == nil {
+            selectIndex = i
+          }
+          if node.name == lowered {
+            targetIndex = i  // Track the LAST occurrence
+          }
+        }
+        // Only pop if target exists and is AFTER (or at same level as) select
+        if let target = targetIndex, selectIndex == nil || target > selectIndex! {
+          while let current = currentNode, current.name != lowered {
             self.popCurrentElement()
             if self.openElements.isEmpty { break }
           }
-          if let current = currentNode, current.name == name.lowercased() {
+          if let current = currentNode, current.name == lowered {
             self.popCurrentElement()
           }
+        } else {
+          self.emitError("unexpected-end-tag")
         }
-        // If element is before select or not found, ignore the end tag
       } else {
+        // Per HTML5 spec: unknown end tags in inSelect mode are ignored
         self.emitError("unexpected-end-tag")
       }
 
