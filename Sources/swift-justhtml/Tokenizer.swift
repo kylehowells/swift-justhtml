@@ -2751,13 +2751,24 @@ public final class Tokenizer {
 		}
 
 		if ch.isASCIIDigit {
-			self.charRefCode = self.charRefCode &* 16 &+ UInt32(ch.asciiValue! - 0x30)
+			// Cap at 0x110000 to detect overflow (any value > 0x10FFFF is invalid)
+			// Use 0x110000 as sentinel for "too large"
+			if self.charRefCode <= 0x10FFFF {
+				let newValue = UInt64(self.charRefCode) * 16 + UInt64(ch.asciiValue! - 0x30)
+				self.charRefCode = newValue > 0x10FFFF ? 0x110000 : UInt32(newValue)
+			}
 		}
 		else if ch >= "A", ch <= "F" {
-			self.charRefCode = self.charRefCode &* 16 &+ UInt32(ch.asciiValue! - 0x37)
+			if self.charRefCode <= 0x10FFFF {
+				let newValue = UInt64(self.charRefCode) * 16 + UInt64(ch.asciiValue! - 0x37)
+				self.charRefCode = newValue > 0x10FFFF ? 0x110000 : UInt32(newValue)
+			}
 		}
 		else if ch >= "a", ch <= "f" {
-			self.charRefCode = self.charRefCode &* 16 &+ UInt32(ch.asciiValue! - 0x57)
+			if self.charRefCode <= 0x10FFFF {
+				let newValue = UInt64(self.charRefCode) * 16 + UInt64(ch.asciiValue! - 0x57)
+				self.charRefCode = newValue > 0x10FFFF ? 0x110000 : UInt32(newValue)
+			}
 		}
 		else if ch == ";" {
 			self.state = .numericCharacterReferenceEnd
@@ -2776,7 +2787,12 @@ public final class Tokenizer {
 		}
 
 		if ch.isASCIIDigit {
-			self.charRefCode = self.charRefCode &* 10 &+ UInt32(ch.asciiValue! - 0x30)
+			// Cap at 0x110000 to detect overflow (any value > 0x10FFFF is invalid)
+			// Use 0x110000 as sentinel for "too large"
+			if self.charRefCode <= 0x10FFFF {
+				let newValue = UInt64(self.charRefCode) * 10 + UInt64(ch.asciiValue! - 0x30)
+				self.charRefCode = newValue > 0x10FFFF ? 0x110000 : UInt32(newValue)
+			}
 		}
 		else if ch == ";" {
 			self.state = .numericCharacterReferenceEnd
