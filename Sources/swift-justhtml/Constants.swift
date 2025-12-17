@@ -5,23 +5,23 @@ import Foundation
 /// Void elements that have no closing tag
 public let VOID_ELEMENTS: Set<String> = [
     "area", "base", "br", "col", "embed", "hr", "img", "input",
-    "link", "meta", "param", "source", "track", "wbr"
+    "link", "meta", "param", "source", "track", "wbr",
 ]
 
 /// Raw text elements (contents not parsed as HTML)
 public let RAW_TEXT_ELEMENTS: Set<String> = [
-    "script", "style"
+    "script", "style",
 ]
 
 /// Escapable raw text elements
 public let ESCAPABLE_RAW_TEXT_ELEMENTS: Set<String> = [
-    "textarea", "title"
+    "textarea", "title",
 ]
 
 /// Formatting elements for the adoption agency algorithm
 public let FORMATTING_ELEMENTS: Set<String> = [
     "a", "b", "big", "code", "em", "font", "i", "nobr",
-    "s", "small", "strike", "strong", "tt", "u"
+    "s", "small", "strike", "strong", "tt", "u",
 ]
 
 /// Special elements that have special parsing rules
@@ -36,7 +36,7 @@ public let SPECIAL_ELEMENTS: Set<String> = [
     "noscript", "object", "ol", "p", "param", "plaintext", "pre", "script",
     "search", "section", "select", "source", "style", "summary", "table",
     "tbody", "td", "template", "textarea", "tfoot", "th", "thead", "title",
-    "tr", "track", "ul", "wbr", "xmp"
+    "tr", "track", "ul", "wbr", "xmp",
 ]
 
 /// Elements that imply closing a <p> element
@@ -45,7 +45,7 @@ public let P_CLOSING_ELEMENTS: Set<String> = [
     "dialog", "dir", "div", "dl", "fieldset", "figcaption", "figure",
     "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "header",
     "hgroup", "hr", "main", "menu", "nav", "ol", "p", "pre", "search",
-    "section", "table", "ul"
+    "section", "table", "ul",
 ]
 
 /// Scope elements for checking element scope
@@ -57,7 +57,7 @@ public let SCOPE_ELEMENTS: Set<String> = [
     // MathML elements (namespace-specific but we match by name)
     "mi", "mo", "mn", "ms", "mtext", "annotation-xml",
     // SVG elements (namespace-specific but we match by name)
-    "foreignObject", "desc", "title"
+    "foreignObject", "desc", "title",
 ]
 
 /// List item scope elements
@@ -74,12 +74,12 @@ public let SELECT_SCOPE_ELEMENTS: Set<String> = [] // optgroup and option are NO
 
 /// Elements that are implicitly closed by certain other elements
 public let IMPLIED_END_TAGS: Set<String> = [
-    "dd", "dt", "li", "optgroup", "option", "p", "rb", "rp", "rt", "rtc"
+    "dd", "dt", "li", "optgroup", "option", "p", "rb", "rp", "rt", "rtc",
 ]
 
 /// Thoroughly implied end tags (includes more elements)
 public let THOROUGHLY_IMPLIED_END_TAGS: Set<String> = IMPLIED_END_TAGS.union([
-    "caption", "colgroup", "tbody", "td", "tfoot", "th", "thead", "tr"
+    "caption", "colgroup", "tbody", "td", "tfoot", "th", "thead", "tr",
 ])
 
 /// SVG element case adjustments
@@ -120,7 +120,7 @@ public let SVG_ELEMENT_ADJUSTMENTS: [String: String] = [
     "glyphref": "glyphRef",
     "lineargradient": "linearGradient",
     "radialgradient": "radialGradient",
-    "textpath": "textPath"
+    "textpath": "textPath",
 ]
 
 /// SVG attribute case adjustments
@@ -182,12 +182,12 @@ public let SVG_ATTRIBUTE_ADJUSTMENTS: [String: String] = [
     "viewtarget": "viewTarget",
     "xchannelselector": "xChannelSelector",
     "ychannelselector": "yChannelSelector",
-    "zoomandpan": "zoomAndPan"
+    "zoomandpan": "zoomAndPan",
 ]
 
 /// MathML attribute case adjustments
 public let MATHML_ATTRIBUTE_ADJUSTMENTS: [String: String] = [
-    "definitionurl": "definitionURL"
+    "definitionurl": "definitionURL",
 ]
 
 /// Foreign attribute adjustments (for namespaced attributes)
@@ -202,7 +202,7 @@ public let FOREIGN_ATTRIBUTE_ADJUSTMENTS: [String: String] = [
     "xml:lang": "xml lang",
     "xml:space": "xml space",
     "xmlns": "xmlns",
-    "xmlns:xlink": "xmlns xlink"
+    "xmlns:xlink": "xmlns xlink",
 ]
 
 /// ASCII whitespace characters

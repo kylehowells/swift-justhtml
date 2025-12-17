@@ -20,7 +20,7 @@ public let LEGACY_ENTITIES: Set<String> = [
     "oacute", "ocirc", "ograve", "ordf", "ordm", "oslash", "otilde", "ouml",
     "para", "plusmn", "pound", "raquo", "reg", "sect", "shy",
     "sup1", "sup2", "sup3", "szlig", "thorn", "times",
-    "uacute", "ucirc", "ugrave", "uml", "uuml", "yacute", "yen", "yuml"
+    "uacute", "ucirc", "ugrave", "uml", "uuml", "yacute", "yen", "yuml",
 ]
 
 /// HTML5 numeric character reference replacements (§13.2.5.73)
@@ -105,9 +105,9 @@ private func isAsciiAlnum(_ ch: Character) -> Bool {
 /// Check if a character is a hex digit
 private func isHexDigit(_ ch: Character) -> Bool {
     let c = ch.asciiValue ?? 0
-    return (c >= 0x30 && c <= 0x39) ||  // 0-9
-           (c >= 0x41 && c <= 0x46) ||  // A-F
-           (c >= 0x61 && c <= 0x66)     // a-f
+    return (c >= 0x30 && c <= 0x39) || // 0-9
+        (c >= 0x41 && c <= 0x46) || // A-F
+        (c >= 0x61 && c <= 0x66) // a-f
 }
 
 /// Decode HTML entities in text
@@ -128,7 +128,7 @@ public func decodeEntitiesInText(_ text: String, inAttribute: Bool = false) -> S
         }
 
         if nextAmp! > i {
-            result.append(String(text[i..<nextAmp!]))
+            result.append(String(text[i ..< nextAmp!]))
         }
 
         i = nextAmp!
@@ -156,7 +156,7 @@ public func decodeEntitiesInText(_ text: String, inAttribute: Bool = false) -> S
             }
 
             let hasSemicolon = j < text.endIndex && text[j] == ";"
-            let digitText = String(text[digitStart..<j])
+            let digitText = String(text[digitStart ..< j])
 
             if !digitText.isEmpty {
                 result.append(decodeNumericEntity(digitText, isHex: isHex))
@@ -164,7 +164,7 @@ public func decodeEntitiesInText(_ text: String, inAttribute: Bool = false) -> S
                 continue
             }
 
-            result.append(String(text[i..<(hasSemicolon ? text.index(after: j) : j)]))
+            result.append(String(text[i ..< (hasSemicolon ? text.index(after: j) : j)]))
             i = hasSemicolon ? text.index(after: j) : j
             continue
         }
@@ -174,7 +174,7 @@ public func decodeEntitiesInText(_ text: String, inAttribute: Bool = false) -> S
             j = text.index(after: j)
         }
 
-        let entityName = String(text[text.index(after: i)..<j])
+        let entityName = String(text[text.index(after: i) ..< j])
         let hasSemicolon = j < text.endIndex && text[j] == ";"
 
         if entityName.isEmpty {
@@ -250,7 +250,7 @@ public func decodeEntitiesInText(_ text: String, inAttribute: Bool = false) -> S
 
         // No match - keep as is
         if hasSemicolon {
-            result.append(String(text[i...j]))
+            result.append(String(text[i ... j]))
             i = text.index(after: j)
         } else {
             result.append("&")

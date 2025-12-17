@@ -74,8 +74,8 @@ public struct JustHTML {
         self.root = treeBuilder.finish()
         self.errors = tokenizer.errors + treeBuilder.errors
 
-        if strict && !errors.isEmpty {
-            throw StrictModeError(errors[0])
+        if strict, !self.errors.isEmpty {
+            throw StrictModeError(self.errors[0])
         }
     }
 
@@ -141,8 +141,8 @@ public struct JustHTML {
         self.root = treeBuilder.finish()
         self.errors = tokenizer.errors + treeBuilder.errors
 
-        if strict && !errors.isEmpty {
-            throw StrictModeError(errors[0])
+        if strict, !self.errors.isEmpty {
+            throw StrictModeError(self.errors[0])
         }
     }
 
@@ -152,7 +152,7 @@ public struct JustHTML {
     /// - Parameter selector: The CSS selector
     /// - Returns: Array of matching nodes
     public func query(_ selector: String) throws -> [Node] {
-        return try swift_justhtml.query(root, selector: selector)
+        return try swift_justhtml.query(self.root, selector: selector)
     }
 
     /// Serialize the document to HTML
@@ -161,7 +161,7 @@ public struct JustHTML {
     ///   - indentSize: Number of spaces per indent level
     /// - Returns: HTML string
     public func toHTML(pretty: Bool = true, indentSize: Int = 2) -> String {
-        return root.toHTML(pretty: pretty, indentSize: indentSize)
+        return self.root.toHTML(pretty: pretty, indentSize: indentSize)
     }
 
     /// Extract all text content from the document
@@ -170,18 +170,18 @@ public struct JustHTML {
     ///   - strip: Whether to strip whitespace from text nodes
     /// - Returns: Concatenated text content
     public func toText(separator: String = " ", strip: Bool = true) -> String {
-        return root.toText(separator: separator, strip: strip)
+        return self.root.toText(separator: separator, strip: strip)
     }
 
     /// Convert to html5lib test format
     /// - Returns: Test format string
     public func toTestFormat() -> String {
-        return root.toTestFormat()
+        return self.root.toTestFormat()
     }
 
     /// Convert to Markdown (GitHub-Flavored Markdown subset)
     /// - Returns: Markdown string
     public func toMarkdown() -> String {
-        return root.toMarkdown()
+        return self.root.toMarkdown()
     }
 }

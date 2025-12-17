@@ -30,7 +30,8 @@ public func normalizeEncodingLabel(_ label: String?) -> String? {
 
     // ISO-8859-1 becomes windows-1252
     if s == "iso-8859-1" || s == "iso8859-1" || s == "latin1" ||
-       s == "latin-1" || s == "l1" || s == "cp819" || s == "ibm819" {
+        s == "latin-1" || s == "l1" || s == "cp819" || s == "ibm819"
+    {
         return "windows-1252"
     }
 
@@ -64,7 +65,8 @@ private func normalizeMetaDeclaredEncoding(_ label: Data) -> String? {
 
     // UTF-16 variants become UTF-8 when declared in meta
     if enc == "utf-16" || enc == "utf-16le" || enc == "utf-16be" ||
-       enc == "utf-32" || enc == "utf-32le" || enc == "utf-32be" {
+        enc == "utf-32" || enc == "utf-32le" || enc == "utf-32be"
+    {
         return "utf-8"
     }
 
@@ -73,13 +75,13 @@ private func normalizeMetaDeclaredEncoding(_ label: Data) -> String? {
 
 /// Sniff BOM at start of data
 private func sniffBOM(_ data: Data) -> (encoding: String?, bomLength: Int) {
-    if data.count >= 3 && data[0] == 0xEF && data[1] == 0xBB && data[2] == 0xBF {
+    if data.count >= 3, data[0] == 0xEF, data[1] == 0xBB, data[2] == 0xBF {
         return ("utf-8", 3)
     }
-    if data.count >= 2 && data[0] == 0xFF && data[1] == 0xFE {
+    if data.count >= 2, data[0] == 0xFF, data[1] == 0xFE {
         return ("utf-16le", 2)
     }
-    if data.count >= 2 && data[0] == 0xFE && data[1] == 0xFF {
+    if data.count >= 2, data[0] == 0xFE, data[1] == 0xFF {
         return ("utf-16be", 2)
     }
     return (nil, 0)
@@ -98,7 +100,7 @@ private func skipAsciiWhitespace(_ data: Data, from i: Int) -> Int {
 private func bytesEqualLower(_ data: Data, start: Int, end: Int, pattern: [UInt8]) -> Bool {
     let len = end - start
     if len != pattern.count { return false }
-    for i in 0..<len {
+    for i in 0 ..< len {
         var b = data[start + i]
         if b >= 0x41 && b <= 0x5A { b |= 0x20 }
         if b != pattern[i] { return false }
@@ -115,7 +117,7 @@ private func isAsciiAlphaByte(_ b: UInt8) -> Bool {
 
 /// Find index of byte in data
 private func indexOfByte(_ data: Data, byte: UInt8, from start: Int) -> Int? {
-    for i in start..<data.count {
+    for i in start ..< data.count {
         if data[i] == byte { return i }
     }
     return nil
@@ -126,8 +128,8 @@ private func indexOfSubarray(_ data: Data, pattern: [UInt8], from start: Int) ->
     if pattern.isEmpty { return start }
     if data.count - start < pattern.count { return nil }
 
-    outer: for i in start...(data.count - pattern.count) {
-        for j in 0..<pattern.count {
+    outer: for i in start ... (data.count - pattern.count) {
+        for j in 0 ..< pattern.count {
             if data[i + j] != pattern[j] { continue outer }
         }
         return i
@@ -144,7 +146,7 @@ private func extractCharsetFromContent(_ contentBytes: Data) -> Data? {
     for b in contentBytes {
         if ASCII_WHITESPACE_BYTES.contains(b) {
             normalized.append(0x20)
-        } else if b >= 0x41 && b <= 0x5A {
+        } else if b >= 0x41, b <= 0x5A {
             normalized.append(b | 0x20)
         } else {
             normalized.append(b)
@@ -161,14 +163,18 @@ private func extractCharsetFromContent(_ contentBytes: Data) -> Data? {
     let n = normalized.count
 
     // Skip whitespace
-    while i < n && ASCII_WHITESPACE_BYTES.contains(normalized[i]) { i += 1 }
+    while i < n && ASCII_WHITESPACE_BYTES.contains(normalized[i]) {
+        i += 1
+    }
 
     // Expect '='
     if i >= n || normalized[i] != 0x3D { return nil }
     i += 1
 
     // Skip whitespace
-    while i < n && ASCII_WHITESPACE_BYTES.contains(normalized[i]) { i += 1 }
+    while i < n && ASCII_WHITESPACE_BYTES.contains(normalized[i]) {
+        i += 1
+    }
     if i >= n { return nil }
 
     // Check for quote
@@ -189,11 +195,11 @@ private func extractCharsetFromContent(_ contentBytes: Data) -> Data? {
         i += 1
     }
 
-    if quote != nil && (i >= n || normalized[i] != quote) {
+    if quote != nil, i >= n || normalized[i] != quote {
         return nil
     }
 
-    return normalized.subdata(in: start..<i)
+    return normalized.subdata(in: start ..< i)
 }
 
 /// Prescan for meta charset declaration
@@ -212,7 +218,7 @@ private func prescanForMetaCharset(_ data: Data) -> String? {
     let contentBytes: [UInt8] = [0x63, 0x6F, 0x6E, 0x74, 0x65, 0x6E, 0x74] // content
     let contentTypeBytes: [UInt8] = [0x63, 0x6F, 0x6E, 0x74, 0x65, 0x6E, 0x74, 0x2D, 0x74, 0x79, 0x70, 0x65] // content-type
 
-    while i < n && i < maxTotalScan && nonComment < maxNonComment {
+    while i < n, i < maxTotalScan, nonComment < maxNonComment {
         if data[i] != 0x3C { // '<'
             i += 1
             nonComment += 1
@@ -235,7 +241,7 @@ private func prescanForMetaCharset(_ data: Data) -> String? {
         if j < n && data[j] == 0x2F { // '/'
             var k = i
             var quote: UInt8? = nil
-            while k < n && k < maxTotalScan && nonComment < maxNonComment {
+            while k < n, k < maxTotalScan, nonComment < maxNonComment {
                 let ch = data[k]
                 if quote == nil {
                     if ch == 0x22 || ch == 0x27 { quote = ch }
@@ -261,13 +267,15 @@ private func prescanForMetaCharset(_ data: Data) -> String? {
         }
 
         let nameStart = j
-        while j < n && isAsciiAlphaByte(data[j]) { j += 1 }
+        while j < n, isAsciiAlphaByte(data[j]) {
+            j += 1
+        }
 
         if !bytesEqualLower(data, start: nameStart, end: j, pattern: metaBytes) {
             // Skip rest of tag
             var k = i
             var quote: UInt8? = nil
-            while k < n && k < maxTotalScan && nonComment < maxNonComment {
+            while k < n, k < maxTotalScan, nonComment < maxNonComment {
                 let ch = data[k]
                 if quote == nil {
                     if ch == 0x22 || ch == 0x27 { quote = ch }
@@ -295,7 +303,7 @@ private func prescanForMetaCharset(_ data: Data) -> String? {
         var sawGt = false
         let startI = i
 
-        while k < n && k < maxTotalScan {
+        while k < n, k < maxTotalScan {
             let ch = data[k]
             if ch == 0x3E { // '>'
                 sawGt = true
@@ -323,7 +331,7 @@ private func prescanForMetaCharset(_ data: Data) -> String? {
             k = skipAsciiWhitespace(data, from: k)
 
             var value: Data? = nil
-            if k < n && data[k] == 0x3D { // '='
+            if k < n, data[k] == 0x3D { // '='
                 k += 1
                 k = skipAsciiWhitespace(data, from: k)
                 if k >= n { break }
@@ -342,7 +350,7 @@ private func prescanForMetaCharset(_ data: Data) -> String? {
                         sawGt = false
                         break
                     }
-                    value = data.subdata(in: valStart..<endQuote)
+                    value = data.subdata(in: valStart ..< endQuote)
                     k = endQuote + 1
                 } else {
                     let valStart = k
@@ -353,7 +361,7 @@ private func prescanForMetaCharset(_ data: Data) -> String? {
                         }
                         k += 1
                     }
-                    value = data.subdata(in: valStart..<k)
+                    value = data.subdata(in: valStart ..< k)
                 }
             }
 
@@ -432,21 +440,22 @@ public func decodeHTML(_ data: Data, transportEncoding: String? = nil) -> (text:
     var enc = result.encoding
 
     // Limit supported encodings
-    if enc != "utf-8" && enc != "windows-1252" && enc != "iso-8859-2" &&
-       enc != "euc-jp" && enc != "utf-16" && enc != "utf-16le" && enc != "utf-16be" {
+    if enc != "utf-8", enc != "windows-1252", enc != "iso-8859-2",
+       enc != "euc-jp", enc != "utf-16", enc != "utf-16le", enc != "utf-16be"
+    {
         enc = "windows-1252"
     }
 
     var payload = data
     if result.bomLength > 0 {
-        payload = data.subdata(in: result.bomLength..<data.count)
+        payload = data.subdata(in: result.bomLength ..< data.count)
     }
 
     // Handle UTF-16
     if enc == "utf-16" {
         let (innerEnc, innerBom) = sniffBOM(payload)
         if innerEnc == "utf-16le" || innerEnc == "utf-16be" {
-            payload = payload.subdata(in: innerBom..<payload.count)
+            payload = payload.subdata(in: innerBom ..< payload.count)
             let swiftEnc: String.Encoding = innerEnc == "utf-16le" ? .utf16LittleEndian : .utf16BigEndian
             let text = String(data: payload, encoding: swiftEnc) ?? ""
             return (text, enc)

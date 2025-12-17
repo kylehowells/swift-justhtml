@@ -4,9 +4,9 @@ import Foundation
 
 /// Namespace for HTML elements
 public enum Namespace: String, Sendable {
-    case html = "html"
-    case svg = "svg"
-    case math = "math"
+    case html
+    case svg
+    case math
 }
 
 /// Data payload for special node types
@@ -67,7 +67,7 @@ public final class Node {
         }
 
         // Create template content for template elements
-        if name == "template" && (namespace == nil || namespace == .html) {
+        if name == "template", namespace == nil || namespace == .html {
             self.templateContent = Node(name: "#document-fragment")
         }
     }
@@ -75,31 +75,31 @@ public final class Node {
     // MARK: - DOM Manipulation
 
     public func appendChild(_ node: Node) {
-        children.append(node)
+        self.children.append(node)
         node.parent = self
     }
 
     public func removeChild(_ node: Node) {
         if let idx = children.firstIndex(where: { $0 === node }) {
-            children.remove(at: idx)
+            self.children.remove(at: idx)
             node.parent = nil
         }
     }
 
     public func insertBefore(_ node: Node, reference: Node?) {
         guard let reference = reference else {
-            appendChild(node)
+            self.appendChild(node)
             return
         }
         if let idx = children.firstIndex(where: { $0 === reference }) {
-            children.insert(node, at: idx)
+            self.children.insert(node, at: idx)
             node.parent = self
         }
     }
 
     public func replaceChild(_ newNode: Node, oldNode: Node) -> Node? {
         if let idx = children.firstIndex(where: { $0 === oldNode }) {
-            children[idx] = newNode
+            self.children[idx] = newNode
             oldNode.parent = nil
             newNode.parent = self
             return oldNode
@@ -113,7 +113,7 @@ public final class Node {
             clone.templateContent = templateContent.cloneNode(deep: deep)
         }
         if deep {
-            for child in children {
+            for child in self.children {
                 clone.appendChild(child.cloneNode(deep: true))
             }
         }
@@ -123,12 +123,12 @@ public final class Node {
     // MARK: - Properties
 
     public var hasChildNodes: Bool {
-        !children.isEmpty
+        !self.children.isEmpty
     }
 
     /// Direct text content of this node only (for #text nodes)
     public var text: String {
-        if case .text(let s) = data {
+        if case let .text(s) = data {
             return s
         }
         return ""
@@ -139,12 +139,12 @@ public final class Node {
     /// Extract all text content
     public func toText(separator: String = " ", strip: Bool = true) -> String {
         var parts: [String] = []
-        collectText(into: &parts, strip: strip)
+        self.collectText(into: &parts, strip: strip)
         return parts.joined(separator: separator)
     }
 
     private func collectText(into parts: inout [String], strip: Bool) {
-        if case .text(let s) = data {
+        if case let .text(s) = data {
             let text = strip ? s.trimmingCharacters(in: .whitespacesAndNewlines) : s
             if !text.isEmpty {
                 parts.append(text)
@@ -152,7 +152,7 @@ public final class Node {
             return
         }
 
-        for child in children {
+        for child in self.children {
             child.collectText(into: &parts, strip: strip)
         }
         // Note: templateContent is intentionally NOT included

@@ -1,6 +1,6 @@
-import Testing
 import Foundation
 @testable import swift_justhtml
+import Testing
 
 // MARK: - Smoke Tests
 
@@ -45,7 +45,7 @@ import Foundation
     let doc = try JustHTML(html)
     let output = doc.toTestFormat()
     print(output)
-    #expect(doc.toText() == "<p>")  // Text inside title
+    #expect(doc.toText() == "<p>") // Text inside title
 }
 
 @Test func smokeTestTemplate() async throws {
@@ -58,7 +58,7 @@ import Foundation
 
 // MARK: - HTMLStream Tests
 
-@Test func testHTMLStreamBasic() async throws {
+@Test func hTMLStreamBasic() async throws {
     let html = "<p>Hello</p>"
     var events: [StreamEvent] = []
     for event in HTMLStream(html) {
@@ -71,7 +71,7 @@ import Foundation
     #expect(events[2] == .end(tagName: "p"))
 }
 
-@Test func testHTMLStreamWithAttributes() async throws {
+@Test func hTMLStreamWithAttributes() async throws {
     let html = "<a href=\"http://example.com\" class=\"link\">Click</a>"
     var events: [StreamEvent] = []
     for event in HTMLStream(html) {
@@ -79,7 +79,7 @@ import Foundation
     }
 
     #expect(events.count == 3)
-    if case .start(let tagName, let attrs) = events[0] {
+    if case let .start(tagName, attrs) = events[0] {
         #expect(tagName == "a")
         #expect(attrs["href"] == "http://example.com")
         #expect(attrs["class"] == "link")
@@ -90,7 +90,7 @@ import Foundation
     #expect(events[2] == .end(tagName: "a"))
 }
 
-@Test func testHTMLStreamWithDoctype() async throws {
+@Test func hTMLStreamWithDoctype() async throws {
     let html = "<!DOCTYPE html><html><body>Hi</body></html>"
     var events: [StreamEvent] = []
     for event in HTMLStream(html) {
@@ -98,7 +98,7 @@ import Foundation
     }
 
     // First event should be doctype
-    if case .doctype(let name, let publicId, let systemId) = events[0] {
+    if case let .doctype(name, publicId, systemId) = events[0] {
         #expect(name == "html")
         #expect(publicId == nil)
         #expect(systemId == nil)
@@ -107,7 +107,7 @@ import Foundation
     }
 }
 
-@Test func testHTMLStreamWithComment() async throws {
+@Test func hTMLStreamWithComment() async throws {
     let html = "<!-- This is a comment --><p>Text</p>"
     var events: [StreamEvent] = []
     for event in HTMLStream(html) {
@@ -146,7 +146,7 @@ func decodeEscapes(_ text: String) -> String {
                 let hexStart = text.index(nextIdx, offsetBy: 1, limitedBy: text.endIndex)
                 let hexEnd = hexStart.flatMap { text.index($0, offsetBy: 2, limitedBy: text.endIndex) }
                 if let start = hexStart, let end = hexEnd {
-                    let hex = String(text[start..<end])
+                    let hex = String(text[start ..< end])
                     if let code = UInt32(hex, radix: 16), let scalar = Unicode.Scalar(code) {
                         out.append(Character(scalar))
                         i = end
@@ -160,7 +160,7 @@ func decodeEscapes(_ text: String) -> String {
                 let hexStart = text.index(nextIdx, offsetBy: 1, limitedBy: text.endIndex)
                 let hexEnd = hexStart.flatMap { text.index($0, offsetBy: 4, limitedBy: text.endIndex) }
                 if let start = hexStart, let end = hexEnd {
-                    let hex = String(text[start..<end])
+                    let hex = String(text[start ..< end])
                     if let code = UInt32(hex, radix: 16), let scalar = Unicode.Scalar(code) {
                         out.append(Character(scalar))
                         i = end
@@ -180,7 +180,7 @@ func parseDatFile(_ content: String) -> [Html5libTest] {
     var tests: [Html5libTest] = []
     var current: [String] = []
 
-    for i in 0..<lines.count {
+    for i in 0 ..< lines.count {
         current.append(lines[i])
         let nextIsNewTest = i + 1 >= lines.count || lines[i + 1] == "#data"
         if !nextIsNewTest { continue }
@@ -247,7 +247,7 @@ func parseSingleTest(_ lines: [String]) -> Html5libTest? {
         }
     }
 
-    if data.isEmpty && document.isEmpty { return nil }
+    if data.isEmpty, document.isEmpty { return nil }
 
     return Html5libTest(
         input: decodeEscapes(data.joined(separator: "\n")),
@@ -277,7 +277,7 @@ func getTestsDirectory() -> URL? {
     // Check several possible locations (CI puts html5lib-tests at repo root)
     let possiblePaths = [
         cwdUrl.appendingPathComponent("html5lib-tests/tree-construction"),
-        cwdUrl.appendingPathComponent("../html5lib-tests/tree-construction")
+        cwdUrl.appendingPathComponent("../html5lib-tests/tree-construction"),
     ]
 
     for path in possiblePaths {
@@ -459,7 +459,7 @@ func runTreeConstructionTests(files: [String]? = nil, showFailures: Bool = false
             failed += 1
         }
 
-        if idx >= 85 && idx <= 112 {
+        if idx >= 85, idx <= 112 {
             print("Test \(idx): \(test.input.prefix(40).replacingOccurrences(of: "\n", with: "\\n"))...")
         }
     }
@@ -588,7 +588,7 @@ func runTreeConstructionTests(files: [String]? = nil, showFailures: Bool = false
     }
 }
 
-private func *(lhs: String, rhs: Int) -> String {
+private func * (lhs: String, rhs: Int) -> String {
     return String(repeating: lhs, count: rhs)
 }
 
@@ -608,23 +608,23 @@ func parseEncodingDatFile(_ data: Data) -> [EncodingTest] {
     // Split by lines, keeping line endings
     var lines: [Data] = []
     var start = 0
-    for i in 0..<data.count {
+    for i in 0 ..< data.count {
         if data[i] == 0x0A { // newline
-            lines.append(data.subdata(in: start..<(i + 1)))
+            lines.append(data.subdata(in: start ..< (i + 1)))
             start = i + 1
         }
     }
     if start < data.count {
-        lines.append(data.subdata(in: start..<data.count))
+        lines.append(data.subdata(in: start ..< data.count))
     }
 
     for line in lines {
         // Strip trailing CRLF for directive checking
         var end = line.count
-        while end > 0 && (line[end - 1] == 0x0A || line[end - 1] == 0x0D) {
+        while end > 0, line[end - 1] == 0x0A || line[end - 1] == 0x0D {
             end -= 1
         }
-        let stripped = line.subdata(in: 0..<end)
+        let stripped = line.subdata(in: 0 ..< end)
 
         // Check for #data directive
         if stripped == Data("#data".utf8) {
@@ -647,7 +647,7 @@ func parseEncodingDatFile(_ data: Data) -> [EncodingTest] {
 
         if mode == "data" {
             currentData.append(line)
-        } else if mode == "encoding" && currentEncoding == nil && !stripped.isEmpty {
+        } else if mode == "encoding", currentEncoding == nil, !stripped.isEmpty {
             currentEncoding = String(data: stripped, encoding: .ascii)
         }
     }
@@ -668,7 +668,7 @@ func getEncodingTestsDirectory() -> URL? {
 
     let possiblePaths = [
         cwdUrl.appendingPathComponent("html5lib-tests/encoding"),
-        cwdUrl.appendingPathComponent("../html5lib-tests/encoding")
+        cwdUrl.appendingPathComponent("../html5lib-tests/encoding"),
     ]
 
     for path in possiblePaths {
@@ -753,7 +753,7 @@ func getEncodingTestsDirectory() -> URL? {
 
 private let VOID_ELEMENTS: Set<String> = [
     "area", "base", "br", "col", "embed", "hr", "img", "input",
-    "link", "meta", "param", "source", "track", "wbr"
+    "link", "meta", "param", "source", "track", "wbr",
 ]
 
 /// Serialize a token stream for html5lib serializer tests
@@ -763,7 +763,7 @@ func serializeSerializerTokenStream(_ tokens: [[Any]], options: [String: Any] = 
     let escapeRcdata = options["escape_rcdata"] as? Bool ?? false
     var openElements: [String] = []
 
-    for i in 0..<tokens.count {
+    for i in 0 ..< tokens.count {
         let token = tokens[i]
         guard let kind = token.first as? String else { continue }
 
@@ -781,7 +781,7 @@ func serializeSerializerTokenStream(_ tokens: [[Any]], options: [String: Any] = 
 
             // Check if start tag should be omitted
             if shouldOmitStartTag(name, attrs: attrs, prevToken: prevToken, nextToken: nextToken) {
-                if ["script", "style"].contains(name) && !escapeRcdata {
+                if ["script", "style"].contains(name), !escapeRcdata {
                     rawtext = name
                 }
                 continue
@@ -789,7 +789,7 @@ func serializeSerializerTokenStream(_ tokens: [[Any]], options: [String: Any] = 
 
             parts.append(serializeStartTag(name, attrs: attrs, options: options, isVoid: VOID_ELEMENTS.contains(name)))
 
-            if ["script", "style"].contains(name) && !escapeRcdata {
+            if ["script", "style"].contains(name), !escapeRcdata {
                 rawtext = name
             }
 
@@ -844,7 +844,7 @@ func serializeSerializerTokenStream(_ tokens: [[Any]], options: [String: Any] = 
             let publicId = token.count > 2 ? token[2] as? String : nil
             let systemId = token.count > 3 ? token[3] as? String : nil
 
-            if publicId == nil && systemId == nil {
+            if publicId == nil, systemId == nil {
                 parts.append("<!DOCTYPE \(name)>")
             } else if let pub = publicId, !pub.isEmpty {
                 if let sys = systemId, !sys.isEmpty {
@@ -867,7 +867,7 @@ func serializeSerializerTokenStream(_ tokens: [[Any]], options: [String: Any] = 
 }
 
 /// Check if a start tag should be omitted per HTML5 optional tag rules
-func shouldOmitStartTag(_ name: String, attrs: [String: String], prevToken: [Any]?, nextToken: [Any]?) -> Bool {
+func shouldOmitStartTag(_ name: String, attrs: [String: String], prevToken _: [Any]?, nextToken: [Any]?) -> Bool {
     // Can't omit if it has attributes
     if !attrs.isEmpty { return false }
 
@@ -881,7 +881,8 @@ func shouldOmitStartTag(_ name: String, attrs: [String: String], prevToken: [Any
         // Also can't omit if followed by space character at start
         if nextKind == "Characters", let text = nextToken?[1] as? String {
             if text.hasPrefix(" ") || text.hasPrefix("\t") || text.hasPrefix("\n") ||
-               text.hasPrefix("\r") || text.hasPrefix("\u{0C}") {
+                text.hasPrefix("\r") || text.hasPrefix("\u{0C}")
+            {
                 return false
             }
         }
@@ -903,7 +904,8 @@ func shouldOmitStartTag(_ name: String, attrs: [String: String], prevToken: [Any
         if nextKind == "Comment" { return false }
         if nextKind == "Characters", let text = nextToken?[1] as? String {
             if text.hasPrefix(" ") || text.hasPrefix("\t") || text.hasPrefix("\n") ||
-               text.hasPrefix("\r") || text.hasPrefix("\u{0C}") {
+                text.hasPrefix("\r") || text.hasPrefix("\u{0C}")
+            {
                 return false
             }
         }
@@ -966,7 +968,8 @@ func shouldOmitEndTag(_ name: String, nextToken: [Any]?, nextNextToken: [Any]? =
         if nextKind == "Comment" { return false }
         if nextKind == "Characters", let text = nextToken?[1] as? String {
             if text.hasPrefix(" ") || text.hasPrefix("\t") || text.hasPrefix("\n") ||
-               text.hasPrefix("\r") || text.hasPrefix("\u{0C}") {
+                text.hasPrefix("\r") || text.hasPrefix("\u{0C}")
+            {
                 return false
             }
         }
@@ -977,7 +980,8 @@ func shouldOmitEndTag(_ name: String, nextToken: [Any]?, nextNextToken: [Any]? =
         if nextKind == "Comment" { return false }
         if nextKind == "Characters", let text = nextToken?[1] as? String {
             if text.hasPrefix(" ") || text.hasPrefix("\t") || text.hasPrefix("\n") ||
-               text.hasPrefix("\r") || text.hasPrefix("\u{0C}") {
+                text.hasPrefix("\r") || text.hasPrefix("\u{0C}")
+            {
                 return false
             }
         }
@@ -988,7 +992,8 @@ func shouldOmitEndTag(_ name: String, nextToken: [Any]?, nextNextToken: [Any]? =
         if nextKind == "Comment" { return false }
         if nextKind == "Characters", let text = nextToken?[1] as? String {
             if text.hasPrefix(" ") || text.hasPrefix("\t") || text.hasPrefix("\n") ||
-               text.hasPrefix("\r") || text.hasPrefix("\u{0C}") {
+                text.hasPrefix("\r") || text.hasPrefix("\u{0C}")
+            {
                 return false
             }
         }
@@ -1013,7 +1018,7 @@ func shouldOmitEndTag(_ name: String, nextToken: [Any]?, nextNextToken: [Any]? =
             "dialog", "dir", "div", "dl", "fieldset", "figcaption", "figure",
             "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "header", "hgroup",
             "hr", "main", "menu", "nav", "ol", "p", "pre", "search", "section",
-            "table", "ul"
+            "table", "ul",
         ]
         if let next = nextName, omitBefore.contains(next) { return true }
         if nextKind == "EndTag" { return true }
@@ -1090,7 +1095,8 @@ func parseSerializerAttrs(_ input: Any) -> [String: String] {
         // Array of {namespace, name, value} objects
         for item in arr {
             if let name = item["name"] as? String,
-               let value = item["value"] as? String {
+               let value = item["value"] as? String
+            {
                 result[name] = value
             }
         }
@@ -1108,7 +1114,7 @@ func parseSerializerAttrs(_ input: Any) -> [String: String] {
     return result
 }
 
-func serializeStartTag(_ name: String, attrs: [String: String], options: [String: Any], isVoid: Bool) -> String {
+func serializeStartTag(_ name: String, attrs: [String: String], options: [String: Any], isVoid _: Bool) -> String {
     var result = "<\(name)"
 
     // Sort attributes for deterministic output
@@ -1123,16 +1129,16 @@ func serializeStartTag(_ name: String, attrs: [String: String], options: [String
     return result
 }
 
-func serializeAttribute(_ name: String, value: String, options: [String: Any]) -> String {
+func serializeAttribute(_ name: String, value: String, options _: [String: Any]) -> String {
     // Determine quote character needed
     let hasDoubleQuote = value.contains("\"")
     let hasSingleQuote = value.contains("'")
     let needsQuotes = value.isEmpty ||
-                      value.contains(" ") || value.contains("\t") ||
-                      value.contains("\n") || value.contains("\r") ||
-                      value.contains("\u{0C}") ||
-                      value.contains("=") || value.contains(">") ||
-                      value.contains("`")
+        value.contains(" ") || value.contains("\t") ||
+        value.contains("\n") || value.contains("\r") ||
+        value.contains("\u{0C}") ||
+        value.contains("=") || value.contains(">") ||
+        value.contains("`")
 
     if !needsQuotes && !hasDoubleQuote && !hasSingleQuote {
         // Unquoted attribute
@@ -1176,7 +1182,7 @@ func getSerializerTestsDirectory() -> URL? {
 
     let possiblePaths = [
         cwdUrl.appendingPathComponent("html5lib-tests/serializer"),
-        cwdUrl.appendingPathComponent("../html5lib-tests/serializer")
+        cwdUrl.appendingPathComponent("../html5lib-tests/serializer"),
     ]
 
     for path in possiblePaths {
@@ -1212,14 +1218,15 @@ func getSerializerTestsDirectory() -> URL? {
 
     // Options we support
     let supportedOptionKeys: Set<String> = [
-        "encoding", "escape_rcdata"
+        "encoding", "escape_rcdata",
     ]
 
     for fileURL in testFiles {
         let filename = fileURL.lastPathComponent
         guard let content = try? Data(contentsOf: fileURL),
               let json = try? JSONSerialization.jsonObject(with: content) as? [String: Any],
-              let tests = json["tests"] as? [[String: Any]] else {
+              let tests = json["tests"] as? [[String: Any]]
+        else {
             continue
         }
 
@@ -1284,14 +1291,15 @@ private final class TokenCollector: TokenSink {
 
     func processToken(_ token: Token) {
         // Coalesce consecutive character tokens
-        if case .character(let newChars) = token,
+        if case let .character(newChars) = token,
            let lastIdx = tokens.indices.last,
-           case .character(let existingChars) = tokens[lastIdx] {
-            tokens[lastIdx] = .character(existingChars + newChars)
+           case let .character(existingChars) = tokens[lastIdx]
+        {
+            self.tokens[lastIdx] = .character(existingChars + newChars)
         } else if case .eof = token {
             // Skip EOF tokens for comparison
         } else {
-            tokens.append(token)
+            self.tokens.append(token)
         }
     }
 }
@@ -1299,18 +1307,18 @@ private final class TokenCollector: TokenSink {
 /// Convert a Token to the html5lib test format array
 private func tokenToTestArray(_ token: Token) -> [Any] {
     switch token {
-    case .doctype(let dt):
+    case let .doctype(dt):
         return ["DOCTYPE", dt.name ?? "", dt.publicId as Any, dt.systemId as Any, !dt.forceQuirks]
-    case .startTag(let name, let attrs, _):
+    case let .startTag(name, attrs, _):
         if attrs.isEmpty {
             return ["StartTag", name, [:] as [String: String]]
         }
         return ["StartTag", name, attrs]
-    case .endTag(let name):
+    case let .endTag(name):
         return ["EndTag", name]
-    case .comment(let text):
+    case let .comment(text):
         return ["Comment", text]
-    case .character(let text):
+    case let .character(text):
         return ["Character", text]
     case .eof:
         return []
@@ -1321,7 +1329,8 @@ private func tokenToTestArray(_ token: Token) -> [Any] {
 private func tokensEqual(_ actual: [Any], _ expected: [Any]) -> Bool {
     guard actual.count == expected.count else { return false }
     guard let actualType = actual.first as? String,
-          let expectedType = expected.first as? String else {
+          let expectedType = expected.first as? String
+    else {
         return false
     }
 
@@ -1393,7 +1402,7 @@ func getTokenizerTestsDirectory() -> URL? {
 
     let possiblePaths = [
         cwdUrl.appendingPathComponent("html5lib-tests/tokenizer"),
-        cwdUrl.appendingPathComponent("../html5lib-tests/tokenizer")
+        cwdUrl.appendingPathComponent("../html5lib-tests/tokenizer"),
     ]
 
     for path in possiblePaths {
@@ -1415,9 +1424,10 @@ private func unescapeUnicode(_ text: String) -> String {
             if text[next] == "u" && text.distance(from: next, to: text.endIndex) >= 5 {
                 let hexStart = text.index(next, offsetBy: 1)
                 let hexEnd = text.index(next, offsetBy: 5)
-                let hexStr = String(text[hexStart..<hexEnd])
+                let hexStr = String(text[hexStart ..< hexEnd])
                 if let codePoint = UInt32(hexStr, radix: 16),
-                   let scalar = Unicode.Scalar(codePoint) {
+                   let scalar = Unicode.Scalar(codePoint)
+                {
                     result.append(Character(scalar))
                     i = hexEnd
                     continue
@@ -1466,7 +1476,7 @@ private func deepUnescapeUnicode(_ value: Any) -> Any {
 
     // Skip these test files that have implementation-specific requirements
     let skipFiles: Set<String> = [
-        "xmlViolation.test"  // XML coercion mode not fully implemented
+        "xmlViolation.test", // XML coercion mode not fully implemented
     ]
 
     for fileURL in testFiles {
@@ -1478,7 +1488,8 @@ private func deepUnescapeUnicode(_ value: Any) -> Any {
 
         guard let content = try? Data(contentsOf: fileURL),
               let json = try? JSONSerialization.jsonObject(with: content) as? [String: Any],
-              let tests = json["tests"] as? [[String: Any]] else {
+              let tests = json["tests"] as? [[String: Any]]
+        else {
             continue
         }
 
@@ -1487,7 +1498,8 @@ private func deepUnescapeUnicode(_ value: Any) -> Any {
 
         for (testIdx, test) in tests.enumerated() {
             guard let inputRaw = test["input"] as? String,
-                  let expectedOutput = test["output"] as? [[Any]] else {
+                  let expectedOutput = test["output"] as? [[Any]]
+            else {
                 fileSkipped += 1
                 totalSkipped += 1
                 continue
@@ -1577,7 +1589,7 @@ private func deepUnescapeUnicode(_ value: Any) -> Any {
 
 // MARK: - CSS Selector Tests
 
-@Test func testSelectorTypeSelector() async throws {
+@Test func selectorTypeSelector() async throws {
     let html = "<div><p>Hello</p><span>World</span></div>"
     let doc = try JustHTML(html)
 
@@ -1586,7 +1598,7 @@ private func deepUnescapeUnicode(_ value: Any) -> Any {
     #expect(results[0].name == "p")
 }
 
-@Test func testSelectorIdSelector() async throws {
+@Test func selectorIdSelector() async throws {
     let html = "<div><p id=\"main\">Hello</p><p>World</p></div>"
     let doc = try JustHTML(html)
 
@@ -1595,7 +1607,7 @@ private func deepUnescapeUnicode(_ value: Any) -> Any {
     #expect(results[0].attrs["id"] == "main")
 }
 
-@Test func testSelectorClassSelector() async throws {
+@Test func selectorClassSelector() async throws {
     let html = "<div><p class=\"highlight\">One</p><p class=\"highlight\">Two</p><p>Three</p></div>"
     let doc = try JustHTML(html)
 
@@ -1603,16 +1615,16 @@ private func deepUnescapeUnicode(_ value: Any) -> Any {
     #expect(results.count == 2)
 }
 
-@Test func testSelectorUniversalSelector() async throws {
+@Test func selectorUniversalSelector() async throws {
     let html = "<div><p>One</p><span>Two</span></div>"
     let doc = try JustHTML(html)
 
     // Universal selector matches all elements
     let results = try query(doc.root, selector: "*")
-    #expect(results.count >= 4)  // html, body, div, p, span at minimum
+    #expect(results.count >= 4) // html, body, div, p, span at minimum
 }
 
-@Test func testSelectorDescendantCombinator() async throws {
+@Test func selectorDescendantCombinator() async throws {
     let html = "<div><p><span>Text</span></p></div>"
     let doc = try JustHTML(html)
 
@@ -1621,7 +1633,7 @@ private func deepUnescapeUnicode(_ value: Any) -> Any {
     #expect(results[0].name == "span")
 }
 
-@Test func testSelectorChildCombinator() async throws {
+@Test func selectorChildCombinator() async throws {
     let html = "<div><span>Direct</span><p><span>Nested</span></p></div>"
     let doc = try JustHTML(html)
 
@@ -1631,7 +1643,7 @@ private func deepUnescapeUnicode(_ value: Any) -> Any {
     #expect(results[0].toText() == "Direct")
 }
 
-@Test func testSelectorNextSiblingCombinator() async throws {
+@Test func selectorNextSiblingCombinator() async throws {
     let html = "<div><p>First</p><span>Second</span><span>Third</span></div>"
     let doc = try JustHTML(html)
 
@@ -1641,7 +1653,7 @@ private func deepUnescapeUnicode(_ value: Any) -> Any {
     #expect(results[0].toText() == "Second")
 }
 
-@Test func testSelectorSubsequentSiblingCombinator() async throws {
+@Test func selectorSubsequentSiblingCombinator() async throws {
     let html = "<div><p>First</p><span>Second</span><span>Third</span></div>"
     let doc = try JustHTML(html)
 
@@ -1650,7 +1662,7 @@ private func deepUnescapeUnicode(_ value: Any) -> Any {
     #expect(results.count == 2)
 }
 
-@Test func testSelectorAttributeExists() async throws {
+@Test func selectorAttributeExists() async throws {
     let html = "<div><a href=\"link\">With</a><a>Without</a></div>"
     let doc = try JustHTML(html)
 
@@ -1659,7 +1671,7 @@ private func deepUnescapeUnicode(_ value: Any) -> Any {
     #expect(results[0].toText() == "With")
 }
 
-@Test func testSelectorAttributeEquals() async throws {
+@Test func selectorAttributeEquals() async throws {
     let html = "<input type=\"text\"><input type=\"checkbox\">"
     let doc = try JustHTML(html)
 
@@ -1668,7 +1680,7 @@ private func deepUnescapeUnicode(_ value: Any) -> Any {
     #expect(results[0].attrs["type"] == "text")
 }
 
-@Test func testSelectorAttributeContains() async throws {
+@Test func selectorAttributeContains() async throws {
     let html = "<div class=\"one two three\"><div class=\"four\"></div></div>"
     let doc = try JustHTML(html)
 
@@ -1677,7 +1689,7 @@ private func deepUnescapeUnicode(_ value: Any) -> Any {
     #expect(results.count == 1)
 }
 
-@Test func testSelectorAttributeStartsWith() async throws {
+@Test func selectorAttributeStartsWith() async throws {
     let html = "<a href=\"https://example.com\">HTTPS</a><a href=\"http://example.com\">HTTP</a>"
     let doc = try JustHTML(html)
 
@@ -1686,7 +1698,7 @@ private func deepUnescapeUnicode(_ value: Any) -> Any {
     #expect(results[0].toText() == "HTTPS")
 }
 
-@Test func testSelectorAttributeEndsWith() async throws {
+@Test func selectorAttributeEndsWith() async throws {
     let html = "<img src=\"photo.jpg\"><img src=\"photo.png\">"
     let doc = try JustHTML(html)
 
@@ -1694,7 +1706,7 @@ private func deepUnescapeUnicode(_ value: Any) -> Any {
     #expect(results.count == 1)
 }
 
-@Test func testSelectorAttributeContainsSubstring() async throws {
+@Test func selectorAttributeContainsSubstring() async throws {
     let html = "<a href=\"example.com/page\">Link</a><a href=\"other.com\">Other</a>"
     let doc = try JustHTML(html)
 
@@ -1702,7 +1714,7 @@ private func deepUnescapeUnicode(_ value: Any) -> Any {
     #expect(results.count == 1)
 }
 
-@Test func testSelectorFirstChild() async throws {
+@Test func selectorFirstChild() async throws {
     let html = "<ul><li>One</li><li>Two</li><li>Three</li></ul>"
     let doc = try JustHTML(html)
 
@@ -1711,7 +1723,7 @@ private func deepUnescapeUnicode(_ value: Any) -> Any {
     #expect(results[0].toText() == "One")
 }
 
-@Test func testSelectorLastChild() async throws {
+@Test func selectorLastChild() async throws {
     let html = "<ul><li>One</li><li>Two</li><li>Three</li></ul>"
     let doc = try JustHTML(html)
 
@@ -1720,7 +1732,7 @@ private func deepUnescapeUnicode(_ value: Any) -> Any {
     #expect(results[0].toText() == "Three")
 }
 
-@Test func testSelectorNthChild() async throws {
+@Test func selectorNthChild() async throws {
     let html = "<ul><li>1</li><li>2</li><li>3</li><li>4</li><li>5</li></ul>"
     let doc = try JustHTML(html)
 
@@ -1730,7 +1742,7 @@ private func deepUnescapeUnicode(_ value: Any) -> Any {
     #expect(results[0].toText() == "2")
 }
 
-@Test func testSelectorNthChildOdd() async throws {
+@Test func selectorNthChildOdd() async throws {
     let html = "<ul><li>1</li><li>2</li><li>3</li><li>4</li></ul>"
     let doc = try JustHTML(html)
 
@@ -1740,7 +1752,7 @@ private func deepUnescapeUnicode(_ value: Any) -> Any {
     #expect(results[1].toText() == "3")
 }
 
-@Test func testSelectorNthChildEven() async throws {
+@Test func selectorNthChildEven() async throws {
     let html = "<ul><li>1</li><li>2</li><li>3</li><li>4</li></ul>"
     let doc = try JustHTML(html)
 
@@ -1750,7 +1762,7 @@ private func deepUnescapeUnicode(_ value: Any) -> Any {
     #expect(results[1].toText() == "4")
 }
 
-@Test func testSelectorNthChildFormula() async throws {
+@Test func selectorNthChildFormula() async throws {
     let html = "<ul><li>1</li><li>2</li><li>3</li><li>4</li><li>5</li><li>6</li></ul>"
     let doc = try JustHTML(html)
 
@@ -1761,7 +1773,7 @@ private func deepUnescapeUnicode(_ value: Any) -> Any {
     #expect(results[1].toText() == "6")
 }
 
-@Test func testSelectorNot() async throws {
+@Test func selectorNot() async throws {
     let html = "<div><p class=\"skip\">Skip</p><p>Keep</p><p class=\"skip\">Skip</p></div>"
     let doc = try JustHTML(html)
 
@@ -1770,7 +1782,7 @@ private func deepUnescapeUnicode(_ value: Any) -> Any {
     #expect(results[0].toText() == "Keep")
 }
 
-@Test func testSelectorEmpty() async throws {
+@Test func selectorEmpty() async throws {
     let html = "<div><p></p><p>Text</p></div>"
     let doc = try JustHTML(html)
 
@@ -1778,7 +1790,7 @@ private func deepUnescapeUnicode(_ value: Any) -> Any {
     #expect(results.count == 1)
 }
 
-@Test func testSelectorCompound() async throws {
+@Test func selectorCompound() async throws {
     let html = "<p class=\"highlight\" id=\"main\">Target</p><p class=\"highlight\">Other</p>"
     let doc = try JustHTML(html)
 
@@ -1788,7 +1800,7 @@ private func deepUnescapeUnicode(_ value: Any) -> Any {
     #expect(results[0].toText() == "Target")
 }
 
-@Test func testSelectorGroup() async throws {
+@Test func selectorGroup() async throws {
     let html = "<div><p>Para</p><span>Span</span><a>Link</a></div>"
     let doc = try JustHTML(html)
 
@@ -1797,7 +1809,7 @@ private func deepUnescapeUnicode(_ value: Any) -> Any {
     #expect(results.count == 2)
 }
 
-@Test func testSelectorMatches() async throws {
+@Test func selectorMatches() async throws {
     let html = "<p class=\"test\">Hello</p>"
     let doc = try JustHTML(html)
 
@@ -1810,7 +1822,7 @@ private func deepUnescapeUnicode(_ value: Any) -> Any {
     #expect(try !matches(p, selector: ".other"))
 }
 
-@Test func testSelectorComplex() async throws {
+@Test func selectorComplex() async throws {
     let html = """
     <div id="container">
         <ul class="list">
@@ -1830,7 +1842,7 @@ private func deepUnescapeUnicode(_ value: Any) -> Any {
 
 // MARK: - Markdown Tests
 
-@Test func testMarkdownHeadings() async throws {
+@Test func markdownHeadings() async throws {
     let html = "<h1>Title</h1><h2>Subtitle</h2><h3>Section</h3>"
     let doc = try JustHTML(html)
     let md = doc.toMarkdown()
@@ -1839,7 +1851,7 @@ private func deepUnescapeUnicode(_ value: Any) -> Any {
     #expect(md.contains("### Section"))
 }
 
-@Test func testMarkdownParagraph() async throws {
+@Test func markdownParagraph() async throws {
     let html = "<p>Hello World</p><p>Second paragraph</p>"
     let doc = try JustHTML(html)
     let md = doc.toMarkdown()
@@ -1847,28 +1859,28 @@ private func deepUnescapeUnicode(_ value: Any) -> Any {
     #expect(md.contains("Second paragraph"))
 }
 
-@Test func testMarkdownStrong() async throws {
+@Test func markdownStrong() async throws {
     let html = "<p>This is <strong>bold</strong> text</p>"
     let doc = try JustHTML(html)
     let md = doc.toMarkdown()
     #expect(md.contains("**bold**"))
 }
 
-@Test func testMarkdownEmphasis() async throws {
+@Test func markdownEmphasis() async throws {
     let html = "<p>This is <em>italic</em> text</p>"
     let doc = try JustHTML(html)
     let md = doc.toMarkdown()
     #expect(md.contains("*italic*"))
 }
 
-@Test func testMarkdownCode() async throws {
+@Test func markdownCode() async throws {
     let html = "<p>Use <code>print()</code> to output</p>"
     let doc = try JustHTML(html)
     let md = doc.toMarkdown()
     #expect(md.contains("`print()`"))
 }
 
-@Test func testMarkdownPreformatted() async throws {
+@Test func markdownPreformatted() async throws {
     let html = "<pre><code>func hello() {\n    print(\"Hi\")\n}</code></pre>"
     let doc = try JustHTML(html)
     let md = doc.toMarkdown()
@@ -1876,21 +1888,21 @@ private func deepUnescapeUnicode(_ value: Any) -> Any {
     #expect(md.contains("func hello()"))
 }
 
-@Test func testMarkdownLink() async throws {
+@Test func markdownLink() async throws {
     let html = "<a href=\"https://example.com\">Example</a>"
     let doc = try JustHTML(html)
     let md = doc.toMarkdown()
     #expect(md.contains("[Example](https://example.com)"))
 }
 
-@Test func testMarkdownImage() async throws {
+@Test func markdownImage() async throws {
     let html = "<img src=\"photo.jpg\" alt=\"A photo\">"
     let doc = try JustHTML(html)
     let md = doc.toMarkdown()
     #expect(md.contains("![A photo](photo.jpg)"))
 }
 
-@Test func testMarkdownUnorderedList() async throws {
+@Test func markdownUnorderedList() async throws {
     let html = "<ul><li>Apple</li><li>Banana</li><li>Cherry</li></ul>"
     let doc = try JustHTML(html)
     let md = doc.toMarkdown()
@@ -1899,7 +1911,7 @@ private func deepUnescapeUnicode(_ value: Any) -> Any {
     #expect(md.contains("- Cherry"))
 }
 
-@Test func testMarkdownOrderedList() async throws {
+@Test func markdownOrderedList() async throws {
     let html = "<ol><li>First</li><li>Second</li><li>Third</li></ol>"
     let doc = try JustHTML(html)
     let md = doc.toMarkdown()
@@ -1908,21 +1920,21 @@ private func deepUnescapeUnicode(_ value: Any) -> Any {
     #expect(md.contains("3. Third"))
 }
 
-@Test func testMarkdownBlockquote() async throws {
+@Test func markdownBlockquote() async throws {
     let html = "<blockquote>This is a quote</blockquote>"
     let doc = try JustHTML(html)
     let md = doc.toMarkdown()
     #expect(md.contains("> This is a quote"))
 }
 
-@Test func testMarkdownHorizontalRule() async throws {
+@Test func markdownHorizontalRule() async throws {
     let html = "<p>Above</p><hr><p>Below</p>"
     let doc = try JustHTML(html)
     let md = doc.toMarkdown()
     #expect(md.contains("---"))
 }
 
-@Test func testMarkdownTable() async throws {
+@Test func markdownTable() async throws {
     let html = """
     <table>
         <tr><th>Name</th><th>Age</th></tr>
@@ -1938,14 +1950,14 @@ private func deepUnescapeUnicode(_ value: Any) -> Any {
     #expect(md.contains("| Bob"))
 }
 
-@Test func testMarkdownStrikethrough() async throws {
+@Test func markdownStrikethrough() async throws {
     let html = "<p>This is <del>deleted</del> text</p>"
     let doc = try JustHTML(html)
     let md = doc.toMarkdown()
     #expect(md.contains("~~deleted~~"))
 }
 
-@Test func testMarkdownComplex() async throws {
+@Test func markdownComplex() async throws {
     let html = """
     <article>
         <h1>My Article</h1>
@@ -1975,7 +1987,7 @@ private func deepUnescapeUnicode(_ value: Any) -> Any {
 /// Generate a simple HTML document for benchmarks
 func generateBenchmarkHTML(paragraphs: Int) -> String {
     var html = "<!DOCTYPE html><html><head><title>Test</title></head><body>"
-    for i in 0..<paragraphs {
+    for i in 0 ..< paragraphs {
         html += "<p>This is paragraph \(i) with some <strong>bold</strong> and <em>italic</em> text.</p>"
     }
     html += "</body></html>"
@@ -1986,13 +1998,13 @@ func generateBenchmarkHTML(paragraphs: Int) -> String {
 func generateTableHTML(rows: Int, cols: Int) -> String {
     var html = "<!DOCTYPE html><html><head><title>Table Test</title></head><body><table>"
     html += "<thead><tr>"
-    for c in 0..<cols {
+    for c in 0 ..< cols {
         html += "<th>Column \(c)</th>"
     }
     html += "</tr></thead><tbody>"
-    for r in 0..<rows {
+    for r in 0 ..< rows {
         html += "<tr>"
-        for c in 0..<cols {
+        for c in 0 ..< cols {
             html += "<td>Cell \(r),\(c)</td>"
         }
         html += "</tr>"
@@ -2004,11 +2016,11 @@ func generateTableHTML(rows: Int, cols: Int) -> String {
 /// Generate deeply nested HTML
 func generateNestedHTML(depth: Int) -> String {
     var html = "<!DOCTYPE html><html><head><title>Nested Test</title></head><body>"
-    for _ in 0..<depth {
+    for _ in 0 ..< depth {
         html += "<div><span><a href=\"#\">"
     }
     html += "Deep content"
-    for _ in 0..<depth {
+    for _ in 0 ..< depth {
         html += "</a></span></div>"
     }
     html += "</body></html>"
@@ -2020,7 +2032,7 @@ func generateNestedHTML(depth: Int) -> String {
     let iterations = 100
 
     let start = Date()
-    for _ in 0..<iterations {
+    for _ in 0 ..< iterations {
         _ = try JustHTML(html)
     }
     let elapsed = Date().timeIntervalSince(start)
@@ -2041,7 +2053,7 @@ func generateNestedHTML(depth: Int) -> String {
     let iterations = 50
 
     let start = Date()
-    for _ in 0..<iterations {
+    for _ in 0 ..< iterations {
         _ = try JustHTML(html)
     }
     let elapsed = Date().timeIntervalSince(start)
@@ -2062,7 +2074,7 @@ func generateNestedHTML(depth: Int) -> String {
     let iterations = 10
 
     let start = Date()
-    for _ in 0..<iterations {
+    for _ in 0 ..< iterations {
         _ = try JustHTML(html)
     }
     let elapsed = Date().timeIntervalSince(start)
@@ -2083,7 +2095,7 @@ func generateNestedHTML(depth: Int) -> String {
     let iterations = 50
 
     let start = Date()
-    for _ in 0..<iterations {
+    for _ in 0 ..< iterations {
         _ = try JustHTML(html)
     }
     let elapsed = Date().timeIntervalSince(start)
@@ -2104,7 +2116,7 @@ func generateNestedHTML(depth: Int) -> String {
     let iterations = 100
 
     let start = Date()
-    for _ in 0..<iterations {
+    for _ in 0 ..< iterations {
         _ = try JustHTML(html)
     }
     let elapsed = Date().timeIntervalSince(start)
@@ -2125,7 +2137,7 @@ func generateNestedHTML(depth: Int) -> String {
     let iterations = 100
 
     let start = Date()
-    for _ in 0..<iterations {
+    for _ in 0 ..< iterations {
         var count = 0
         for _ in HTMLStream(html) {
             count += 1
@@ -2151,7 +2163,7 @@ func generateNestedHTML(depth: Int) -> String {
     let iterations = 1000
 
     let start = Date()
-    for _ in 0..<iterations {
+    for _ in 0 ..< iterations {
         _ = try doc.query("p")
     }
     let elapsed = Date().timeIntervalSince(start)
@@ -2171,7 +2183,7 @@ func generateNestedHTML(depth: Int) -> String {
     let iterations = 100
 
     let start = Date()
-    for _ in 0..<iterations {
+    for _ in 0 ..< iterations {
         _ = doc.toMarkdown()
     }
     let elapsed = Date().timeIntervalSince(start)
@@ -2184,4 +2196,3 @@ func generateNestedHTML(depth: Int) -> String {
 
     #expect(avgMs < 100, "toMarkdown should complete in under 100ms")
 }
-

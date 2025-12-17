@@ -35,9 +35,9 @@ public struct ParseError: Error, CustomStringConvertible, Sendable {
 
     public var description: String {
         if let line = line, let column = column {
-            return "(\(line),\(column)): \(code)"
+            return "(\(line),\(column)): \(self.code)"
         }
-        return code
+        return self.code
     }
 }
 
@@ -62,8 +62,8 @@ public struct SelectorError: Error, CustomStringConvertible {
 
     public var description: String {
         if let pos = position {
-            return "SelectorError at position \(pos): \(message)"
+            return "SelectorError at position \(pos): \(self.message)"
         }
-        return "SelectorError: \(message)"
+        return "SelectorError: \(self.message)"
     }
 }

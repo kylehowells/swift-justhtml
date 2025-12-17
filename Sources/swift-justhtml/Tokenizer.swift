@@ -177,8 +177,8 @@ public final class Tokenizer {
     // Comment/doctype building
     private var currentComment: String = ""
     private var currentDoctypeName: String = ""
-    private var currentDoctypePublicId: String? = nil
-    private var currentDoctypeSystemId: String? = nil
+    private var currentDoctypePublicId: String?
+    private var currentDoctypeSystemId: String?
     private var currentDoctypeForceQuirks: Bool = false
 
     // Character buffer
@@ -218,249 +218,249 @@ public final class Tokenizer {
         self.pos = preprocessed.startIndex
 
         // Optionally discard BOM
-        if opts.discardBom && !preprocessed.isEmpty && preprocessed.first == "\u{FEFF}" {
-            pos = preprocessed.index(after: pos)
+        if self.opts.discardBom, !preprocessed.isEmpty, preprocessed.first == "\u{FEFF}" {
+            self.pos = preprocessed.index(after: self.pos)
         }
 
         // Process all input
-        while pos < input.endIndex {
-            processState()
+        while self.pos < self.input.endIndex {
+            self.processState()
         }
 
         // Handle EOF - process remaining states until we reach data state
         var eofIterations = 0
-        while state != .data && eofIterations < 100 {
-            processState()
+        while self.state != .data, eofIterations < 100 {
+            self.processState()
             eofIterations += 1
         }
 
         // Flush and emit EOF
-        flushCharBuffer()
-        emit(.eof)
+        self.flushCharBuffer()
+        self.emit(.eof)
     }
 
     /// Switch to plaintext state (called by tree builder for plaintext element)
     public func switchToPlaintext() {
-        state = .plaintext
+        self.state = .plaintext
     }
 
     private func processState() {
-        switch state {
+        switch self.state {
         case .data:
-            dataState()
+            self.dataState()
         case .rcdata:
-            rcdataState()
+            self.rcdataState()
         case .rawtext:
-            rawtextState()
+            self.rawtextState()
         case .plaintext:
-            plaintextState()
+            self.plaintextState()
         case .tagOpen:
-            tagOpenState()
+            self.tagOpenState()
         case .endTagOpen:
-            endTagOpenState()
+            self.endTagOpenState()
         case .tagName:
-            tagNameState()
+            self.tagNameState()
         case .rcdataLessThan:
-            rcdataLessThanState()
+            self.rcdataLessThanState()
         case .rcdataEndTagOpen:
-            rcdataEndTagOpenState()
+            self.rcdataEndTagOpenState()
         case .rcdataEndTagName:
-            rcdataEndTagNameState()
+            self.rcdataEndTagNameState()
         case .rawtextLessThan:
-            rawtextLessThanState()
+            self.rawtextLessThanState()
         case .rawtextEndTagOpen:
-            rawtextEndTagOpenState()
+            self.rawtextEndTagOpenState()
         case .rawtextEndTagName:
-            rawtextEndTagNameState()
+            self.rawtextEndTagNameState()
         case .beforeAttributeName:
-            beforeAttributeNameState()
+            self.beforeAttributeNameState()
         case .attributeName:
-            attributeNameState()
+            self.attributeNameState()
         case .afterAttributeName:
-            afterAttributeNameState()
+            self.afterAttributeNameState()
         case .beforeAttributeValue:
-            beforeAttributeValueState()
+            self.beforeAttributeValueState()
         case .attributeValueDoubleQuoted:
-            attributeValueDoubleQuotedState()
+            self.attributeValueDoubleQuotedState()
         case .attributeValueSingleQuoted:
-            attributeValueSingleQuotedState()
+            self.attributeValueSingleQuotedState()
         case .attributeValueUnquoted:
-            attributeValueUnquotedState()
+            self.attributeValueUnquotedState()
         case .afterAttributeValueQuoted:
-            afterAttributeValueQuotedState()
+            self.afterAttributeValueQuotedState()
         case .selfClosingStartTag:
-            selfClosingStartTagState()
+            self.selfClosingStartTagState()
         case .bogusComment:
-            bogusCommentState()
+            self.bogusCommentState()
         case .markupDeclarationOpen:
-            markupDeclarationOpenState()
+            self.markupDeclarationOpenState()
         case .commentStart:
-            commentStartState()
+            self.commentStartState()
         case .commentStartDash:
-            commentStartDashState()
+            self.commentStartDashState()
         case .comment:
-            commentState()
+            self.commentState()
         case .commentEndDash:
-            commentEndDashState()
+            self.commentEndDashState()
         case .commentEnd:
-            commentEndState()
+            self.commentEndState()
         case .commentEndBang:
-            commentEndBangState()
+            self.commentEndBangState()
         case .doctype:
-            doctypeState()
+            self.doctypeState()
         case .beforeDoctypeName:
-            beforeDoctypeNameState()
+            self.beforeDoctypeNameState()
         case .doctypeName:
-            doctypeNameState()
+            self.doctypeNameState()
         case .afterDoctypeName:
-            afterDoctypeNameState()
+            self.afterDoctypeNameState()
         case .afterDoctypePublicKeyword:
-            afterDoctypePublicKeywordState()
+            self.afterDoctypePublicKeywordState()
         case .beforeDoctypePublicIdentifier:
-            beforeDoctypePublicIdentifierState()
+            self.beforeDoctypePublicIdentifierState()
         case .doctypePublicIdentifierDoubleQuoted:
-            doctypePublicIdentifierDoubleQuotedState()
+            self.doctypePublicIdentifierDoubleQuotedState()
         case .doctypePublicIdentifierSingleQuoted:
-            doctypePublicIdentifierSingleQuotedState()
+            self.doctypePublicIdentifierSingleQuotedState()
         case .afterDoctypePublicIdentifier:
-            afterDoctypePublicIdentifierState()
+            self.afterDoctypePublicIdentifierState()
         case .betweenDoctypePublicAndSystemIdentifiers:
-            betweenDoctypePublicAndSystemIdentifiersState()
+            self.betweenDoctypePublicAndSystemIdentifiersState()
         case .afterDoctypeSystemKeyword:
-            afterDoctypeSystemKeywordState()
+            self.afterDoctypeSystemKeywordState()
         case .beforeDoctypeSystemIdentifier:
-            beforeDoctypeSystemIdentifierState()
+            self.beforeDoctypeSystemIdentifierState()
         case .doctypeSystemIdentifierDoubleQuoted:
-            doctypeSystemIdentifierDoubleQuotedState()
+            self.doctypeSystemIdentifierDoubleQuotedState()
         case .doctypeSystemIdentifierSingleQuoted:
-            doctypeSystemIdentifierSingleQuotedState()
+            self.doctypeSystemIdentifierSingleQuotedState()
         case .afterDoctypeSystemIdentifier:
-            afterDoctypeSystemIdentifierState()
+            self.afterDoctypeSystemIdentifierState()
         case .bogusDoctype:
-            bogusDoctypeState()
+            self.bogusDoctypeState()
         case .characterReference:
-            characterReferenceState()
+            self.characterReferenceState()
         case .namedCharacterReference:
-            namedCharacterReferenceState()
+            self.namedCharacterReferenceState()
         case .ambiguousAmpersand:
-            ambiguousAmpersandState()
+            self.ambiguousAmpersandState()
         case .numericCharacterReference:
-            numericCharacterReferenceState()
+            self.numericCharacterReferenceState()
         case .hexadecimalCharacterReferenceStart:
-            hexadecimalCharacterReferenceStartState()
+            self.hexadecimalCharacterReferenceStartState()
         case .decimalCharacterReferenceStart:
-            decimalCharacterReferenceStartState()
+            self.decimalCharacterReferenceStartState()
         case .hexadecimalCharacterReference:
-            hexadecimalCharacterReferenceState()
+            self.hexadecimalCharacterReferenceState()
         case .decimalCharacterReference:
-            decimalCharacterReferenceState()
+            self.decimalCharacterReferenceState()
         case .numericCharacterReferenceEnd:
-            numericCharacterReferenceEndState()
+            self.numericCharacterReferenceEndState()
         case .cdataSection:
-            cdataSectionState()
+            self.cdataSectionState()
         case .cdataSectionBracket:
-            cdataSectionBracketState()
+            self.cdataSectionBracketState()
         case .cdataSectionEnd:
-            cdataSectionEndState()
+            self.cdataSectionEndState()
         case .scriptData:
-            scriptDataState()
+            self.scriptDataState()
         case .scriptDataLessThan:
-            scriptDataLessThanState()
+            self.scriptDataLessThanState()
         case .scriptDataEndTagOpen:
-            scriptDataEndTagOpenState()
+            self.scriptDataEndTagOpenState()
         case .scriptDataEndTagName:
-            scriptDataEndTagNameState()
+            self.scriptDataEndTagNameState()
         case .scriptDataEscapeStart:
-            scriptDataEscapeStartState()
+            self.scriptDataEscapeStartState()
         case .scriptDataEscapeStartDash:
-            scriptDataEscapeStartDashState()
+            self.scriptDataEscapeStartDashState()
         case .scriptDataEscaped:
-            scriptDataEscapedState()
+            self.scriptDataEscapedState()
         case .scriptDataEscapedDash:
-            scriptDataEscapedDashState()
+            self.scriptDataEscapedDashState()
         case .scriptDataEscapedDashDash:
-            scriptDataEscapedDashDashState()
+            self.scriptDataEscapedDashDashState()
         case .scriptDataEscapedLessThan:
-            scriptDataEscapedLessThanState()
+            self.scriptDataEscapedLessThanState()
         case .scriptDataEscapedEndTagOpen:
-            scriptDataEscapedEndTagOpenState()
+            self.scriptDataEscapedEndTagOpenState()
         case .scriptDataEscapedEndTagName:
-            scriptDataEscapedEndTagNameState()
+            self.scriptDataEscapedEndTagNameState()
         case .scriptDataDoubleEscapeStart:
-            scriptDataDoubleEscapeStartState()
+            self.scriptDataDoubleEscapeStartState()
         case .scriptDataDoubleEscaped:
-            scriptDataDoubleEscapedState()
+            self.scriptDataDoubleEscapedState()
         case .scriptDataDoubleEscapedDash:
-            scriptDataDoubleEscapedDashState()
+            self.scriptDataDoubleEscapedDashState()
         case .scriptDataDoubleEscapedDashDash:
-            scriptDataDoubleEscapedDashDashState()
+            self.scriptDataDoubleEscapedDashDashState()
         case .scriptDataDoubleEscapedLessThan:
-            scriptDataDoubleEscapedLessThanState()
+            self.scriptDataDoubleEscapedLessThanState()
         case .scriptDataDoubleEscapeEnd:
-            scriptDataDoubleEscapeEndState()
+            self.scriptDataDoubleEscapeEndState()
         }
     }
 
     // MARK: - Character Consumption
 
     private func consume() -> Character? {
-        guard pos < input.endIndex else { return nil }
-        let ch = input[pos]
-        pos = input.index(after: pos)
+        guard self.pos < self.input.endIndex else { return nil }
+        let ch = self.input[self.pos]
+        self.pos = self.input.index(after: self.pos)
 
         // Track line/column
         if ch == "\n" {
-            line += 1
-            column = 0
+            self.line += 1
+            self.column = 0
         } else {
-            column += 1
+            self.column += 1
         }
 
         return ch
     }
 
     private func peek() -> Character? {
-        guard pos < input.endIndex else { return nil }
-        return input[pos]
+        guard self.pos < self.input.endIndex else { return nil }
+        return self.input[self.pos]
     }
 
     private func peekAhead(_ n: Int) -> Character? {
-        var idx = pos
-        for _ in 0..<n {
-            guard idx < input.endIndex else { return nil }
-            idx = input.index(after: idx)
+        var idx = self.pos
+        for _ in 0 ..< n {
+            guard idx < self.input.endIndex else { return nil }
+            idx = self.input.index(after: idx)
         }
-        guard idx < input.endIndex else { return nil }
-        return input[idx]
+        guard idx < self.input.endIndex else { return nil }
+        return self.input[idx]
     }
 
     private func reconsume() {
-        if pos > input.startIndex {
-            pos = input.index(before: pos)
+        if self.pos > self.input.startIndex {
+            self.pos = self.input.index(before: self.pos)
             // Adjust line/column tracking
-            if input[pos] == "\n" {
-                line -= 1
+            if self.input[self.pos] == "\n" {
+                self.line -= 1
                 // column tracking becomes inaccurate here but that's OK for now
             } else {
-                column -= 1
+                self.column -= 1
             }
         }
     }
 
     private func consumeIf(_ expected: String, caseInsensitive: Bool = true) -> Bool {
-        var tempPos = pos
+        var tempPos = self.pos
         for ch in expected {
-            guard tempPos < input.endIndex else { return false }
-            let inputCh = input[tempPos]
+            guard tempPos < self.input.endIndex else { return false }
+            let inputCh = self.input[tempPos]
             let match = caseInsensitive
                 ? inputCh.asLowercaseCharacter == ch.asLowercaseCharacter
                 : inputCh == ch
             if !match { return false }
-            tempPos = input.index(after: tempPos)
+            tempPos = self.input.index(after: tempPos)
         }
         // Consume the matched characters
         for _ in expected {
-            _ = consume()
+            _ = self.consume()
         }
         return true
     }
@@ -468,93 +468,93 @@ public final class Tokenizer {
     // MARK: - Token Emission
 
     private func emit(_ token: Token) {
-        flushCharBuffer()
-        sink?.processToken(token)
+        self.flushCharBuffer()
+        self.sink?.processToken(token)
     }
 
     private func emitChar(_ ch: Character) {
-        charBuffer.append(ch)
+        self.charBuffer.append(ch)
     }
 
     private func emitString(_ s: String) {
-        charBuffer.append(s)
+        self.charBuffer.append(s)
     }
 
     private func flushCharBuffer() {
-        if !charBuffer.isEmpty {
-            sink?.processToken(.character(charBuffer))
-            charBuffer = ""
+        if !self.charBuffer.isEmpty {
+            self.sink?.processToken(.character(self.charBuffer))
+            self.charBuffer = ""
         }
     }
 
     private func emitCurrentTag() {
-        flushCharBuffer()
-        if currentTagIsEnd {
-            sink?.processToken(.endTag(name: currentTagName))
+        self.flushCharBuffer()
+        if self.currentTagIsEnd {
+            self.sink?.processToken(.endTag(name: self.currentTagName))
         } else {
-            sink?.processToken(.startTag(name: currentTagName, attrs: currentAttrs, selfClosing: currentTagSelfClosing))
-            lastStartTagName = currentTagName
+            self.sink?.processToken(.startTag(name: self.currentTagName, attrs: self.currentAttrs, selfClosing: self.currentTagSelfClosing))
+            self.lastStartTagName = self.currentTagName
 
             // Switch to appropriate state for special elements (only in HTML namespace)
-            let ns = sink?.currentNamespace
+            let ns = self.sink?.currentNamespace
             if ns == nil || ns == .html {
-                if RCDATA_ELEMENTS.contains(currentTagName) {
-                    state = .rcdata
-                } else if RAWTEXT_ELEMENTS.contains(currentTagName) {
-                    state = .rawtext
-                } else if currentTagName == SCRIPT_ELEMENT {
-                    state = .scriptData
-                } else if currentTagName == "plaintext" {
-                    state = .plaintext
+                if RCDATA_ELEMENTS.contains(self.currentTagName) {
+                    self.state = .rcdata
+                } else if RAWTEXT_ELEMENTS.contains(self.currentTagName) {
+                    self.state = .rawtext
+                } else if self.currentTagName == SCRIPT_ELEMENT {
+                    self.state = .scriptData
+                } else if self.currentTagName == "plaintext" {
+                    self.state = .plaintext
                 }
             }
         }
-        resetTag()
+        self.resetTag()
     }
 
     private func emitCurrentComment() {
-        emit(.comment(currentComment))
-        currentComment = ""
+        self.emit(.comment(self.currentComment))
+        self.currentComment = ""
     }
 
     private func emitCurrentDoctype() {
         let doctype = Doctype(
-            name: currentDoctypeName.isEmpty ? nil : currentDoctypeName,
-            publicId: currentDoctypePublicId,
-            systemId: currentDoctypeSystemId,
-            forceQuirks: currentDoctypeForceQuirks
+            name: currentDoctypeName.isEmpty ? nil : self.currentDoctypeName,
+            publicId: self.currentDoctypePublicId,
+            systemId: self.currentDoctypeSystemId,
+            forceQuirks: self.currentDoctypeForceQuirks
         )
-        emit(.doctype(doctype))
-        resetDoctype()
+        self.emit(.doctype(doctype))
+        self.resetDoctype()
     }
 
     private func resetTag() {
-        currentTagName = ""
-        currentTagIsEnd = false
-        currentTagSelfClosing = false
-        currentAttrs = [:]
-        currentAttrName = ""
-        currentAttrValue = ""
+        self.currentTagName = ""
+        self.currentTagIsEnd = false
+        self.currentTagSelfClosing = false
+        self.currentAttrs = [:]
+        self.currentAttrName = ""
+        self.currentAttrValue = ""
     }
 
     private func resetDoctype() {
-        currentDoctypeName = ""
-        currentDoctypePublicId = nil
-        currentDoctypeSystemId = nil
-        currentDoctypeForceQuirks = false
+        self.currentDoctypeName = ""
+        self.currentDoctypePublicId = nil
+        self.currentDoctypeSystemId = nil
+        self.currentDoctypeForceQuirks = false
     }
 
     private func storeCurrentAttr() {
-        if !currentAttrName.isEmpty && currentAttrs[currentAttrName] == nil {
-            currentAttrs[currentAttrName] = currentAttrValue
+        if !self.currentAttrName.isEmpty, self.currentAttrs[self.currentAttrName] == nil {
+            self.currentAttrs[self.currentAttrName] = self.currentAttrValue
         }
-        currentAttrName = ""
-        currentAttrValue = ""
+        self.currentAttrName = ""
+        self.currentAttrValue = ""
     }
 
     private func emitError(_ code: String) {
-        if collectErrors {
-            errors.append(ParseError(code: code, line: line, column: column))
+        if self.collectErrors {
+            self.errors.append(ParseError(code: code, line: self.line, column: self.column))
         }
     }
 
@@ -562,314 +562,314 @@ public final class Tokenizer {
 
     private func dataState() {
         guard let ch = consume() else {
-            emit(.eof)
+            self.emit(.eof)
             return
         }
         switch ch {
         case "&":
-            returnState = .data
-            state = .characterReference
+            self.returnState = .data
+            self.state = .characterReference
         case "<":
-            state = .tagOpen
+            self.state = .tagOpen
         case "\0":
-            emitError("unexpected-null-character")
-            emitChar(ch)
+            self.emitError("unexpected-null-character")
+            self.emitChar(ch)
         default:
-            emitChar(ch)
+            self.emitChar(ch)
         }
     }
 
     private func rcdataState() {
         guard let ch = consume() else {
-            emit(.eof)
+            self.emit(.eof)
             return
         }
         switch ch {
         case "&":
-            returnState = .rcdata
-            state = .characterReference
+            self.returnState = .rcdata
+            self.state = .characterReference
         case "<":
-            state = .rcdataLessThan
+            self.state = .rcdataLessThan
         case "\0":
-            emitError("unexpected-null-character")
-            emitChar("\u{FFFD}")
+            self.emitError("unexpected-null-character")
+            self.emitChar("\u{FFFD}")
         default:
-            emitChar(ch)
+            self.emitChar(ch)
         }
     }
 
     private func rawtextState() {
         guard let ch = consume() else {
-            emit(.eof)
+            self.emit(.eof)
             return
         }
         switch ch {
         case "<":
-            state = .rawtextLessThan
+            self.state = .rawtextLessThan
         case "\0":
-            emitError("unexpected-null-character")
-            emitChar("\u{FFFD}")
+            self.emitError("unexpected-null-character")
+            self.emitChar("\u{FFFD}")
         default:
-            emitChar(ch)
+            self.emitChar(ch)
         }
     }
 
     private func plaintextState() {
         guard let ch = consume() else {
-            emit(.eof)
+            self.emit(.eof)
             return
         }
         if ch == "\0" {
-            emitError("unexpected-null-character")
-            emitChar("\u{FFFD}")
+            self.emitError("unexpected-null-character")
+            self.emitChar("\u{FFFD}")
         } else {
-            emitChar(ch)
+            self.emitChar(ch)
         }
     }
 
     private func tagOpenState() {
         guard let ch = consume() else {
-            emitError("eof-before-tag-name")
-            emitChar("<")
-            state = .data
+            self.emitError("eof-before-tag-name")
+            self.emitChar("<")
+            self.state = .data
             return
         }
         switch ch {
         case "!":
-            state = .markupDeclarationOpen
+            self.state = .markupDeclarationOpen
         case "/":
-            state = .endTagOpen
+            self.state = .endTagOpen
         case "?":
-            emitError("unexpected-question-mark-instead-of-tag-name")
-            currentComment = ""
-            state = .bogusComment
-            reconsume()
+            self.emitError("unexpected-question-mark-instead-of-tag-name")
+            self.currentComment = ""
+            self.state = .bogusComment
+            self.reconsume()
         default:
             if ch.isASCIILetter {
-                resetTag()
-                currentTagIsEnd = false
-                state = .tagName
-                reconsume()
+                self.resetTag()
+                self.currentTagIsEnd = false
+                self.state = .tagName
+                self.reconsume()
             } else {
-                emitError("invalid-first-character-of-tag-name")
-                emitChar("<")
-                state = .data
-                reconsume()
+                self.emitError("invalid-first-character-of-tag-name")
+                self.emitChar("<")
+                self.state = .data
+                self.reconsume()
             }
         }
     }
 
     private func endTagOpenState() {
         guard let ch = consume() else {
-            emitError("eof-before-tag-name")
-            emitString("</")
-            state = .data
+            self.emitError("eof-before-tag-name")
+            self.emitString("</")
+            self.state = .data
             return
         }
         if ch.isASCIILetter {
-            resetTag()
-            currentTagIsEnd = true
-            state = .tagName
-            reconsume()
+            self.resetTag()
+            self.currentTagIsEnd = true
+            self.state = .tagName
+            self.reconsume()
         } else if ch == ">" {
-            emitError("missing-end-tag-name")
-            state = .data
+            self.emitError("missing-end-tag-name")
+            self.state = .data
         } else {
-            emitError("invalid-first-character-of-tag-name")
-            currentComment = ""
-            state = .bogusComment
-            reconsume()
+            self.emitError("invalid-first-character-of-tag-name")
+            self.currentComment = ""
+            self.state = .bogusComment
+            self.reconsume()
         }
     }
 
     private func tagNameState() {
         guard let ch = consume() else {
-            emitError("eof-in-tag")
-            state = .data
+            self.emitError("eof-in-tag")
+            self.state = .data
             return
         }
         switch ch {
         case "\t", "\n", "\u{0C}", " ":
-            state = .beforeAttributeName
+            self.state = .beforeAttributeName
         case "/":
-            state = .selfClosingStartTag
+            self.state = .selfClosingStartTag
         case ">":
-            state = .data
-            emitCurrentTag()
+            self.state = .data
+            self.emitCurrentTag()
         case "\0":
-            emitError("unexpected-null-character")
-            currentTagName.append("\u{FFFD}")
+            self.emitError("unexpected-null-character")
+            self.currentTagName.append("\u{FFFD}")
         default:
-            currentTagName.append(ch.asLowercaseCharacter)
+            self.currentTagName.append(ch.asLowercaseCharacter)
         }
     }
 
     private func rcdataLessThanState() {
         guard let ch = consume() else {
-            emitChar("<")
-            state = .rcdata
+            self.emitChar("<")
+            self.state = .rcdata
             return
         }
         if ch == "/" {
-            tempBuffer = ""
-            state = .rcdataEndTagOpen
+            self.tempBuffer = ""
+            self.state = .rcdataEndTagOpen
         } else {
-            emitChar("<")
-            state = .rcdata
-            reconsume()
+            self.emitChar("<")
+            self.state = .rcdata
+            self.reconsume()
         }
     }
 
     private func rcdataEndTagOpenState() {
         guard let ch = consume() else {
-            emitString("</")
-            state = .rcdata
+            self.emitString("</")
+            self.state = .rcdata
             return
         }
         if ch.isASCIILetter {
-            resetTag()
-            currentTagIsEnd = true
-            state = .rcdataEndTagName
-            reconsume()
+            self.resetTag()
+            self.currentTagIsEnd = true
+            self.state = .rcdataEndTagName
+            self.reconsume()
         } else {
-            emitString("</")
-            state = .rcdata
-            reconsume()
+            self.emitString("</")
+            self.state = .rcdata
+            self.reconsume()
         }
     }
 
     private func rcdataEndTagNameState() {
         guard let ch = consume() else {
-            emitString("</")
-            emitString(tempBuffer)
-            state = .rcdata
+            self.emitString("</")
+            self.emitString(self.tempBuffer)
+            self.state = .rcdata
             return
         }
 
         switch ch {
         case "\t", "\n", "\u{0C}", " ":
-            if tempBuffer.lowercased() == lastStartTagName.lowercased() {
-                state = .beforeAttributeName
+            if self.tempBuffer.lowercased() == self.lastStartTagName.lowercased() {
+                self.state = .beforeAttributeName
             } else {
-                emitString("</")
-                emitString(tempBuffer)
-                state = .rcdata
-                reconsume()
+                self.emitString("</")
+                self.emitString(self.tempBuffer)
+                self.state = .rcdata
+                self.reconsume()
             }
         case "/":
-            if tempBuffer.lowercased() == lastStartTagName.lowercased() {
-                state = .selfClosingStartTag
+            if self.tempBuffer.lowercased() == self.lastStartTagName.lowercased() {
+                self.state = .selfClosingStartTag
             } else {
-                emitString("</")
-                emitString(tempBuffer)
-                state = .rcdata
-                reconsume()
+                self.emitString("</")
+                self.emitString(self.tempBuffer)
+                self.state = .rcdata
+                self.reconsume()
             }
         case ">":
-            if tempBuffer.lowercased() == lastStartTagName.lowercased() {
-                currentTagName = tempBuffer.lowercased()
-                state = .data
-                emitCurrentTag()
+            if self.tempBuffer.lowercased() == self.lastStartTagName.lowercased() {
+                self.currentTagName = self.tempBuffer.lowercased()
+                self.state = .data
+                self.emitCurrentTag()
             } else {
-                emitString("</")
-                emitString(tempBuffer)
-                state = .rcdata
-                reconsume()
+                self.emitString("</")
+                self.emitString(self.tempBuffer)
+                self.state = .rcdata
+                self.reconsume()
             }
         default:
             if ch.isASCIILetter {
-                currentTagName.append(ch.asLowercaseCharacter)
-                tempBuffer.append(ch)
+                self.currentTagName.append(ch.asLowercaseCharacter)
+                self.tempBuffer.append(ch)
             } else {
-                emitString("</")
-                emitString(tempBuffer)
-                state = .rcdata
-                reconsume()
+                self.emitString("</")
+                self.emitString(self.tempBuffer)
+                self.state = .rcdata
+                self.reconsume()
             }
         }
     }
 
     private func rawtextLessThanState() {
         guard let ch = consume() else {
-            emitChar("<")
-            state = .rawtext
+            self.emitChar("<")
+            self.state = .rawtext
             return
         }
         if ch == "/" {
-            tempBuffer = ""
-            state = .rawtextEndTagOpen
+            self.tempBuffer = ""
+            self.state = .rawtextEndTagOpen
         } else {
-            emitChar("<")
-            state = .rawtext
-            reconsume()
+            self.emitChar("<")
+            self.state = .rawtext
+            self.reconsume()
         }
     }
 
     private func rawtextEndTagOpenState() {
         guard let ch = consume() else {
-            emitString("</")
-            state = .rawtext
+            self.emitString("</")
+            self.state = .rawtext
             return
         }
         if ch.isASCIILetter {
-            resetTag()
-            currentTagIsEnd = true
-            state = .rawtextEndTagName
-            reconsume()
+            self.resetTag()
+            self.currentTagIsEnd = true
+            self.state = .rawtextEndTagName
+            self.reconsume()
         } else {
-            emitString("</")
-            state = .rawtext
-            reconsume()
+            self.emitString("</")
+            self.state = .rawtext
+            self.reconsume()
         }
     }
 
     private func rawtextEndTagNameState() {
         guard let ch = consume() else {
-            emitString("</")
-            emitString(tempBuffer)
-            state = .rawtext
+            self.emitString("</")
+            self.emitString(self.tempBuffer)
+            self.state = .rawtext
             return
         }
 
         switch ch {
         case "\t", "\n", "\u{0C}", " ":
-            if tempBuffer.lowercased() == lastStartTagName.lowercased() {
-                state = .beforeAttributeName
+            if self.tempBuffer.lowercased() == self.lastStartTagName.lowercased() {
+                self.state = .beforeAttributeName
             } else {
-                emitString("</")
-                emitString(tempBuffer)
-                state = .rawtext
-                reconsume()
+                self.emitString("</")
+                self.emitString(self.tempBuffer)
+                self.state = .rawtext
+                self.reconsume()
             }
         case "/":
-            if tempBuffer.lowercased() == lastStartTagName.lowercased() {
-                state = .selfClosingStartTag
+            if self.tempBuffer.lowercased() == self.lastStartTagName.lowercased() {
+                self.state = .selfClosingStartTag
             } else {
-                emitString("</")
-                emitString(tempBuffer)
-                state = .rawtext
-                reconsume()
+                self.emitString("</")
+                self.emitString(self.tempBuffer)
+                self.state = .rawtext
+                self.reconsume()
             }
         case ">":
-            if tempBuffer.lowercased() == lastStartTagName.lowercased() {
-                currentTagName = tempBuffer.lowercased()
-                state = .data
-                emitCurrentTag()
+            if self.tempBuffer.lowercased() == self.lastStartTagName.lowercased() {
+                self.currentTagName = self.tempBuffer.lowercased()
+                self.state = .data
+                self.emitCurrentTag()
             } else {
-                emitString("</")
-                emitString(tempBuffer)
-                state = .rawtext
-                reconsume()
+                self.emitString("</")
+                self.emitString(self.tempBuffer)
+                self.state = .rawtext
+                self.reconsume()
             }
         default:
             if ch.isASCIILetter {
-                currentTagName.append(ch.asLowercaseCharacter)
-                tempBuffer.append(ch)
+                self.currentTagName.append(ch.asLowercaseCharacter)
+                self.tempBuffer.append(ch)
             } else {
-                emitString("</")
-                emitString(tempBuffer)
-                state = .rawtext
-                reconsume()
+                self.emitString("</")
+                self.emitString(self.tempBuffer)
+                self.state = .rawtext
+                self.reconsume()
             }
         }
     }
@@ -878,432 +878,432 @@ public final class Tokenizer {
 
     private func scriptDataState() {
         guard let ch = consume() else {
-            emit(.eof)
+            self.emit(.eof)
             return
         }
         switch ch {
         case "<":
-            state = .scriptDataLessThan
+            self.state = .scriptDataLessThan
         case "\0":
-            emitError("unexpected-null-character")
-            emitChar("\u{FFFD}")
+            self.emitError("unexpected-null-character")
+            self.emitChar("\u{FFFD}")
         default:
-            emitChar(ch)
+            self.emitChar(ch)
         }
     }
 
     private func scriptDataLessThanState() {
         guard let ch = consume() else {
-            emitChar("<")
-            state = .scriptData
+            self.emitChar("<")
+            self.state = .scriptData
             return
         }
         switch ch {
         case "/":
-            tempBuffer = ""
-            state = .scriptDataEndTagOpen
+            self.tempBuffer = ""
+            self.state = .scriptDataEndTagOpen
         case "!":
-            state = .scriptDataEscapeStart
-            emitString("<!")
+            self.state = .scriptDataEscapeStart
+            self.emitString("<!")
         default:
-            emitChar("<")
-            state = .scriptData
-            reconsume()
+            self.emitChar("<")
+            self.state = .scriptData
+            self.reconsume()
         }
     }
 
     private func scriptDataEndTagOpenState() {
         guard let ch = consume() else {
-            emitString("</")
-            state = .scriptData
+            self.emitString("</")
+            self.state = .scriptData
             return
         }
         if ch.isASCIILetter {
-            resetTag()
-            currentTagIsEnd = true
-            state = .scriptDataEndTagName
-            reconsume()
+            self.resetTag()
+            self.currentTagIsEnd = true
+            self.state = .scriptDataEndTagName
+            self.reconsume()
         } else {
-            emitString("</")
-            state = .scriptData
-            reconsume()
+            self.emitString("</")
+            self.state = .scriptData
+            self.reconsume()
         }
     }
 
     private func scriptDataEndTagNameState() {
         guard let ch = consume() else {
-            emitString("</")
-            emitString(tempBuffer)
-            state = .scriptData
+            self.emitString("</")
+            self.emitString(self.tempBuffer)
+            self.state = .scriptData
             return
         }
 
         switch ch {
         case "\t", "\n", "\u{0C}", " ":
-            if tempBuffer.lowercased() == lastStartTagName.lowercased() {
-                state = .beforeAttributeName
+            if self.tempBuffer.lowercased() == self.lastStartTagName.lowercased() {
+                self.state = .beforeAttributeName
             } else {
-                emitString("</")
-                emitString(tempBuffer)
-                state = .scriptData
-                reconsume()
+                self.emitString("</")
+                self.emitString(self.tempBuffer)
+                self.state = .scriptData
+                self.reconsume()
             }
         case "/":
-            if tempBuffer.lowercased() == lastStartTagName.lowercased() {
-                state = .selfClosingStartTag
+            if self.tempBuffer.lowercased() == self.lastStartTagName.lowercased() {
+                self.state = .selfClosingStartTag
             } else {
-                emitString("</")
-                emitString(tempBuffer)
-                state = .scriptData
-                reconsume()
+                self.emitString("</")
+                self.emitString(self.tempBuffer)
+                self.state = .scriptData
+                self.reconsume()
             }
         case ">":
-            if tempBuffer.lowercased() == lastStartTagName.lowercased() {
-                currentTagName = tempBuffer.lowercased()
-                state = .data
-                emitCurrentTag()
+            if self.tempBuffer.lowercased() == self.lastStartTagName.lowercased() {
+                self.currentTagName = self.tempBuffer.lowercased()
+                self.state = .data
+                self.emitCurrentTag()
             } else {
-                emitString("</")
-                emitString(tempBuffer)
-                state = .scriptData
-                reconsume()
+                self.emitString("</")
+                self.emitString(self.tempBuffer)
+                self.state = .scriptData
+                self.reconsume()
             }
         default:
             if ch.isASCIILetter {
-                currentTagName.append(ch.asLowercaseCharacter)
-                tempBuffer.append(ch)
+                self.currentTagName.append(ch.asLowercaseCharacter)
+                self.tempBuffer.append(ch)
             } else {
-                emitString("</")
-                emitString(tempBuffer)
-                state = .scriptData
-                reconsume()
+                self.emitString("</")
+                self.emitString(self.tempBuffer)
+                self.state = .scriptData
+                self.reconsume()
             }
         }
     }
 
     private func scriptDataEscapeStartState() {
         guard let ch = consume() else {
-            state = .scriptData
+            self.state = .scriptData
             return
         }
         if ch == "-" {
-            state = .scriptDataEscapeStartDash
-            emitChar("-")
+            self.state = .scriptDataEscapeStartDash
+            self.emitChar("-")
         } else {
-            state = .scriptData
-            reconsume()
+            self.state = .scriptData
+            self.reconsume()
         }
     }
 
     private func scriptDataEscapeStartDashState() {
         guard let ch = consume() else {
-            state = .scriptData
+            self.state = .scriptData
             return
         }
         if ch == "-" {
-            state = .scriptDataEscapedDashDash
-            emitChar("-")
+            self.state = .scriptDataEscapedDashDash
+            self.emitChar("-")
         } else {
-            state = .scriptData
-            reconsume()
+            self.state = .scriptData
+            self.reconsume()
         }
     }
 
     private func scriptDataEscapedState() {
         guard let ch = consume() else {
-            emitError("eof-in-script-html-comment-like-text")
-            emit(.eof)
+            self.emitError("eof-in-script-html-comment-like-text")
+            self.emit(.eof)
             return
         }
         switch ch {
         case "-":
-            state = .scriptDataEscapedDash
-            emitChar("-")
+            self.state = .scriptDataEscapedDash
+            self.emitChar("-")
         case "<":
-            state = .scriptDataEscapedLessThan
+            self.state = .scriptDataEscapedLessThan
         case "\0":
-            emitError("unexpected-null-character")
-            emitChar("\u{FFFD}")
+            self.emitError("unexpected-null-character")
+            self.emitChar("\u{FFFD}")
         default:
-            emitChar(ch)
+            self.emitChar(ch)
         }
     }
 
     private func scriptDataEscapedDashState() {
         guard let ch = consume() else {
-            emitError("eof-in-script-html-comment-like-text")
-            emit(.eof)
+            self.emitError("eof-in-script-html-comment-like-text")
+            self.emit(.eof)
             return
         }
         switch ch {
         case "-":
-            state = .scriptDataEscapedDashDash
-            emitChar("-")
+            self.state = .scriptDataEscapedDashDash
+            self.emitChar("-")
         case "<":
-            state = .scriptDataEscapedLessThan
+            self.state = .scriptDataEscapedLessThan
         case "\0":
-            emitError("unexpected-null-character")
-            state = .scriptDataEscaped
-            emitChar("\u{FFFD}")
+            self.emitError("unexpected-null-character")
+            self.state = .scriptDataEscaped
+            self.emitChar("\u{FFFD}")
         default:
-            state = .scriptDataEscaped
-            emitChar(ch)
+            self.state = .scriptDataEscaped
+            self.emitChar(ch)
         }
     }
 
     private func scriptDataEscapedDashDashState() {
         guard let ch = consume() else {
-            emitError("eof-in-script-html-comment-like-text")
-            emit(.eof)
+            self.emitError("eof-in-script-html-comment-like-text")
+            self.emit(.eof)
             return
         }
         switch ch {
         case "-":
-            emitChar("-")
+            self.emitChar("-")
         case "<":
-            state = .scriptDataEscapedLessThan
+            self.state = .scriptDataEscapedLessThan
         case ">":
-            state = .scriptData
-            emitChar(">")
+            self.state = .scriptData
+            self.emitChar(">")
         case "\0":
-            emitError("unexpected-null-character")
-            state = .scriptDataEscaped
-            emitChar("\u{FFFD}")
+            self.emitError("unexpected-null-character")
+            self.state = .scriptDataEscaped
+            self.emitChar("\u{FFFD}")
         default:
-            state = .scriptDataEscaped
-            emitChar(ch)
+            self.state = .scriptDataEscaped
+            self.emitChar(ch)
         }
     }
 
     private func scriptDataEscapedLessThanState() {
         guard let ch = consume() else {
-            emitChar("<")
-            state = .scriptDataEscaped
+            self.emitChar("<")
+            self.state = .scriptDataEscaped
             return
         }
         switch ch {
         case "/":
-            tempBuffer = ""
-            state = .scriptDataEscapedEndTagOpen
+            self.tempBuffer = ""
+            self.state = .scriptDataEscapedEndTagOpen
         default:
             if ch.isASCIILetter {
-                tempBuffer = ""
-                emitChar("<")
-                state = .scriptDataDoubleEscapeStart
-                reconsume()
+                self.tempBuffer = ""
+                self.emitChar("<")
+                self.state = .scriptDataDoubleEscapeStart
+                self.reconsume()
             } else {
-                emitChar("<")
-                state = .scriptDataEscaped
-                reconsume()
+                self.emitChar("<")
+                self.state = .scriptDataEscaped
+                self.reconsume()
             }
         }
     }
 
     private func scriptDataEscapedEndTagOpenState() {
         guard let ch = consume() else {
-            emitString("</")
-            state = .scriptDataEscaped
+            self.emitString("</")
+            self.state = .scriptDataEscaped
             return
         }
         if ch.isASCIILetter {
-            resetTag()
-            currentTagIsEnd = true
-            state = .scriptDataEscapedEndTagName
-            reconsume()
+            self.resetTag()
+            self.currentTagIsEnd = true
+            self.state = .scriptDataEscapedEndTagName
+            self.reconsume()
         } else {
-            emitString("</")
-            state = .scriptDataEscaped
-            reconsume()
+            self.emitString("</")
+            self.state = .scriptDataEscaped
+            self.reconsume()
         }
     }
 
     private func scriptDataEscapedEndTagNameState() {
         guard let ch = consume() else {
-            emitString("</")
-            emitString(tempBuffer)
-            state = .scriptDataEscaped
+            self.emitString("</")
+            self.emitString(self.tempBuffer)
+            self.state = .scriptDataEscaped
             return
         }
 
         switch ch {
         case "\t", "\n", "\u{0C}", " ":
-            if tempBuffer.lowercased() == lastStartTagName.lowercased() {
-                state = .beforeAttributeName
+            if self.tempBuffer.lowercased() == self.lastStartTagName.lowercased() {
+                self.state = .beforeAttributeName
             } else {
-                emitString("</")
-                emitString(tempBuffer)
-                state = .scriptDataEscaped
-                reconsume()
+                self.emitString("</")
+                self.emitString(self.tempBuffer)
+                self.state = .scriptDataEscaped
+                self.reconsume()
             }
         case "/":
-            if tempBuffer.lowercased() == lastStartTagName.lowercased() {
-                state = .selfClosingStartTag
+            if self.tempBuffer.lowercased() == self.lastStartTagName.lowercased() {
+                self.state = .selfClosingStartTag
             } else {
-                emitString("</")
-                emitString(tempBuffer)
-                state = .scriptDataEscaped
-                reconsume()
+                self.emitString("</")
+                self.emitString(self.tempBuffer)
+                self.state = .scriptDataEscaped
+                self.reconsume()
             }
         case ">":
-            if tempBuffer.lowercased() == lastStartTagName.lowercased() {
-                currentTagName = tempBuffer.lowercased()
-                state = .data
-                emitCurrentTag()
+            if self.tempBuffer.lowercased() == self.lastStartTagName.lowercased() {
+                self.currentTagName = self.tempBuffer.lowercased()
+                self.state = .data
+                self.emitCurrentTag()
             } else {
-                emitString("</")
-                emitString(tempBuffer)
-                state = .scriptDataEscaped
-                reconsume()
+                self.emitString("</")
+                self.emitString(self.tempBuffer)
+                self.state = .scriptDataEscaped
+                self.reconsume()
             }
         default:
             if ch.isASCIILetter {
-                currentTagName.append(ch.asLowercaseCharacter)
-                tempBuffer.append(ch)
+                self.currentTagName.append(ch.asLowercaseCharacter)
+                self.tempBuffer.append(ch)
             } else {
-                emitString("</")
-                emitString(tempBuffer)
-                state = .scriptDataEscaped
-                reconsume()
+                self.emitString("</")
+                self.emitString(self.tempBuffer)
+                self.state = .scriptDataEscaped
+                self.reconsume()
             }
         }
     }
 
     private func scriptDataDoubleEscapeStartState() {
         guard let ch = consume() else {
-            state = .scriptDataEscaped
+            self.state = .scriptDataEscaped
             return
         }
         switch ch {
         case "\t", "\n", "\u{0C}", " ", "/", ">":
-            if tempBuffer.lowercased() == "script" {
-                state = .scriptDataDoubleEscaped
+            if self.tempBuffer.lowercased() == "script" {
+                self.state = .scriptDataDoubleEscaped
             } else {
-                state = .scriptDataEscaped
+                self.state = .scriptDataEscaped
             }
-            emitChar(ch)
+            self.emitChar(ch)
         default:
             if ch.isASCIILetter {
-                tempBuffer.append(ch)
-                emitChar(ch)
+                self.tempBuffer.append(ch)
+                self.emitChar(ch)
             } else {
-                state = .scriptDataEscaped
-                reconsume()
+                self.state = .scriptDataEscaped
+                self.reconsume()
             }
         }
     }
 
     private func scriptDataDoubleEscapedState() {
         guard let ch = consume() else {
-            emitError("eof-in-script-html-comment-like-text")
-            emit(.eof)
+            self.emitError("eof-in-script-html-comment-like-text")
+            self.emit(.eof)
             return
         }
         switch ch {
         case "-":
-            state = .scriptDataDoubleEscapedDash
-            emitChar("-")
+            self.state = .scriptDataDoubleEscapedDash
+            self.emitChar("-")
         case "<":
-            state = .scriptDataDoubleEscapedLessThan
-            emitChar("<")
+            self.state = .scriptDataDoubleEscapedLessThan
+            self.emitChar("<")
         case "\0":
-            emitError("unexpected-null-character")
-            emitChar("\u{FFFD}")
+            self.emitError("unexpected-null-character")
+            self.emitChar("\u{FFFD}")
         default:
-            emitChar(ch)
+            self.emitChar(ch)
         }
     }
 
     private func scriptDataDoubleEscapedDashState() {
         guard let ch = consume() else {
-            emitError("eof-in-script-html-comment-like-text")
-            emit(.eof)
+            self.emitError("eof-in-script-html-comment-like-text")
+            self.emit(.eof)
             return
         }
         switch ch {
         case "-":
-            state = .scriptDataDoubleEscapedDashDash
-            emitChar("-")
+            self.state = .scriptDataDoubleEscapedDashDash
+            self.emitChar("-")
         case "<":
-            state = .scriptDataDoubleEscapedLessThan
-            emitChar("<")
+            self.state = .scriptDataDoubleEscapedLessThan
+            self.emitChar("<")
         case "\0":
-            emitError("unexpected-null-character")
-            state = .scriptDataDoubleEscaped
-            emitChar("\u{FFFD}")
+            self.emitError("unexpected-null-character")
+            self.state = .scriptDataDoubleEscaped
+            self.emitChar("\u{FFFD}")
         default:
-            state = .scriptDataDoubleEscaped
-            emitChar(ch)
+            self.state = .scriptDataDoubleEscaped
+            self.emitChar(ch)
         }
     }
 
     private func scriptDataDoubleEscapedDashDashState() {
         guard let ch = consume() else {
-            emitError("eof-in-script-html-comment-like-text")
-            emit(.eof)
+            self.emitError("eof-in-script-html-comment-like-text")
+            self.emit(.eof)
             return
         }
         switch ch {
         case "-":
-            emitChar("-")
+            self.emitChar("-")
         case "<":
-            state = .scriptDataDoubleEscapedLessThan
-            emitChar("<")
+            self.state = .scriptDataDoubleEscapedLessThan
+            self.emitChar("<")
         case ">":
-            state = .scriptData
-            emitChar(">")
+            self.state = .scriptData
+            self.emitChar(">")
         case "\0":
-            emitError("unexpected-null-character")
-            state = .scriptDataDoubleEscaped
-            emitChar("\u{FFFD}")
+            self.emitError("unexpected-null-character")
+            self.state = .scriptDataDoubleEscaped
+            self.emitChar("\u{FFFD}")
         default:
-            state = .scriptDataDoubleEscaped
-            emitChar(ch)
+            self.state = .scriptDataDoubleEscaped
+            self.emitChar(ch)
         }
     }
 
     private func scriptDataDoubleEscapedLessThanState() {
         guard let ch = consume() else {
-            state = .scriptDataDoubleEscaped
+            self.state = .scriptDataDoubleEscaped
             return
         }
         if ch == "/" {
-            tempBuffer = ""
-            state = .scriptDataDoubleEscapeEnd
-            emitChar("/")
+            self.tempBuffer = ""
+            self.state = .scriptDataDoubleEscapeEnd
+            self.emitChar("/")
         } else {
-            state = .scriptDataDoubleEscaped
-            reconsume()
+            self.state = .scriptDataDoubleEscaped
+            self.reconsume()
         }
     }
 
     private func scriptDataDoubleEscapeEndState() {
         guard let ch = consume() else {
-            state = .scriptDataDoubleEscaped
+            self.state = .scriptDataDoubleEscaped
             return
         }
         switch ch {
         case "\t", "\n", "\u{0C}", " ", "/", ">":
-            if tempBuffer.lowercased() == "script" {
-                state = .scriptDataEscaped
+            if self.tempBuffer.lowercased() == "script" {
+                self.state = .scriptDataEscaped
             } else {
-                state = .scriptDataDoubleEscaped
+                self.state = .scriptDataDoubleEscaped
             }
-            emitChar(ch)
+            self.emitChar(ch)
         default:
             if ch.isASCIILetter {
-                tempBuffer.append(ch)
-                emitChar(ch)
+                self.tempBuffer.append(ch)
+                self.emitChar(ch)
             } else {
-                state = .scriptDataDoubleEscaped
-                reconsume()
+                self.state = .scriptDataDoubleEscaped
+                self.reconsume()
             }
         }
     }
 
     private func beforeAttributeNameState() {
         guard let ch = consume() else {
-            emitError("eof-in-tag")
-            state = .data
+            self.emitError("eof-in-tag")
+            self.state = .data
             return
         }
         switch ch {
@@ -1311,51 +1311,51 @@ public final class Tokenizer {
             // Ignore
             break
         case "/", ">":
-            state = ch == "/" ? .selfClosingStartTag : .data
+            self.state = ch == "/" ? .selfClosingStartTag : .data
             if ch == ">" {
-                emitCurrentTag()
+                self.emitCurrentTag()
             }
         case "=":
-            emitError("unexpected-equals-sign-before-attribute-name")
-            currentAttrName = String(ch)
-            state = .attributeName
+            self.emitError("unexpected-equals-sign-before-attribute-name")
+            self.currentAttrName = String(ch)
+            self.state = .attributeName
         default:
-            storeCurrentAttr()
-            state = .attributeName
-            reconsume()
+            self.storeCurrentAttr()
+            self.state = .attributeName
+            self.reconsume()
         }
     }
 
     private func attributeNameState() {
         guard let ch = consume() else {
-            emitError("eof-in-tag")
-            state = .data
+            self.emitError("eof-in-tag")
+            self.state = .data
             return
         }
         switch ch {
         case "\t", "\n", "\u{0C}", " ", "/", ">":
-            storeCurrentAttr()
-            state = ch == "/" ? .selfClosingStartTag : (ch == ">" ? .data : .afterAttributeName)
+            self.storeCurrentAttr()
+            self.state = ch == "/" ? .selfClosingStartTag : (ch == ">" ? .data : .afterAttributeName)
             if ch == ">" {
-                emitCurrentTag()
+                self.emitCurrentTag()
             }
         case "=":
-            state = .beforeAttributeValue
+            self.state = .beforeAttributeValue
         case "\0":
-            emitError("unexpected-null-character")
-            currentAttrName.append("\u{FFFD}")
+            self.emitError("unexpected-null-character")
+            self.currentAttrName.append("\u{FFFD}")
         case "\"", "'", "<":
-            emitError("unexpected-character-in-attribute-name")
-            currentAttrName.append(ch)
+            self.emitError("unexpected-character-in-attribute-name")
+            self.currentAttrName.append(ch)
         default:
-            currentAttrName.append(ch.asLowercaseCharacter)
+            self.currentAttrName.append(ch.asLowercaseCharacter)
         }
     }
 
     private func afterAttributeNameState() {
         guard let ch = consume() else {
-            emitError("eof-in-tag")
-            state = .data
+            self.emitError("eof-in-tag")
+            self.state = .data
             return
         }
         switch ch {
@@ -1363,24 +1363,24 @@ public final class Tokenizer {
             // Ignore
             break
         case "/":
-            state = .selfClosingStartTag
+            self.state = .selfClosingStartTag
         case "=":
-            state = .beforeAttributeValue
+            self.state = .beforeAttributeValue
         case ">":
-            storeCurrentAttr()
-            state = .data
-            emitCurrentTag()
+            self.storeCurrentAttr()
+            self.state = .data
+            self.emitCurrentTag()
         default:
-            storeCurrentAttr()
-            state = .attributeName
-            reconsume()
+            self.storeCurrentAttr()
+            self.state = .attributeName
+            self.reconsume()
         }
     }
 
     private func beforeAttributeValueState() {
         guard let ch = consume() else {
-            emitError("eof-in-tag")
-            state = .data
+            self.emitError("eof-in-tag")
+            self.state = .data
             return
         }
         switch ch {
@@ -1388,319 +1388,319 @@ public final class Tokenizer {
             // Ignore
             break
         case "\"":
-            state = .attributeValueDoubleQuoted
+            self.state = .attributeValueDoubleQuoted
         case "'":
-            state = .attributeValueSingleQuoted
+            self.state = .attributeValueSingleQuoted
         case ">":
-            emitError("missing-attribute-value")
-            storeCurrentAttr()
-            state = .data
-            emitCurrentTag()
+            self.emitError("missing-attribute-value")
+            self.storeCurrentAttr()
+            self.state = .data
+            self.emitCurrentTag()
         default:
-            state = .attributeValueUnquoted
-            reconsume()
+            self.state = .attributeValueUnquoted
+            self.reconsume()
         }
     }
 
     private func attributeValueDoubleQuotedState() {
         guard let ch = consume() else {
-            emitError("eof-in-tag")
-            state = .data
+            self.emitError("eof-in-tag")
+            self.state = .data
             return
         }
         switch ch {
         case "\"":
-            storeCurrentAttr()
-            state = .afterAttributeValueQuoted
+            self.storeCurrentAttr()
+            self.state = .afterAttributeValueQuoted
         case "&":
-            returnState = .attributeValueDoubleQuoted
-            state = .characterReference
+            self.returnState = .attributeValueDoubleQuoted
+            self.state = .characterReference
         case "\0":
-            emitError("unexpected-null-character")
-            currentAttrValue.append("\u{FFFD}")
+            self.emitError("unexpected-null-character")
+            self.currentAttrValue.append("\u{FFFD}")
         default:
-            currentAttrValue.append(ch)
+            self.currentAttrValue.append(ch)
         }
     }
 
     private func attributeValueSingleQuotedState() {
         guard let ch = consume() else {
-            emitError("eof-in-tag")
-            state = .data
+            self.emitError("eof-in-tag")
+            self.state = .data
             return
         }
         switch ch {
         case "'":
-            storeCurrentAttr()
-            state = .afterAttributeValueQuoted
+            self.storeCurrentAttr()
+            self.state = .afterAttributeValueQuoted
         case "&":
-            returnState = .attributeValueSingleQuoted
-            state = .characterReference
+            self.returnState = .attributeValueSingleQuoted
+            self.state = .characterReference
         case "\0":
-            emitError("unexpected-null-character")
-            currentAttrValue.append("\u{FFFD}")
+            self.emitError("unexpected-null-character")
+            self.currentAttrValue.append("\u{FFFD}")
         default:
-            currentAttrValue.append(ch)
+            self.currentAttrValue.append(ch)
         }
     }
 
     private func attributeValueUnquotedState() {
         guard let ch = consume() else {
-            emitError("eof-in-tag")
-            state = .data
+            self.emitError("eof-in-tag")
+            self.state = .data
             return
         }
         switch ch {
         case "\t", "\n", "\u{0C}", " ":
-            storeCurrentAttr()
-            state = .beforeAttributeName
+            self.storeCurrentAttr()
+            self.state = .beforeAttributeName
         case "&":
-            returnState = .attributeValueUnquoted
-            state = .characterReference
+            self.returnState = .attributeValueUnquoted
+            self.state = .characterReference
         case ">":
-            storeCurrentAttr()
-            state = .data
-            emitCurrentTag()
+            self.storeCurrentAttr()
+            self.state = .data
+            self.emitCurrentTag()
         case "\0":
-            emitError("unexpected-null-character")
-            currentAttrValue.append("\u{FFFD}")
+            self.emitError("unexpected-null-character")
+            self.currentAttrValue.append("\u{FFFD}")
         case "\"", "'", "<", "=", "`":
-            emitError("unexpected-character-in-unquoted-attribute-value")
-            currentAttrValue.append(ch)
+            self.emitError("unexpected-character-in-unquoted-attribute-value")
+            self.currentAttrValue.append(ch)
         default:
-            currentAttrValue.append(ch)
+            self.currentAttrValue.append(ch)
         }
     }
 
     private func afterAttributeValueQuotedState() {
         guard let ch = consume() else {
-            emitError("eof-in-tag")
-            state = .data
+            self.emitError("eof-in-tag")
+            self.state = .data
             return
         }
         switch ch {
         case "\t", "\n", "\u{0C}", " ":
-            state = .beforeAttributeName
+            self.state = .beforeAttributeName
         case "/":
-            state = .selfClosingStartTag
+            self.state = .selfClosingStartTag
         case ">":
-            state = .data
-            emitCurrentTag()
+            self.state = .data
+            self.emitCurrentTag()
         default:
-            emitError("missing-whitespace-between-attributes")
-            state = .beforeAttributeName
-            reconsume()
+            self.emitError("missing-whitespace-between-attributes")
+            self.state = .beforeAttributeName
+            self.reconsume()
         }
     }
 
     private func selfClosingStartTagState() {
         guard let ch = consume() else {
-            emitError("eof-in-tag")
-            state = .data
+            self.emitError("eof-in-tag")
+            self.state = .data
             return
         }
         switch ch {
         case ">":
-            currentTagSelfClosing = true
-            state = .data
-            emitCurrentTag()
+            self.currentTagSelfClosing = true
+            self.state = .data
+            self.emitCurrentTag()
         default:
-            emitError("unexpected-solidus-in-tag")
-            state = .beforeAttributeName
-            reconsume()
+            self.emitError("unexpected-solidus-in-tag")
+            self.state = .beforeAttributeName
+            self.reconsume()
         }
     }
 
     private func bogusCommentState() {
         guard let ch = consume() else {
-            emitCurrentComment()
-            state = .data
+            self.emitCurrentComment()
+            self.state = .data
             return
         }
         switch ch {
         case ">":
-            emitCurrentComment()
-            state = .data
+            self.emitCurrentComment()
+            self.state = .data
         case "\0":
-            emitError("unexpected-null-character")
-            currentComment.append("\u{FFFD}")
+            self.emitError("unexpected-null-character")
+            self.currentComment.append("\u{FFFD}")
         default:
-            currentComment.append(ch)
+            self.currentComment.append(ch)
         }
     }
 
     private func markupDeclarationOpenState() {
-        if consumeIf("--") {
-            currentComment = ""
-            state = .commentStart
-        } else if consumeIf("DOCTYPE", caseInsensitive: true) {
-            state = .doctype
-        } else if consumeIf("[CDATA[", caseInsensitive: false) {
+        if self.consumeIf("--") {
+            self.currentComment = ""
+            self.state = .commentStart
+        } else if self.consumeIf("DOCTYPE", caseInsensitive: true) {
+            self.state = .doctype
+        } else if self.consumeIf("[CDATA[", caseInsensitive: false) {
             // CDATA is only valid in foreign content (SVG/MathML)
             if let ns = sink?.currentNamespace, ns == .svg || ns == .math {
                 // In foreign content - process as CDATA section
-                state = .cdataSection
+                self.state = .cdataSection
             } else {
                 // In HTML - treat as bogus comment
-                emitError("cdata-in-html-content")
-                currentComment = "[CDATA["
-                state = .bogusComment
+                self.emitError("cdata-in-html-content")
+                self.currentComment = "[CDATA["
+                self.state = .bogusComment
             }
         } else {
-            emitError("incorrectly-opened-comment")
-            currentComment = ""
-            state = .bogusComment
+            self.emitError("incorrectly-opened-comment")
+            self.currentComment = ""
+            self.state = .bogusComment
         }
     }
 
     private func commentStartState() {
         guard let ch = consume() else {
-            emitError("eof-in-comment")
-            emitCurrentComment()
-            state = .data
+            self.emitError("eof-in-comment")
+            self.emitCurrentComment()
+            self.state = .data
             return
         }
         switch ch {
         case "-":
-            state = .commentStartDash
+            self.state = .commentStartDash
         case ">":
-            emitError("abrupt-closing-of-empty-comment")
-            emitCurrentComment()
-            state = .data
+            self.emitError("abrupt-closing-of-empty-comment")
+            self.emitCurrentComment()
+            self.state = .data
         default:
-            state = .comment
-            reconsume()
+            self.state = .comment
+            self.reconsume()
         }
     }
 
     private func commentStartDashState() {
         guard let ch = consume() else {
-            emitError("eof-in-comment")
-            emitCurrentComment()
-            state = .data
+            self.emitError("eof-in-comment")
+            self.emitCurrentComment()
+            self.state = .data
             return
         }
         switch ch {
         case "-":
-            state = .commentEnd
+            self.state = .commentEnd
         case ">":
-            emitError("abrupt-closing-of-empty-comment")
-            emitCurrentComment()
-            state = .data
+            self.emitError("abrupt-closing-of-empty-comment")
+            self.emitCurrentComment()
+            self.state = .data
         default:
-            currentComment.append("-")
-            state = .comment
-            reconsume()
+            self.currentComment.append("-")
+            self.state = .comment
+            self.reconsume()
         }
     }
 
     private func commentState() {
         guard let ch = consume() else {
-            emitError("eof-in-comment")
-            emitCurrentComment()
-            state = .data
+            self.emitError("eof-in-comment")
+            self.emitCurrentComment()
+            self.state = .data
             return
         }
         switch ch {
         case "<":
-            currentComment.append(ch)
-            // Could go to commentLessThanSign state, but simplified here
+            self.currentComment.append(ch)
+        // Could go to commentLessThanSign state, but simplified here
         case "-":
-            state = .commentEndDash
+            self.state = .commentEndDash
         case "\0":
-            emitError("unexpected-null-character")
-            currentComment.append("\u{FFFD}")
+            self.emitError("unexpected-null-character")
+            self.currentComment.append("\u{FFFD}")
         default:
-            currentComment.append(ch)
+            self.currentComment.append(ch)
         }
     }
 
     private func commentEndDashState() {
         guard let ch = consume() else {
-            emitError("eof-in-comment")
-            emitCurrentComment()
-            state = .data
+            self.emitError("eof-in-comment")
+            self.emitCurrentComment()
+            self.state = .data
             return
         }
         switch ch {
         case "-":
-            state = .commentEnd
+            self.state = .commentEnd
         default:
-            currentComment.append("-")
-            state = .comment
-            reconsume()
+            self.currentComment.append("-")
+            self.state = .comment
+            self.reconsume()
         }
     }
 
     private func commentEndState() {
         guard let ch = consume() else {
-            emitError("eof-in-comment")
-            emitCurrentComment()
-            state = .data
+            self.emitError("eof-in-comment")
+            self.emitCurrentComment()
+            self.state = .data
             return
         }
         switch ch {
         case ">":
-            emitCurrentComment()
-            state = .data
+            self.emitCurrentComment()
+            self.state = .data
         case "!":
-            state = .commentEndBang
+            self.state = .commentEndBang
         case "-":
-            currentComment.append("-")
+            self.currentComment.append("-")
         default:
-            currentComment.append("--")
-            state = .comment
-            reconsume()
+            self.currentComment.append("--")
+            self.state = .comment
+            self.reconsume()
         }
     }
 
     private func commentEndBangState() {
         guard let ch = consume() else {
-            emitError("eof-in-comment")
-            emitCurrentComment()
-            state = .data
+            self.emitError("eof-in-comment")
+            self.emitCurrentComment()
+            self.state = .data
             return
         }
         switch ch {
         case "-":
-            currentComment.append("--!")
-            state = .commentEndDash
+            self.currentComment.append("--!")
+            self.state = .commentEndDash
         case ">":
-            emitError("incorrectly-closed-comment")
-            emitCurrentComment()
-            state = .data
+            self.emitError("incorrectly-closed-comment")
+            self.emitCurrentComment()
+            self.state = .data
         default:
-            currentComment.append("--!")
-            state = .comment
-            reconsume()
+            self.currentComment.append("--!")
+            self.state = .comment
+            self.reconsume()
         }
     }
 
     private func doctypeState() {
         guard let ch = consume() else {
-            emitError("eof-in-doctype")
-            currentDoctypeForceQuirks = true
-            emitCurrentDoctype()
+            self.emitError("eof-in-doctype")
+            self.currentDoctypeForceQuirks = true
+            self.emitCurrentDoctype()
             return
         }
         switch ch {
         case "\t", "\n", "\u{0C}", " ":
-            state = .beforeDoctypeName
+            self.state = .beforeDoctypeName
         case ">":
-            state = .beforeDoctypeName
-            reconsume()
+            self.state = .beforeDoctypeName
+            self.reconsume()
         default:
-            emitError("missing-whitespace-before-doctype-name")
-            state = .beforeDoctypeName
-            reconsume()
+            self.emitError("missing-whitespace-before-doctype-name")
+            self.state = .beforeDoctypeName
+            self.reconsume()
         }
     }
 
     private func beforeDoctypeNameState() {
         guard let ch = consume() else {
-            emitError("eof-in-doctype")
-            currentDoctypeForceQuirks = true
-            emitCurrentDoctype()
+            self.emitError("eof-in-doctype")
+            self.currentDoctypeForceQuirks = true
+            self.emitCurrentDoctype()
             return
         }
         switch ch {
@@ -1708,46 +1708,46 @@ public final class Tokenizer {
             // Ignore
             break
         case ">":
-            emitError("missing-doctype-name")
-            currentDoctypeForceQuirks = true
-            emitCurrentDoctype()
-            state = .data
+            self.emitError("missing-doctype-name")
+            self.currentDoctypeForceQuirks = true
+            self.emitCurrentDoctype()
+            self.state = .data
         case "\0":
-            emitError("unexpected-null-character")
-            currentDoctypeName.append("\u{FFFD}")
-            state = .doctypeName
+            self.emitError("unexpected-null-character")
+            self.currentDoctypeName.append("\u{FFFD}")
+            self.state = .doctypeName
         default:
-            currentDoctypeName.append(ch.asLowercaseCharacter)
-            state = .doctypeName
+            self.currentDoctypeName.append(ch.asLowercaseCharacter)
+            self.state = .doctypeName
         }
     }
 
     private func doctypeNameState() {
         guard let ch = consume() else {
-            emitError("eof-in-doctype")
-            currentDoctypeForceQuirks = true
-            emitCurrentDoctype()
+            self.emitError("eof-in-doctype")
+            self.currentDoctypeForceQuirks = true
+            self.emitCurrentDoctype()
             return
         }
         switch ch {
         case "\t", "\n", "\u{0C}", " ":
-            state = .afterDoctypeName
+            self.state = .afterDoctypeName
         case ">":
-            emitCurrentDoctype()
-            state = .data
+            self.emitCurrentDoctype()
+            self.state = .data
         case "\0":
-            emitError("unexpected-null-character")
-            currentDoctypeName.append("\u{FFFD}")
+            self.emitError("unexpected-null-character")
+            self.currentDoctypeName.append("\u{FFFD}")
         default:
-            currentDoctypeName.append(ch.asLowercaseCharacter)
+            self.currentDoctypeName.append(ch.asLowercaseCharacter)
         }
     }
 
     private func afterDoctypeNameState() {
         guard let ch = consume() else {
-            emitError("eof-in-doctype")
-            currentDoctypeForceQuirks = true
-            emitCurrentDoctype()
+            self.emitError("eof-in-doctype")
+            self.currentDoctypeForceQuirks = true
+            self.emitCurrentDoctype()
             return
         }
         switch ch {
@@ -1755,59 +1755,59 @@ public final class Tokenizer {
             // Ignore
             break
         case ">":
-            emitCurrentDoctype()
-            state = .data
+            self.emitCurrentDoctype()
+            self.state = .data
         default:
             // Check for PUBLIC or SYSTEM
-            reconsume()
-            if consumeIf("PUBLIC", caseInsensitive: true) {
-                state = .afterDoctypePublicKeyword
-            } else if consumeIf("SYSTEM", caseInsensitive: true) {
-                state = .afterDoctypeSystemKeyword
+            self.reconsume()
+            if self.consumeIf("PUBLIC", caseInsensitive: true) {
+                self.state = .afterDoctypePublicKeyword
+            } else if self.consumeIf("SYSTEM", caseInsensitive: true) {
+                self.state = .afterDoctypeSystemKeyword
             } else {
-                emitError("invalid-character-sequence-after-doctype-name")
-                currentDoctypeForceQuirks = true
-                state = .bogusDoctype
+                self.emitError("invalid-character-sequence-after-doctype-name")
+                self.currentDoctypeForceQuirks = true
+                self.state = .bogusDoctype
             }
         }
     }
 
     private func afterDoctypePublicKeywordState() {
         guard let ch = consume() else {
-            emitError("eof-in-doctype")
-            currentDoctypeForceQuirks = true
-            emitCurrentDoctype()
+            self.emitError("eof-in-doctype")
+            self.currentDoctypeForceQuirks = true
+            self.emitCurrentDoctype()
             return
         }
         switch ch {
         case "\t", "\n", "\u{0C}", " ":
-            state = .beforeDoctypePublicIdentifier
+            self.state = .beforeDoctypePublicIdentifier
         case "\"":
-            emitError("missing-whitespace-after-doctype-public-keyword")
-            currentDoctypePublicId = ""
-            state = .doctypePublicIdentifierDoubleQuoted
+            self.emitError("missing-whitespace-after-doctype-public-keyword")
+            self.currentDoctypePublicId = ""
+            self.state = .doctypePublicIdentifierDoubleQuoted
         case "'":
-            emitError("missing-whitespace-after-doctype-public-keyword")
-            currentDoctypePublicId = ""
-            state = .doctypePublicIdentifierSingleQuoted
+            self.emitError("missing-whitespace-after-doctype-public-keyword")
+            self.currentDoctypePublicId = ""
+            self.state = .doctypePublicIdentifierSingleQuoted
         case ">":
-            emitError("missing-doctype-public-identifier")
-            currentDoctypeForceQuirks = true
-            emitCurrentDoctype()
-            state = .data
+            self.emitError("missing-doctype-public-identifier")
+            self.currentDoctypeForceQuirks = true
+            self.emitCurrentDoctype()
+            self.state = .data
         default:
-            emitError("missing-quote-before-doctype-public-identifier")
-            currentDoctypeForceQuirks = true
-            state = .bogusDoctype
-            reconsume()
+            self.emitError("missing-quote-before-doctype-public-identifier")
+            self.currentDoctypeForceQuirks = true
+            self.state = .bogusDoctype
+            self.reconsume()
         }
     }
 
     private func beforeDoctypePublicIdentifierState() {
         guard let ch = consume() else {
-            emitError("eof-in-doctype")
-            currentDoctypeForceQuirks = true
-            emitCurrentDoctype()
+            self.emitError("eof-in-doctype")
+            self.currentDoctypeForceQuirks = true
+            self.emitCurrentDoctype()
             return
         }
         switch ch {
@@ -1815,104 +1815,104 @@ public final class Tokenizer {
             // Ignore
             break
         case "\"":
-            currentDoctypePublicId = ""
-            state = .doctypePublicIdentifierDoubleQuoted
+            self.currentDoctypePublicId = ""
+            self.state = .doctypePublicIdentifierDoubleQuoted
         case "'":
-            currentDoctypePublicId = ""
-            state = .doctypePublicIdentifierSingleQuoted
+            self.currentDoctypePublicId = ""
+            self.state = .doctypePublicIdentifierSingleQuoted
         case ">":
-            emitError("missing-doctype-public-identifier")
-            currentDoctypeForceQuirks = true
-            emitCurrentDoctype()
-            state = .data
+            self.emitError("missing-doctype-public-identifier")
+            self.currentDoctypeForceQuirks = true
+            self.emitCurrentDoctype()
+            self.state = .data
         default:
-            emitError("missing-quote-before-doctype-public-identifier")
-            currentDoctypeForceQuirks = true
-            state = .bogusDoctype
-            reconsume()
+            self.emitError("missing-quote-before-doctype-public-identifier")
+            self.currentDoctypeForceQuirks = true
+            self.state = .bogusDoctype
+            self.reconsume()
         }
     }
 
     private func doctypePublicIdentifierDoubleQuotedState() {
         guard let ch = consume() else {
-            emitError("eof-in-doctype")
-            currentDoctypeForceQuirks = true
-            emitCurrentDoctype()
+            self.emitError("eof-in-doctype")
+            self.currentDoctypeForceQuirks = true
+            self.emitCurrentDoctype()
             return
         }
         switch ch {
         case "\"":
-            state = .afterDoctypePublicIdentifier
+            self.state = .afterDoctypePublicIdentifier
         case "\0":
-            emitError("unexpected-null-character")
-            currentDoctypePublicId?.append("\u{FFFD}")
+            self.emitError("unexpected-null-character")
+            self.currentDoctypePublicId?.append("\u{FFFD}")
         case ">":
-            emitError("abrupt-doctype-public-identifier")
-            currentDoctypeForceQuirks = true
-            emitCurrentDoctype()
-            state = .data
+            self.emitError("abrupt-doctype-public-identifier")
+            self.currentDoctypeForceQuirks = true
+            self.emitCurrentDoctype()
+            self.state = .data
         default:
-            currentDoctypePublicId?.append(ch)
+            self.currentDoctypePublicId?.append(ch)
         }
     }
 
     private func doctypePublicIdentifierSingleQuotedState() {
         guard let ch = consume() else {
-            emitError("eof-in-doctype")
-            currentDoctypeForceQuirks = true
-            emitCurrentDoctype()
+            self.emitError("eof-in-doctype")
+            self.currentDoctypeForceQuirks = true
+            self.emitCurrentDoctype()
             return
         }
         switch ch {
         case "'":
-            state = .afterDoctypePublicIdentifier
+            self.state = .afterDoctypePublicIdentifier
         case "\0":
-            emitError("unexpected-null-character")
-            currentDoctypePublicId?.append("\u{FFFD}")
+            self.emitError("unexpected-null-character")
+            self.currentDoctypePublicId?.append("\u{FFFD}")
         case ">":
-            emitError("abrupt-doctype-public-identifier")
-            currentDoctypeForceQuirks = true
-            emitCurrentDoctype()
-            state = .data
+            self.emitError("abrupt-doctype-public-identifier")
+            self.currentDoctypeForceQuirks = true
+            self.emitCurrentDoctype()
+            self.state = .data
         default:
-            currentDoctypePublicId?.append(ch)
+            self.currentDoctypePublicId?.append(ch)
         }
     }
 
     private func afterDoctypePublicIdentifierState() {
         guard let ch = consume() else {
-            emitError("eof-in-doctype")
-            currentDoctypeForceQuirks = true
-            emitCurrentDoctype()
+            self.emitError("eof-in-doctype")
+            self.currentDoctypeForceQuirks = true
+            self.emitCurrentDoctype()
             return
         }
         switch ch {
         case "\t", "\n", "\u{0C}", " ":
-            state = .betweenDoctypePublicAndSystemIdentifiers
+            self.state = .betweenDoctypePublicAndSystemIdentifiers
         case ">":
-            emitCurrentDoctype()
-            state = .data
+            self.emitCurrentDoctype()
+            self.state = .data
         case "\"":
-            emitError("missing-whitespace-between-doctype-public-and-system-identifiers")
-            currentDoctypeSystemId = ""
-            state = .doctypeSystemIdentifierDoubleQuoted
+            self.emitError("missing-whitespace-between-doctype-public-and-system-identifiers")
+            self.currentDoctypeSystemId = ""
+            self.state = .doctypeSystemIdentifierDoubleQuoted
         case "'":
-            emitError("missing-whitespace-between-doctype-public-and-system-identifiers")
-            currentDoctypeSystemId = ""
-            state = .doctypeSystemIdentifierSingleQuoted
+            self.emitError("missing-whitespace-between-doctype-public-and-system-identifiers")
+            self.currentDoctypeSystemId = ""
+            self.state = .doctypeSystemIdentifierSingleQuoted
         default:
-            emitError("missing-quote-before-doctype-system-identifier")
-            currentDoctypeForceQuirks = true
-            state = .bogusDoctype
-            reconsume()
+            self.emitError("missing-quote-before-doctype-system-identifier")
+            self.currentDoctypeForceQuirks = true
+            self.state = .bogusDoctype
+            self.reconsume()
         }
     }
 
     private func betweenDoctypePublicAndSystemIdentifiersState() {
         guard let ch = consume() else {
-            emitError("eof-in-doctype")
-            currentDoctypeForceQuirks = true
-            emitCurrentDoctype()
+            self.emitError("eof-in-doctype")
+            self.currentDoctypeForceQuirks = true
+            self.emitCurrentDoctype()
             return
         }
         switch ch {
@@ -1920,58 +1920,58 @@ public final class Tokenizer {
             // Ignore
             break
         case ">":
-            emitCurrentDoctype()
-            state = .data
+            self.emitCurrentDoctype()
+            self.state = .data
         case "\"":
-            currentDoctypeSystemId = ""
-            state = .doctypeSystemIdentifierDoubleQuoted
+            self.currentDoctypeSystemId = ""
+            self.state = .doctypeSystemIdentifierDoubleQuoted
         case "'":
-            currentDoctypeSystemId = ""
-            state = .doctypeSystemIdentifierSingleQuoted
+            self.currentDoctypeSystemId = ""
+            self.state = .doctypeSystemIdentifierSingleQuoted
         default:
-            emitError("missing-quote-before-doctype-system-identifier")
-            currentDoctypeForceQuirks = true
-            state = .bogusDoctype
-            reconsume()
+            self.emitError("missing-quote-before-doctype-system-identifier")
+            self.currentDoctypeForceQuirks = true
+            self.state = .bogusDoctype
+            self.reconsume()
         }
     }
 
     private func afterDoctypeSystemKeywordState() {
         guard let ch = consume() else {
-            emitError("eof-in-doctype")
-            currentDoctypeForceQuirks = true
-            emitCurrentDoctype()
+            self.emitError("eof-in-doctype")
+            self.currentDoctypeForceQuirks = true
+            self.emitCurrentDoctype()
             return
         }
         switch ch {
         case "\t", "\n", "\u{0C}", " ":
-            state = .beforeDoctypeSystemIdentifier
+            self.state = .beforeDoctypeSystemIdentifier
         case "\"":
-            emitError("missing-whitespace-after-doctype-system-keyword")
-            currentDoctypeSystemId = ""
-            state = .doctypeSystemIdentifierDoubleQuoted
+            self.emitError("missing-whitespace-after-doctype-system-keyword")
+            self.currentDoctypeSystemId = ""
+            self.state = .doctypeSystemIdentifierDoubleQuoted
         case "'":
-            emitError("missing-whitespace-after-doctype-system-keyword")
-            currentDoctypeSystemId = ""
-            state = .doctypeSystemIdentifierSingleQuoted
+            self.emitError("missing-whitespace-after-doctype-system-keyword")
+            self.currentDoctypeSystemId = ""
+            self.state = .doctypeSystemIdentifierSingleQuoted
         case ">":
-            emitError("missing-doctype-system-identifier")
-            currentDoctypeForceQuirks = true
-            emitCurrentDoctype()
-            state = .data
+            self.emitError("missing-doctype-system-identifier")
+            self.currentDoctypeForceQuirks = true
+            self.emitCurrentDoctype()
+            self.state = .data
         default:
-            emitError("missing-quote-before-doctype-system-identifier")
-            currentDoctypeForceQuirks = true
-            state = .bogusDoctype
-            reconsume()
+            self.emitError("missing-quote-before-doctype-system-identifier")
+            self.currentDoctypeForceQuirks = true
+            self.state = .bogusDoctype
+            self.reconsume()
         }
     }
 
     private func beforeDoctypeSystemIdentifierState() {
         guard let ch = consume() else {
-            emitError("eof-in-doctype")
-            currentDoctypeForceQuirks = true
-            emitCurrentDoctype()
+            self.emitError("eof-in-doctype")
+            self.currentDoctypeForceQuirks = true
+            self.emitCurrentDoctype()
             return
         }
         switch ch {
@@ -1979,75 +1979,75 @@ public final class Tokenizer {
             // Ignore
             break
         case "\"":
-            currentDoctypeSystemId = ""
-            state = .doctypeSystemIdentifierDoubleQuoted
+            self.currentDoctypeSystemId = ""
+            self.state = .doctypeSystemIdentifierDoubleQuoted
         case "'":
-            currentDoctypeSystemId = ""
-            state = .doctypeSystemIdentifierSingleQuoted
+            self.currentDoctypeSystemId = ""
+            self.state = .doctypeSystemIdentifierSingleQuoted
         case ">":
-            emitError("missing-doctype-system-identifier")
-            currentDoctypeForceQuirks = true
-            emitCurrentDoctype()
-            state = .data
+            self.emitError("missing-doctype-system-identifier")
+            self.currentDoctypeForceQuirks = true
+            self.emitCurrentDoctype()
+            self.state = .data
         default:
-            emitError("missing-quote-before-doctype-system-identifier")
-            currentDoctypeForceQuirks = true
-            state = .bogusDoctype
-            reconsume()
+            self.emitError("missing-quote-before-doctype-system-identifier")
+            self.currentDoctypeForceQuirks = true
+            self.state = .bogusDoctype
+            self.reconsume()
         }
     }
 
     private func doctypeSystemIdentifierDoubleQuotedState() {
         guard let ch = consume() else {
-            emitError("eof-in-doctype")
-            currentDoctypeForceQuirks = true
-            emitCurrentDoctype()
+            self.emitError("eof-in-doctype")
+            self.currentDoctypeForceQuirks = true
+            self.emitCurrentDoctype()
             return
         }
         switch ch {
         case "\"":
-            state = .afterDoctypeSystemIdentifier
+            self.state = .afterDoctypeSystemIdentifier
         case "\0":
-            emitError("unexpected-null-character")
-            currentDoctypeSystemId?.append("\u{FFFD}")
+            self.emitError("unexpected-null-character")
+            self.currentDoctypeSystemId?.append("\u{FFFD}")
         case ">":
-            emitError("abrupt-doctype-system-identifier")
-            currentDoctypeForceQuirks = true
-            emitCurrentDoctype()
-            state = .data
+            self.emitError("abrupt-doctype-system-identifier")
+            self.currentDoctypeForceQuirks = true
+            self.emitCurrentDoctype()
+            self.state = .data
         default:
-            currentDoctypeSystemId?.append(ch)
+            self.currentDoctypeSystemId?.append(ch)
         }
     }
 
     private func doctypeSystemIdentifierSingleQuotedState() {
         guard let ch = consume() else {
-            emitError("eof-in-doctype")
-            currentDoctypeForceQuirks = true
-            emitCurrentDoctype()
+            self.emitError("eof-in-doctype")
+            self.currentDoctypeForceQuirks = true
+            self.emitCurrentDoctype()
             return
         }
         switch ch {
         case "'":
-            state = .afterDoctypeSystemIdentifier
+            self.state = .afterDoctypeSystemIdentifier
         case "\0":
-            emitError("unexpected-null-character")
-            currentDoctypeSystemId?.append("\u{FFFD}")
+            self.emitError("unexpected-null-character")
+            self.currentDoctypeSystemId?.append("\u{FFFD}")
         case ">":
-            emitError("abrupt-doctype-system-identifier")
-            currentDoctypeForceQuirks = true
-            emitCurrentDoctype()
-            state = .data
+            self.emitError("abrupt-doctype-system-identifier")
+            self.currentDoctypeForceQuirks = true
+            self.emitCurrentDoctype()
+            self.state = .data
         default:
-            currentDoctypeSystemId?.append(ch)
+            self.currentDoctypeSystemId?.append(ch)
         }
     }
 
     private func afterDoctypeSystemIdentifierState() {
         guard let ch = consume() else {
-            emitError("eof-in-doctype")
-            currentDoctypeForceQuirks = true
-            emitCurrentDoctype()
+            self.emitError("eof-in-doctype")
+            self.currentDoctypeForceQuirks = true
+            self.emitCurrentDoctype()
             return
         }
         switch ch {
@@ -2055,26 +2055,26 @@ public final class Tokenizer {
             // Ignore
             break
         case ">":
-            emitCurrentDoctype()
-            state = .data
+            self.emitCurrentDoctype()
+            self.state = .data
         default:
-            emitError("unexpected-character-after-doctype-system-identifier")
-            state = .bogusDoctype
-            reconsume()
+            self.emitError("unexpected-character-after-doctype-system-identifier")
+            self.state = .bogusDoctype
+            self.reconsume()
         }
     }
 
     private func bogusDoctypeState() {
         guard let ch = consume() else {
-            emitCurrentDoctype()
+            self.emitCurrentDoctype()
             return
         }
         switch ch {
         case ">":
-            emitCurrentDoctype()
-            state = .data
+            self.emitCurrentDoctype()
+            self.state = .data
         case "\0":
-            emitError("unexpected-null-character")
+            self.emitError("unexpected-null-character")
         default:
             break
         }
@@ -2083,55 +2083,55 @@ public final class Tokenizer {
     // MARK: - Character Reference States
 
     private var isInAttribute: Bool {
-        return returnState == .attributeValueDoubleQuoted ||
-               returnState == .attributeValueSingleQuoted ||
-               returnState == .attributeValueUnquoted
+        return self.returnState == .attributeValueDoubleQuoted ||
+            self.returnState == .attributeValueSingleQuoted ||
+            self.returnState == .attributeValueUnquoted
     }
 
     private func flushCharRefTempBuffer() {
-        if isInAttribute {
-            currentAttrValue.append(charRefTempBuffer)
+        if self.isInAttribute {
+            self.currentAttrValue.append(self.charRefTempBuffer)
         } else {
-            emitString(charRefTempBuffer)
+            self.emitString(self.charRefTempBuffer)
         }
-        charRefTempBuffer = ""
+        self.charRefTempBuffer = ""
     }
 
     private func emitCharRefChar(_ ch: Character) {
-        if isInAttribute {
-            currentAttrValue.append(ch)
+        if self.isInAttribute {
+            self.currentAttrValue.append(ch)
         } else {
-            emitChar(ch)
+            self.emitChar(ch)
         }
     }
 
     private func emitCharRefString(_ s: String) {
-        if isInAttribute {
-            currentAttrValue.append(s)
+        if self.isInAttribute {
+            self.currentAttrValue.append(s)
         } else {
-            emitString(s)
+            self.emitString(s)
         }
     }
 
     private func characterReferenceState() {
-        charRefTempBuffer = "&"
+        self.charRefTempBuffer = "&"
 
         guard let ch = consume() else {
-            flushCharRefTempBuffer()
-            state = returnState
+            self.flushCharRefTempBuffer()
+            self.state = self.returnState
             return
         }
 
         if ch.isASCIILetter || ch.isASCIIDigit {
-            state = .namedCharacterReference
-            reconsume()
+            self.state = .namedCharacterReference
+            self.reconsume()
         } else if ch == "#" {
-            charRefTempBuffer.append(ch)
-            state = .numericCharacterReference
+            self.charRefTempBuffer.append(ch)
+            self.state = .numericCharacterReference
         } else {
-            flushCharRefTempBuffer()
-            state = returnState
-            reconsume()
+            self.flushCharRefTempBuffer()
+            self.state = self.returnState
+            self.reconsume()
         }
     }
 
@@ -2145,7 +2145,7 @@ public final class Tokenizer {
         while let ch = peek() {
             if ch.isASCIILetter || ch.isASCIIDigit {
                 entityName.append(ch)
-                _ = consume()
+                _ = self.consume()
                 consumed += 1
 
                 // Check for match
@@ -2160,11 +2160,11 @@ public final class Tokenizer {
 
         // Check for semicolon immediately after the match
         // (only valid if we consumed exactly the matched length of characters)
-        let hasSemicolon = peek() == ";"
-        if hasSemicolon && matchedEntity != nil && consumed == matchedLength {
-            _ = consume()  // consume the semicolon
-            emitCharRefString(matchedEntity!)
-            state = returnState
+        let hasSemicolon = self.peek() == ";"
+        if hasSemicolon, matchedEntity != nil, consumed == matchedLength {
+            _ = self.consume() // consume the semicolon
+            self.emitCharRefString(matchedEntity!)
+            self.state = self.returnState
             return
         }
 
@@ -2172,7 +2172,7 @@ public final class Tokenizer {
         if let match = matchedEntity {
             // In attributes, legacy entities without semicolon followed by alphanumeric or = are not decoded
             // We need to check the character AFTER the matched entity, not after all consumed chars
-            if isInAttribute && !hasSemicolon {
+            if self.isInAttribute, !hasSemicolon {
                 // The character after the match is at position matchedLength in entityName,
                 // or the current peek() if we consumed exactly matchedLength characters
                 let charAfterMatch: Character?
@@ -2181,13 +2181,13 @@ public final class Tokenizer {
                     let idx = entityName.index(entityName.startIndex, offsetBy: matchedLength)
                     charAfterMatch = entityName[idx]
                 } else {
-                    charAfterMatch = peek()
+                    charAfterMatch = self.peek()
                 }
                 if let ch = charAfterMatch, ch.isASCIILetter || ch.isASCIIDigit || ch == "=" {
                     // Don't decode - emit as is
-                    flushCharRefTempBuffer()
-                    emitCharRefString(entityName)
-                    state = returnState
+                    self.flushCharRefTempBuffer()
+                    self.emitCharRefString(entityName)
+                    self.state = self.returnState
                     return
                 }
             }
@@ -2196,140 +2196,140 @@ public final class Tokenizer {
             let matchedName = String(entityName.prefix(matchedLength))
             if LEGACY_ENTITIES.contains(matchedName) {
                 // Unconsume the extra characters
-                for _ in 0..<(consumed - matchedLength) {
-                    reconsume()
+                for _ in 0 ..< (consumed - matchedLength) {
+                    self.reconsume()
                 }
                 if !hasSemicolon {
-                    emitError("missing-semicolon-after-character-reference")
+                    self.emitError("missing-semicolon-after-character-reference")
                 }
-                emitCharRefString(match)
-                state = returnState
+                self.emitCharRefString(match)
+                self.state = self.returnState
                 return
             }
         }
 
         // No match - emit everything as text
-        flushCharRefTempBuffer()
+        self.flushCharRefTempBuffer()
         // Put back all consumed characters except the first (which is in tempBuffer)
-        for _ in 0..<consumed {
-            reconsume()
+        for _ in 0 ..< consumed {
+            self.reconsume()
         }
-        state = .ambiguousAmpersand
+        self.state = .ambiguousAmpersand
     }
 
     private func ambiguousAmpersandState() {
         guard let ch = consume() else {
-            state = returnState
+            self.state = self.returnState
             return
         }
 
         if ch.isASCIILetter || ch.isASCIIDigit {
-            if isInAttribute {
-                currentAttrValue.append(ch)
+            if self.isInAttribute {
+                self.currentAttrValue.append(ch)
             } else {
-                emitChar(ch)
+                self.emitChar(ch)
             }
         } else if ch == ";" {
-            emitError("unknown-named-character-reference")
-            state = returnState
-            reconsume()
+            self.emitError("unknown-named-character-reference")
+            self.state = self.returnState
+            self.reconsume()
         } else {
-            state = returnState
-            reconsume()
+            self.state = self.returnState
+            self.reconsume()
         }
     }
 
     private func numericCharacterReferenceState() {
-        charRefCode = 0
+        self.charRefCode = 0
 
         guard let ch = consume() else {
-            state = .decimalCharacterReferenceStart
-            reconsume()
+            self.state = .decimalCharacterReferenceStart
+            self.reconsume()
             return
         }
 
         if ch == "x" || ch == "X" {
-            charRefTempBuffer.append(ch)
-            state = .hexadecimalCharacterReferenceStart
+            self.charRefTempBuffer.append(ch)
+            self.state = .hexadecimalCharacterReferenceStart
         } else {
-            state = .decimalCharacterReferenceStart
-            reconsume()
+            self.state = .decimalCharacterReferenceStart
+            self.reconsume()
         }
     }
 
     private func hexadecimalCharacterReferenceStartState() {
         guard let ch = consume() else {
-            emitError("absence-of-digits-in-numeric-character-reference")
-            flushCharRefTempBuffer()
-            state = returnState
+            self.emitError("absence-of-digits-in-numeric-character-reference")
+            self.flushCharRefTempBuffer()
+            self.state = self.returnState
             return
         }
 
         if ch.isHexDigit {
-            state = .hexadecimalCharacterReference
-            reconsume()
+            self.state = .hexadecimalCharacterReference
+            self.reconsume()
         } else {
-            emitError("absence-of-digits-in-numeric-character-reference")
-            flushCharRefTempBuffer()
-            state = returnState
-            reconsume()
+            self.emitError("absence-of-digits-in-numeric-character-reference")
+            self.flushCharRefTempBuffer()
+            self.state = self.returnState
+            self.reconsume()
         }
     }
 
     private func decimalCharacterReferenceStartState() {
         guard let ch = consume() else {
-            emitError("absence-of-digits-in-numeric-character-reference")
-            flushCharRefTempBuffer()
-            state = returnState
+            self.emitError("absence-of-digits-in-numeric-character-reference")
+            self.flushCharRefTempBuffer()
+            self.state = self.returnState
             return
         }
 
         if ch.isASCIIDigit {
-            state = .decimalCharacterReference
-            reconsume()
+            self.state = .decimalCharacterReference
+            self.reconsume()
         } else {
-            emitError("absence-of-digits-in-numeric-character-reference")
-            flushCharRefTempBuffer()
-            state = returnState
-            reconsume()
+            self.emitError("absence-of-digits-in-numeric-character-reference")
+            self.flushCharRefTempBuffer()
+            self.state = self.returnState
+            self.reconsume()
         }
     }
 
     private func hexadecimalCharacterReferenceState() {
         guard let ch = consume() else {
-            state = .numericCharacterReferenceEnd
+            self.state = .numericCharacterReferenceEnd
             return
         }
 
         if ch.isASCIIDigit {
-            charRefCode = charRefCode &* 16 &+ UInt32(ch.asciiValue! - 0x30)
-        } else if ch >= "A" && ch <= "F" {
-            charRefCode = charRefCode &* 16 &+ UInt32(ch.asciiValue! - 0x37)
-        } else if ch >= "a" && ch <= "f" {
-            charRefCode = charRefCode &* 16 &+ UInt32(ch.asciiValue! - 0x57)
+            self.charRefCode = self.charRefCode &* 16 &+ UInt32(ch.asciiValue! - 0x30)
+        } else if ch >= "A", ch <= "F" {
+            self.charRefCode = self.charRefCode &* 16 &+ UInt32(ch.asciiValue! - 0x37)
+        } else if ch >= "a", ch <= "f" {
+            self.charRefCode = self.charRefCode &* 16 &+ UInt32(ch.asciiValue! - 0x57)
         } else if ch == ";" {
-            state = .numericCharacterReferenceEnd
+            self.state = .numericCharacterReferenceEnd
         } else {
-            emitError("missing-semicolon-after-character-reference")
-            state = .numericCharacterReferenceEnd
-            reconsume()
+            self.emitError("missing-semicolon-after-character-reference")
+            self.state = .numericCharacterReferenceEnd
+            self.reconsume()
         }
     }
 
     private func decimalCharacterReferenceState() {
         guard let ch = consume() else {
-            state = .numericCharacterReferenceEnd
+            self.state = .numericCharacterReferenceEnd
             return
         }
 
         if ch.isASCIIDigit {
-            charRefCode = charRefCode &* 10 &+ UInt32(ch.asciiValue! - 0x30)
+            self.charRefCode = self.charRefCode &* 10 &+ UInt32(ch.asciiValue! - 0x30)
         } else if ch == ";" {
-            state = .numericCharacterReferenceEnd
+            self.state = .numericCharacterReferenceEnd
         } else {
-            emitError("missing-semicolon-after-character-reference")
-            state = .numericCharacterReferenceEnd
-            reconsume()
+            self.emitError("missing-semicolon-after-character-reference")
+            self.state = .numericCharacterReferenceEnd
+            self.reconsume()
         }
     }
 
@@ -2338,28 +2338,30 @@ public final class Tokenizer {
         let decoded = decodeNumericEntity(String(charRefCode, radix: 10), isHex: false)
 
         // Check for various error conditions
-        if charRefCode == 0 {
-            emitError("null-character-reference")
-        } else if charRefCode > 0x10FFFF {
-            emitError("character-reference-outside-unicode-range")
-        } else if charRefCode >= 0xD800 && charRefCode <= 0xDFFF {
-            emitError("surrogate-character-reference")
-        } else if (charRefCode >= 0xFDD0 && charRefCode <= 0xFDEF) ||
-                  (charRefCode & 0xFFFF) == 0xFFFE ||
-                  (charRefCode & 0xFFFF) == 0xFFFF {
-            emitError("noncharacter-character-reference")
-        } else if charRefCode < 0x20 && charRefCode != 0x09 && charRefCode != 0x0A && charRefCode != 0x0C ||
-                  (charRefCode >= 0x7F && charRefCode <= 0x9F) {
-            emitError("control-character-reference")
+        if self.charRefCode == 0 {
+            self.emitError("null-character-reference")
+        } else if self.charRefCode > 0x10FFFF {
+            self.emitError("character-reference-outside-unicode-range")
+        } else if self.charRefCode >= 0xD800 && self.charRefCode <= 0xDFFF {
+            self.emitError("surrogate-character-reference")
+        } else if (self.charRefCode >= 0xFDD0 && self.charRefCode <= 0xFDEF) ||
+            (self.charRefCode & 0xFFFF) == 0xFFFE ||
+            (self.charRefCode & 0xFFFF) == 0xFFFF
+        {
+            self.emitError("noncharacter-character-reference")
+        } else if self.charRefCode < 0x20 && self.charRefCode != 0x09 && self.charRefCode != 0x0A && self.charRefCode != 0x0C ||
+            (self.charRefCode >= 0x7F && self.charRefCode <= 0x9F)
+        {
+            self.emitError("control-character-reference")
         }
 
         // Decode the code point (with possible replacement)
         let result: String
-        if charRefCode == 0 {
+        if self.charRefCode == 0 {
             result = "\u{FFFD}"
-        } else if charRefCode > 0x10FFFF {
+        } else if self.charRefCode > 0x10FFFF {
             result = "\u{FFFD}"
-        } else if charRefCode >= 0xD800 && charRefCode <= 0xDFFF {
+        } else if self.charRefCode >= 0xD800, self.charRefCode <= 0xDFFF {
             result = "\u{FFFD}"
         } else {
             // Check for windows-1252 replacements
@@ -2370,9 +2372,9 @@ public final class Tokenizer {
                 0x8E: 0x017D, 0x91: 0x2018, 0x92: 0x2019, 0x93: 0x201C,
                 0x94: 0x201D, 0x95: 0x2022, 0x96: 0x2013, 0x97: 0x2014,
                 0x98: 0x02DC, 0x99: 0x2122, 0x9A: 0x0161, 0x9B: 0x203A,
-                0x9C: 0x0153, 0x9E: 0x017E, 0x9F: 0x0178
+                0x9C: 0x0153, 0x9E: 0x017E, 0x9F: 0x0178,
             ]
-            let finalCode = replacements[charRefCode] ?? charRefCode
+            let finalCode = replacements[charRefCode] ?? self.charRefCode
             if let scalar = Unicode.Scalar(finalCode) {
                 result = String(Character(scalar))
             } else {
@@ -2380,57 +2382,57 @@ public final class Tokenizer {
             }
         }
 
-        charRefTempBuffer = ""
-        emitCharRefString(result)
-        state = returnState
+        self.charRefTempBuffer = ""
+        self.emitCharRefString(result)
+        self.state = self.returnState
     }
 
     // MARK: - CDATA States
 
     private func cdataSectionState() {
         guard let ch = consume() else {
-            emitError("eof-in-cdata")
+            self.emitError("eof-in-cdata")
             return
         }
 
         if ch == "]" {
-            state = .cdataSectionBracket
+            self.state = .cdataSectionBracket
         } else {
-            emitChar(ch)
+            self.emitChar(ch)
         }
     }
 
     private func cdataSectionBracketState() {
         guard let ch = consume() else {
-            emitChar("]")
-            state = .cdataSection
+            self.emitChar("]")
+            self.state = .cdataSection
             return
         }
 
         if ch == "]" {
-            state = .cdataSectionEnd
+            self.state = .cdataSectionEnd
         } else {
-            emitChar("]")
-            state = .cdataSection
-            reconsume()
+            self.emitChar("]")
+            self.state = .cdataSection
+            self.reconsume()
         }
     }
 
     private func cdataSectionEndState() {
         guard let ch = consume() else {
-            emitString("]]")
-            state = .cdataSection
+            self.emitString("]]")
+            self.state = .cdataSection
             return
         }
 
         if ch == "]" {
-            emitChar("]")
+            self.emitChar("]")
         } else if ch == ">" {
-            state = .data
+            self.state = .data
         } else {
-            emitString("]]")
-            state = .cdataSection
-            reconsume()
+            self.emitString("]]")
+            self.state = .cdataSection
+            self.reconsume()
         }
     }
 }
@@ -2439,15 +2441,15 @@ public final class Tokenizer {
 
 extension Character {
     var isASCIILetter: Bool {
-        return ("a"..."z").contains(self) || ("A"..."Z").contains(self)
+        return ("a" ... "z").contains(self) || ("A" ... "Z").contains(self)
     }
 
     var isASCIIDigit: Bool {
-        return ("0"..."9").contains(self)
+        return ("0" ... "9").contains(self)
     }
 
     var isHexDigit: Bool {
-        return isASCIIDigit || ("a"..."f").contains(self) || ("A"..."F").contains(self)
+        return self.isASCIIDigit || ("a" ... "f").contains(self) || ("A" ... "F").contains(self)
     }
 
     var asLowercaseCharacter: Character {

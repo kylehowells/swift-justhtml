@@ -27,7 +27,7 @@ public struct HTMLStream: Sequence {
     }
 
     public func makeIterator() -> HTMLStreamIterator {
-        return HTMLStreamIterator(html: html)
+        return HTMLStreamIterator(html: self.html)
     }
 }
 
@@ -46,60 +46,60 @@ public struct HTMLStreamIterator: IteratorProtocol {
     }
 
     public mutating func next() -> StreamEvent? {
-        while index < tokenQueue.count {
-            let token = tokenQueue[index]
-            index += 1
+        while self.index < self.tokenQueue.count {
+            let token = self.tokenQueue[self.index]
+            self.index += 1
 
             switch token {
-            case .startTag(let name, let attrs, _):
+            case let .startTag(name, attrs, _):
                 // Flush text buffer before tag
-                if !textBuffer.isEmpty {
-                    let text = textBuffer
-                    textBuffer = ""
+                if !self.textBuffer.isEmpty {
+                    let text = self.textBuffer
+                    self.textBuffer = ""
                     // Back up to reprocess this token
-                    index -= 1
+                    self.index -= 1
                     return .text(text)
                 }
                 return .start(tagName: name, attrs: attrs)
 
-            case .endTag(let name):
+            case let .endTag(name):
                 // Flush text buffer before tag
-                if !textBuffer.isEmpty {
-                    let text = textBuffer
-                    textBuffer = ""
-                    index -= 1
+                if !self.textBuffer.isEmpty {
+                    let text = self.textBuffer
+                    self.textBuffer = ""
+                    self.index -= 1
                     return .text(text)
                 }
                 return .end(tagName: name)
 
-            case .character(let ch):
-                textBuffer.append(ch)
+            case let .character(ch):
+                self.textBuffer.append(ch)
 
-            case .comment(let data):
+            case let .comment(data):
                 // Flush text buffer before comment
-                if !textBuffer.isEmpty {
-                    let text = textBuffer
-                    textBuffer = ""
-                    index -= 1
+                if !self.textBuffer.isEmpty {
+                    let text = self.textBuffer
+                    self.textBuffer = ""
+                    self.index -= 1
                     return .text(text)
                 }
                 return .comment(data)
 
-            case .doctype(let doctype):
+            case let .doctype(doctype):
                 // Flush text buffer before doctype
-                if !textBuffer.isEmpty {
-                    let text = textBuffer
-                    textBuffer = ""
-                    index -= 1
+                if !self.textBuffer.isEmpty {
+                    let text = self.textBuffer
+                    self.textBuffer = ""
+                    self.index -= 1
                     return .text(text)
                 }
                 return .doctype(name: doctype.name, publicId: doctype.publicId, systemId: doctype.systemId)
 
             case .eof:
                 // Flush any remaining text
-                if !textBuffer.isEmpty {
-                    let text = textBuffer
-                    textBuffer = ""
+                if !self.textBuffer.isEmpty {
+                    let text = self.textBuffer
+                    self.textBuffer = ""
                     return .text(text)
                 }
                 return nil
@@ -107,9 +107,9 @@ public struct HTMLStreamIterator: IteratorProtocol {
         }
 
         // End of tokens - flush any remaining text
-        if !textBuffer.isEmpty {
-            let text = textBuffer
-            textBuffer = ""
+        if !self.textBuffer.isEmpty {
+            let text = self.textBuffer
+            self.textBuffer = ""
             return .text(text)
         }
         return nil
@@ -121,7 +121,7 @@ private class TokenCollector: TokenSink {
     var tokens: [Token] = []
 
     func processToken(_ token: Token) {
-        tokens.append(token)
+        self.tokens.append(token)
     }
 
     var currentNamespace: Namespace? {
