@@ -205,6 +205,12 @@ func loadSampleFile(_ name: String) throws -> String {
 }
 
 @Test func profileStringOperations() async throws {
+	// Skip this test on CI where sample files aren't available
+	guard sampleFilesAvailable() else {
+		print("Skipping profileStringOperations: sample files not available")
+		return
+	}
+
 	print("\n" + String(repeating: "=", count: 70))
 	print("STRING OPERATION ANALYSIS")
 	print(String(repeating: "=", count: 70))
@@ -290,13 +296,15 @@ func loadSampleFile(_ name: String) throws -> String {
 	print(String(format: "Parse time: %.2f ms avg (min: %.2f ms, max: %.2f ms)", avgMs, minMs, maxMs))
 	print(String(format: "Throughput: %.2f KB/ms", Double(entityHtml.count) / 1024 / avgMs))
 
-	// Count entities in sample Wikipedia file
-	let wikiHtml = try loadSampleFile("wikipedia_ww2.html")
-	var ampCount = 0
-	for ch in wikiHtml {
-		if ch == "&" { ampCount += 1 }
+	// Count entities in sample Wikipedia file (skip if not available)
+	if sampleFilesAvailable() {
+		let wikiHtml = try loadSampleFile("wikipedia_ww2.html")
+		var ampCount = 0
+		for ch in wikiHtml {
+			if ch == "&" { ampCount += 1 }
+		}
+		print("\nwikipedia_ww2.html has \(ampCount) potential entity references")
 	}
-	print("\nwikipedia_ww2.html has \(ampCount) potential entity references")
 
 	#expect(avgMs < 200, "Entity-heavy parsing should be under 200ms")
 }
