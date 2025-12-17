@@ -1328,3 +1328,259 @@ func blackhole<T>(_ x: T) {
 	print(String(format: "  TagID if/else:     %.1f ns/tag", tagIdDispatchMs * 1_000_000 / Double(allTags.count)))
 	print(String(format: "  TagID switch:      %.1f ns/tag", switchDispatchMs * 1_000_000 / Double(allTags.count)))
 }
+
+// MARK: - Detailed Component Profiling
+
+@Test func profileDetailedComponentBreakdown() async throws {
+	print("\n" + String(repeating: "=", count: 70))
+	print("DETAILED COMPONENT BREAKDOWN")
+	print(String(repeating: "=", count: 70))
+
+	guard sampleFilesAvailable() else {
+		print("Skipping: sample files not available")
+		return
+	}
+
+	let html = try loadSampleFile("wikipedia_ww2.html")
+	let sizeKB = Double(html.utf8.count) / 1024.0
+	var timer = PrecisionTimer()
+
+	// Measure full parse
+	timer.begin()
+	let doc = try JustHTML(html)
+	timer.stop()
+	let fullParseMs = timer.elapsedMilliseconds
+	_ = doc
+
+	// Measure tokenizer only (using HTMLStream which collects tokens)
+	timer.begin()
+	var tokenCount = 0
+	for _ in HTMLStream(html) {
+		tokenCount += 1
+	}
+	timer.stop()
+	let tokenizerMs = timer.elapsedMilliseconds
+
+	// Calculate tree builder time
+	let treeBuilderMs = fullParseMs - tokenizerMs
+
+	print("\n=== HIGH-LEVEL BREAKDOWN (wikipedia_ww2.html) ===")
+	print(String(format: "File size: %.0f KB", sizeKB))
+	print(String(format: "Total parse time: %.2f ms", fullParseMs))
+	print(String(format: "  Tokenizer:     %.2f ms (%.1f%%)", tokenizerMs, tokenizerMs / fullParseMs * 100))
+	print(String(format: "  Tree Builder:  %.2f ms (%.1f%%)", treeBuilderMs, treeBuilderMs / fullParseMs * 100))
+
+	// Count document statistics
+	var elementCount = 0
+	var textCount = 0
+	var attrCount = 0
+	var totalAttrBytes = 0
+
+	func countNodes(_ node: Node) {
+		switch node.name {
+			case "#text":
+				textCount += 1
+			case "#comment", "#document", "#document-fragment", "!doctype":
+				break
+			default:
+				// Element node
+				elementCount += 1
+				attrCount += node.attrs.count
+				for (k, v) in node.attrs {
+					totalAttrBytes += k.utf8.count + v.utf8.count
+				}
+		}
+		for child in node.children {
+			countNodes(child)
+		}
+	}
+	countNodes(doc.root)
+
+	// Count tokens by type
+	var startTags = 0
+	var endTags = 0
+	var charTokens = 0
+	var commentTokens = 0
+	var entityRefs = 0
+
+	for event in HTMLStream(html) {
+		switch event {
+			case .start: startTags += 1
+			case .end: endTags += 1
+			case let .text(t):
+				charTokens += 1
+				// Count & characters as potential entity refs
+				entityRefs += t.filter { $0 == "&" }.count
+			case .comment: commentTokens += 1
+			case .doctype: break
+		}
+	}
+
+	print("\n=== DOCUMENT STATISTICS ===")
+	print("Elements: \(elementCount)")
+	print("Text nodes: \(textCount)")
+	print("Total attributes: \(attrCount)")
+	print("Attribute bytes: \(totalAttrBytes)")
+	print("Start tags: \(startTags)")
+	print("End tags: \(endTags)")
+	print("Text tokens: \(charTokens)")
+	print("Entity references (approx): \(entityRefs)")
+
+	// Estimate component costs based on micro-benchmarks
+	let nodeCreateNs = 43.0  // from profileTreeBuilderOperations
+	let appendChildNs = 40.0
+	let tagDispatchNs = 75.0  // from profileTagDispatchCost
+
+	let nodeCreateMs = Double(elementCount + textCount) * nodeCreateNs / 1_000_000
+	let appendChildMs = Double(elementCount + textCount) * appendChildNs / 1_000_000
+	let tagDispatchMs = Double(startTags + endTags) * tagDispatchNs / 1_000_000
+
+	print("\n=== ESTIMATED TREE BUILDER BREAKDOWN ===")
+	print(String(format: "Node creation:     %.2f ms (%.1f%%)", nodeCreateMs, nodeCreateMs / treeBuilderMs * 100))
+	print(String(format: "appendChild:       %.2f ms (%.1f%%)", appendChildMs, appendChildMs / treeBuilderMs * 100))
+	print(String(format: "Tag dispatch:      %.2f ms (%.1f%%)", tagDispatchMs, tagDispatchMs / treeBuilderMs * 100))
+	let otherMs = treeBuilderMs - nodeCreateMs - appendChildMs - tagDispatchMs
+	print(String(format: "Other overhead:    %.2f ms (%.1f%%)", otherMs, otherMs / treeBuilderMs * 100))
+	print("  (mode switching, scope checking, implied tags, formatting elements)")
+
+	// Tokenizer breakdown estimate
+	// Based on throughput differences from micro-benchmarks
+	let pureTextThroughput = 125.0  // MB/s from profileTokenizerMicroBenchmarks
+	let tagHeavyThroughput = 9.5    // MB/s
+	let entityThroughput = 13.0     // MB/s
+
+	// Estimate time if it were all pure text
+	let pureTextMs = sizeKB / 1024.0 / pureTextThroughput * 1000.0
+
+	print("\n=== TOKENIZER ANALYSIS ===")
+	print(String(format: "Theoretical pure text time: %.2f ms", pureTextMs))
+	print(String(format: "Actual tokenizer time:      %.2f ms", tokenizerMs))
+	print(String(format: "Tag/entity overhead:        %.2f ms (%.1fx)", tokenizerMs - pureTextMs, tokenizerMs / pureTextMs))
+
+	// Per-operation costs
+	print("\n=== PER-OPERATION COSTS ===")
+	print(String(format: "Per start tag:    %.1f µs", fullParseMs * 1000 / Double(startTags)))
+	print(String(format: "Per end tag:      %.1f µs", fullParseMs * 1000 / Double(endTags)))
+	print(String(format: "Per node:         %.1f µs", fullParseMs * 1000 / Double(elementCount + textCount)))
+	print(String(format: "Per KB:           %.2f ms", fullParseMs / sizeKB))
+	print(String(format: "Throughput:       %.1f MB/s", sizeKB / 1024.0 / fullParseMs * 1000))
+
+	// Identify hotspots
+	print("\n=== HOT PATH ANALYSIS ===")
+
+	let tagParsingPct = (tokenizerMs - pureTextMs) / fullParseMs * 100
+	let modeAndScopePct = otherMs / fullParseMs * 100
+	let allocationPct = (nodeCreateMs + appendChildMs) / fullParseMs * 100
+
+	print(String(format: "1. Tag parsing overhead:      %.1f%% of total", tagParsingPct))
+	print(String(format: "2. Mode/scope/implied tags:   %.1f%% of total", modeAndScopePct))
+	print(String(format: "3. Node allocation + append:  %.1f%% of total", allocationPct))
+	print(String(format: "4. Tag dispatch (if/else):    %.1f%% of total", tagDispatchMs / fullParseMs * 100))
+}
+
+@Test func profileTokenizerStateTransitions() async throws {
+	print("\n" + String(repeating: "=", count: 70))
+	print("TOKENIZER STATE TRANSITION ANALYSIS")
+	print(String(repeating: "=", count: 70))
+
+	var timer = PrecisionTimer()
+	let iterations = 10
+
+	// Test 1: Minimal state transitions (pure text)
+	let pureText = String(repeating: "x", count: 100_000)
+	timer.begin()
+	for _ in 0..<iterations {
+		var count = 0
+		for _ in HTMLStream(pureText) { count += 1 }
+		blackhole(count)
+	}
+	timer.stop()
+	let pureTextMs = timer.elapsedMilliseconds / Double(iterations)
+	let pureTextThroughput = Double(pureText.utf8.count) / 1024.0 / pureTextMs * 1000
+
+	// Test 2: Maximum state transitions (alternating tags)
+	var tagHeavy = ""
+	for i in 0..<5000 {
+		tagHeavy += "<span id=\"x\(i)\">y</span>"
+	}
+	timer.begin()
+	for _ in 0..<iterations {
+		var count = 0
+		for _ in HTMLStream(tagHeavy) { count += 1 }
+		blackhole(count)
+	}
+	timer.stop()
+	let tagHeavyMs = timer.elapsedMilliseconds / Double(iterations)
+	let tagHeavyThroughput = Double(tagHeavy.utf8.count) / 1024.0 / tagHeavyMs * 1000
+
+	// Test 3: Entity-heavy
+	var entityHeavy = ""
+	for _ in 0..<5000 {
+		entityHeavy += "&amp;&lt;&gt;&quot;&apos;"
+	}
+	timer.begin()
+	for _ in 0..<iterations {
+		var count = 0
+		for _ in HTMLStream(entityHeavy) { count += 1 }
+		blackhole(count)
+	}
+	timer.stop()
+	let entityHeavyMs = timer.elapsedMilliseconds / Double(iterations)
+	let entityHeavyThroughput = Double(entityHeavy.utf8.count) / 1024.0 / entityHeavyMs * 1000
+
+	// Test 4: Comment-heavy
+	var commentHeavy = ""
+	for _ in 0..<2000 {
+		commentHeavy += "<!-- This is a comment with some text -->"
+	}
+	timer.begin()
+	for _ in 0..<iterations {
+		var count = 0
+		for _ in HTMLStream(commentHeavy) { count += 1 }
+		blackhole(count)
+	}
+	timer.stop()
+	let commentHeavyMs = timer.elapsedMilliseconds / Double(iterations)
+	let commentHeavyThroughput = Double(commentHeavy.utf8.count) / 1024.0 / commentHeavyMs * 1000
+
+	// Test 5: Attribute-heavy
+	var attrHeavy = ""
+	for i in 0..<2000 {
+		attrHeavy += "<div id=\"id\(i)\" class=\"class\(i)\" data-value=\"value\(i)\" style=\"color: red;\"></div>"
+	}
+	timer.begin()
+	for _ in 0..<iterations {
+		var count = 0
+		for _ in HTMLStream(attrHeavy) { count += 1 }
+		blackhole(count)
+	}
+	timer.stop()
+	let attrHeavyMs = timer.elapsedMilliseconds / Double(iterations)
+	let attrHeavyThroughput = Double(attrHeavy.utf8.count) / 1024.0 / attrHeavyMs * 1000
+
+	print("\n| Test Case | Size | Time | Throughput | vs Pure Text |")
+	print("|-----------|------|------|------------|--------------|")
+	print(String(format: "| Pure text | %d KB | %.2f ms | %.1f MB/s | 1.0x |",
+	             pureText.utf8.count / 1024, pureTextMs, pureTextThroughput / 1024))
+	print(String(format: "| Tag-heavy | %d KB | %.2f ms | %.1f MB/s | %.1fx slower |",
+	             tagHeavy.utf8.count / 1024, tagHeavyMs, tagHeavyThroughput / 1024, pureTextThroughput / tagHeavyThroughput))
+	print(String(format: "| Entity-heavy | %d KB | %.2f ms | %.1f MB/s | %.1fx slower |",
+	             entityHeavy.utf8.count / 1024, entityHeavyMs, entityHeavyThroughput / 1024, pureTextThroughput / entityHeavyThroughput))
+	print(String(format: "| Comment-heavy | %d KB | %.2f ms | %.1f MB/s | %.1fx slower |",
+	             commentHeavy.utf8.count / 1024, commentHeavyMs, commentHeavyThroughput / 1024, pureTextThroughput / commentHeavyThroughput))
+	print(String(format: "| Attribute-heavy | %d KB | %.2f ms | %.1f MB/s | %.1fx slower |",
+	             attrHeavy.utf8.count / 1024, attrHeavyMs, attrHeavyThroughput / 1024, pureTextThroughput / attrHeavyThroughput))
+
+	print("\n=== CONCLUSIONS ===")
+	let tagOverhead = pureTextThroughput / tagHeavyThroughput
+	let entityOverhead = pureTextThroughput / entityHeavyThroughput
+	let attrOverhead = pureTextThroughput / attrHeavyThroughput
+
+	if tagOverhead > entityOverhead && tagOverhead > attrOverhead {
+		print("TAG PARSING is the primary bottleneck (%.1fx overhead)" , tagOverhead)
+	} else if entityOverhead > tagOverhead && entityOverhead > attrOverhead {
+		print("ENTITY DECODING is the primary bottleneck (%.1fx overhead)", entityOverhead)
+	} else {
+		print("ATTRIBUTE PARSING is the primary bottleneck (%.1fx overhead)", attrOverhead)
+	}
+}
