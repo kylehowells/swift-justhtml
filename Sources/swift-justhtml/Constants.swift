@@ -3,29 +3,29 @@
 import Foundation
 
 /// Void elements that have no closing tag
-public let VOID_ELEMENTS: Set<String> = [
+let VOID_ELEMENTS: Set<String> = [
 	"area", "base", "br", "col", "embed", "hr", "img", "input",
 	"link", "meta", "param", "source", "track", "wbr",
 ]
 
 /// Raw text elements (contents not parsed as HTML)
-public let RAW_TEXT_ELEMENTS: Set<String> = [
+let RAW_TEXT_ELEMENTS: Set<String> = [
 	"script", "style",
 ]
 
 /// Escapable raw text elements
-public let ESCAPABLE_RAW_TEXT_ELEMENTS: Set<String> = [
+let ESCAPABLE_RAW_TEXT_ELEMENTS: Set<String> = [
 	"textarea", "title",
 ]
 
 /// Formatting elements for the adoption agency algorithm
-public let FORMATTING_ELEMENTS: Set<String> = [
+let FORMATTING_ELEMENTS: Set<String> = [
 	"a", "b", "big", "code", "em", "font", "i", "nobr",
 	"s", "small", "strike", "strong", "tt", "u",
 ]
 
 /// Special elements that have special parsing rules
-public let SPECIAL_ELEMENTS: Set<String> = [
+let SPECIAL_ELEMENTS: Set<String> = [
 	"address", "applet", "area", "article", "aside", "base", "basefont",
 	"bgsound", "blockquote", "body", "br", "button", "caption", "center",
 	"col", "colgroup", "dd", "details", "dir", "div", "dl", "dt", "embed",
@@ -40,7 +40,7 @@ public let SPECIAL_ELEMENTS: Set<String> = [
 ]
 
 /// Elements that imply closing a <p> element
-public let P_CLOSING_ELEMENTS: Set<String> = [
+let P_CLOSING_ELEMENTS: Set<String> = [
 	"address", "article", "aside", "blockquote", "center", "details",
 	"dialog", "dir", "div", "dl", "fieldset", "figcaption", "figure",
 	"footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "header",
@@ -52,7 +52,7 @@ public let P_CLOSING_ELEMENTS: Set<String> = [
 /// HTML namespace: applet, caption, html, table, td, th, marquee, object, template
 /// MathML namespace: mi, mo, mn, ms, mtext, annotation-xml
 /// SVG namespace: foreignObject, desc, title
-public let SCOPE_ELEMENTS: Set<String> = [
+let SCOPE_ELEMENTS: Set<String> = [
 	"applet", "caption", "html", "table", "td", "th", "marquee", "object", "template",
 	// MathML elements (namespace-specific but we match by name)
 	"mi", "mo", "mn", "ms", "mtext", "annotation-xml",
@@ -61,21 +61,21 @@ public let SCOPE_ELEMENTS: Set<String> = [
 ]
 
 /// List item scope elements
-public let LIST_ITEM_SCOPE_ELEMENTS: Set<String> = SCOPE_ELEMENTS.union(["ol", "ul"])
+let LIST_ITEM_SCOPE_ELEMENTS: Set<String> = SCOPE_ELEMENTS.union(["ol", "ul"])
 
 /// Button scope elements
-public let BUTTON_SCOPE_ELEMENTS: Set<String> = SCOPE_ELEMENTS.union(["button"])
+let BUTTON_SCOPE_ELEMENTS: Set<String> = SCOPE_ELEMENTS.union(["button"])
 
 /// Table scope elements
-public let TABLE_SCOPE_ELEMENTS: Set<String> = ["html", "table", "template"]
+let TABLE_SCOPE_ELEMENTS: Set<String> = ["html", "table", "template"]
 
 /// Select scope elements
-public let SELECT_SCOPE_ELEMENTS: Set<String> = [] // optgroup and option are NOT scope markers
+let SELECT_SCOPE_ELEMENTS: Set<String> = [] // optgroup and option are NOT scope markers
 
 // MARK: - TagID-based scope elements (fast integer comparisons)
 
 /// Scope elements for checking element scope (TagID version)
-public let SCOPE_ELEMENTS_ID: Set<TagID> = [
+let SCOPE_ELEMENTS_ID: Set<TagID> = [
 	.applet, .caption, .html, .table, .td, .th, .marquee, .object, .template,
 	// MathML elements
 	.mi, .mo, .mn, .ms, .mtext, .annotationXml,
@@ -84,26 +84,26 @@ public let SCOPE_ELEMENTS_ID: Set<TagID> = [
 ]
 
 /// List item scope elements (TagID version)
-public let LIST_ITEM_SCOPE_ELEMENTS_ID: Set<TagID> = SCOPE_ELEMENTS_ID.union([.ol, .ul])
+let LIST_ITEM_SCOPE_ELEMENTS_ID: Set<TagID> = SCOPE_ELEMENTS_ID.union([.ol, .ul])
 
 /// Button scope elements (TagID version)
-public let BUTTON_SCOPE_ELEMENTS_ID: Set<TagID> = SCOPE_ELEMENTS_ID.union([.button])
+let BUTTON_SCOPE_ELEMENTS_ID: Set<TagID> = SCOPE_ELEMENTS_ID.union([.button])
 
 /// Table scope elements (TagID version)
-public let TABLE_SCOPE_ELEMENTS_ID: Set<TagID> = [.html, .table, .template]
+let TABLE_SCOPE_ELEMENTS_ID: Set<TagID> = [.html, .table, .template]
 
 /// Elements that are implicitly closed by certain other elements
-public let IMPLIED_END_TAGS: Set<String> = [
+let IMPLIED_END_TAGS: Set<String> = [
 	"dd", "dt", "li", "optgroup", "option", "p", "rb", "rp", "rt", "rtc",
 ]
 
 /// Thoroughly implied end tags (includes more elements)
-public let THOROUGHLY_IMPLIED_END_TAGS: Set<String> = IMPLIED_END_TAGS.union([
+let THOROUGHLY_IMPLIED_END_TAGS: Set<String> = IMPLIED_END_TAGS.union([
 	"caption", "colgroup", "tbody", "td", "tfoot", "th", "thead", "tr",
 ])
 
 /// SVG element case adjustments
-public let SVG_ELEMENT_ADJUSTMENTS: [String: String] = [
+let SVG_ELEMENT_ADJUSTMENTS: [String: String] = [
 	"altglyph": "altGlyph",
 	"altglyphdef": "altGlyphDef",
 	"altglyphitem": "altGlyphItem",
@@ -144,7 +144,7 @@ public let SVG_ELEMENT_ADJUSTMENTS: [String: String] = [
 ]
 
 /// SVG attribute case adjustments
-public let SVG_ATTRIBUTE_ADJUSTMENTS: [String: String] = [
+let SVG_ATTRIBUTE_ADJUSTMENTS: [String: String] = [
 	"attributename": "attributeName",
 	"attributetype": "attributeType",
 	"basefrequency": "baseFrequency",
@@ -206,12 +206,12 @@ public let SVG_ATTRIBUTE_ADJUSTMENTS: [String: String] = [
 ]
 
 /// MathML attribute case adjustments
-public let MATHML_ATTRIBUTE_ADJUSTMENTS: [String: String] = [
+let MATHML_ATTRIBUTE_ADJUSTMENTS: [String: String] = [
 	"definitionurl": "definitionURL",
 ]
 
 /// Foreign attribute adjustments (for namespaced attributes)
-public let FOREIGN_ATTRIBUTE_ADJUSTMENTS: [String: String] = [
+let FOREIGN_ATTRIBUTE_ADJUSTMENTS: [String: String] = [
 	"xlink:actuate": "xlink actuate",
 	"xlink:arcrole": "xlink arcrole",
 	"xlink:href": "xlink href",
@@ -226,10 +226,10 @@ public let FOREIGN_ATTRIBUTE_ADJUSTMENTS: [String: String] = [
 ]
 
 /// ASCII whitespace characters
-public let ASCII_WHITESPACE: Set<Character> = [" ", "\t", "\n", "\r", "\u{0C}"]
+let ASCII_WHITESPACE: Set<Character> = [" ", "\t", "\n", "\r", "\u{0C}"]
 
 /// ASCII alpha characters
-public let ASCII_ALPHA: Set<Character> = Set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+let ASCII_ALPHA: Set<Character> = Set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
 /// ASCII alphanumeric characters
-public let ASCII_ALPHANUMERIC: Set<Character> = ASCII_ALPHA.union(Set("0123456789"))
+let ASCII_ALPHANUMERIC: Set<Character> = ASCII_ALPHA.union(Set("0123456789"))
