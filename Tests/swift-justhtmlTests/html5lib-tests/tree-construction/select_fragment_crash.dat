@@ -1,0 +1,27 @@
+#data
+<table></table><li><table></table>
+#errors
+#document-fragment
+select
+#document
+| <table>
+| <li>
+|   <table>
+
+#data
+<table><tr><td>cell</td></tr></table><li><table><tr><td>x</td></tr></table>
+#errors
+#document-fragment
+select
+#document
+| <table>
+|   <tbody>
+|     <tr>
+|       <td>
+|         "cell"
+| <li>
+|   <table>
+|     <tbody>
+|       <tr>
+|         <td>
+|           "x"

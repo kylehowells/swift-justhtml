@@ -3025,3 +3025,47 @@ private func generateFuzzedHTML() -> String {
 
   print("Fuzzer completed \(totalTests) parse operations successfully")
 }
+
+/// BUG: Select fragment parsing crashes with table + li + table sequence
+/// Minimal reproducible case found by fuzzer:
+///   Input: "<table></table><li><table></table>"
+///   Context: select fragment
+///   Result: SIGSEGV (segmentation fault)
+///
+/// Related tests are in: html5lib-tests/tree-construction/select_fragment_crash.dat
+///
+/// This test is DISABLED until the bug is fixed - uncomment to reproduce the crash
+/*
+@Test func testSelectFragmentCrash() throws {
+  // MINIMAL CRASH CASE: table + li + table in select fragment context
+  // This causes a segmentation fault (SIGSEGV)
+  let minimalCrash = "<table></table><li><table></table>"
+
+  // This works fine in regular parsing mode
+  let regularDoc = try JustHTML(minimalCrash)
+  _ = regularDoc.toHTML()
+
+  // This CRASHES in select fragment mode
+  let selectDoc = try JustHTML(minimalCrash, fragmentContext: FragmentContext("select"))
+  _ = selectDoc.toHTML()
+}
+*/
+
+/// Test that individual components don't crash (they shouldn't)
+@Test func testSelectFragmentNonCrashingCases() throws {
+  // These should all work without crashing
+
+  // Single table in select fragment - OK
+  let doc1 = try JustHTML("<table></table>", fragmentContext: FragmentContext("select"))
+  _ = doc1.toHTML()
+
+  // table + li in select fragment - OK
+  let doc2 = try JustHTML("<table></table><li>", fragmentContext: FragmentContext("select"))
+  _ = doc2.toHTML()
+
+  // li + table in select fragment - OK
+  let doc3 = try JustHTML("<li><table></table>", fragmentContext: FragmentContext("select"))
+  _ = doc3.toHTML()
+
+  // Note: table + li + table crashes - see testSelectFragmentCrash above
+}
