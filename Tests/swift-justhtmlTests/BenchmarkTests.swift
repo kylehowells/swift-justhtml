@@ -336,10 +336,15 @@ func generateMalformedHTML(elements: Int) -> String {
 	for i in 0 ..< elements {
 		switch i % 5 {
 			case 0: html += "<p>Unclosed paragraph"
+
 			case 1: html += "<div><span>Mismatched</div></span>"
+
 			case 2: html += "<table><tr><td>Missing end tags"
+
 			case 3: html += "<select><option>Option 1<option>Option 2"
+
 			case 4: html += "<p><p>Adjacent paragraphs"
+
 			default: break
 		}
 	}

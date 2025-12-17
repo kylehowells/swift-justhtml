@@ -4,35 +4,37 @@ import Foundation
 import Testing
 @testable import swift_justhtml
 
-// MARK: - Profiling Utilities
+// MARK: - PrecisionTimer
 
 /// High-precision timer for profiling
 struct PrecisionTimer {
-	private var start: timespec = timespec()
-	private var end: timespec = timespec()
+	private var start: timespec = .init()
+	private var end: timespec = .init()
 
 	mutating func begin() {
-		clock_gettime(CLOCK_MONOTONIC, &start)
+		clock_gettime(CLOCK_MONOTONIC, &self.start)
 	}
 
 	mutating func stop() {
-		clock_gettime(CLOCK_MONOTONIC, &end)
+		clock_gettime(CLOCK_MONOTONIC, &self.end)
 	}
 
 	var elapsedNanoseconds: Int64 {
-		let startNs = Int64(start.tv_sec) * 1_000_000_000 + Int64(start.tv_nsec)
-		let endNs = Int64(end.tv_sec) * 1_000_000_000 + Int64(end.tv_nsec)
+		let startNs = Int64(start.tv_sec) * 1_000_000_000 + Int64(self.start.tv_nsec)
+		let endNs = Int64(end.tv_sec) * 1_000_000_000 + Int64(self.end.tv_nsec)
 		return endNs - startNs
 	}
 
 	var elapsedMilliseconds: Double {
-		return Double(elapsedNanoseconds) / 1_000_000.0
+		return Double(self.elapsedNanoseconds) / 1_000_000.0
 	}
 
 	var elapsedMicroseconds: Double {
-		return Double(elapsedNanoseconds) / 1_000.0
+		return Double(self.elapsedNanoseconds) / 1_000.0
 	}
 }
+
+// MARK: - ProfilerStats
 
 /// Aggregating profiler for collecting timing data
 class ProfilerStats {
@@ -44,27 +46,28 @@ class ProfilerStats {
 			existing.totalNs += ns
 			existing.minNs = min(existing.minNs, ns)
 			existing.maxNs = max(existing.maxNs, ns)
-			timings[name] = existing
-		} else {
-			timings[name] = (1, ns, ns, ns)
+			self.timings[name] = existing
+		}
+		else {
+			self.timings[name] = (1, ns, ns, ns)
 		}
 	}
 
 	func report() {
 		print("\n=== Profiler Report ===")
-		let sorted = timings.sorted { $0.value.totalNs > $1.value.totalNs }
+		let sorted = self.timings.sorted { $0.value.totalNs > $1.value.totalNs }
 		for (name, data) in sorted {
 			let totalMs = Double(data.totalNs) / 1_000_000.0
 			let avgUs = Double(data.totalNs) / Double(data.count) / 1_000.0
 			let minUs = Double(data.minNs) / 1_000.0
 			let maxUs = Double(data.maxNs) / 1_000.0
 			print(String(format: "%@: %.2fms total, %d calls, %.2fµs avg (min: %.2fµs, max: %.2fµs)",
-				name, totalMs, data.count, avgUs, minUs, maxUs))
+			             name, totalMs, data.count, avgUs, minUs, maxUs))
 		}
 	}
 
 	func reset() {
-		timings.removeAll()
+		self.timings.removeAll()
 	}
 }
 
@@ -99,12 +102,12 @@ func loadSampleFile(_ name: String) throws -> String {
 		var timer = PrecisionTimer()
 
 		// Warmup
-		for _ in 0..<3 {
+		for _ in 0 ..< 3 {
 			_ = try JustHTML(html)
 		}
 
 		// Actual measurements
-		for _ in 0..<iterations {
+		for _ in 0 ..< iterations {
 			timer.begin()
 			_ = try JustHTML(html)
 			timer.stop()
@@ -128,7 +131,7 @@ func loadSampleFile(_ name: String) throws -> String {
 		let throughput = Double(r.sizeKB) / r.avgMs * 1000 // KB/s
 		let throughputMB = throughput / 1024 // MB/s
 		print(String(format: "| %@ | %d KB | %.2f ms | %.2f ms | %.2f ms | %.2f MB/s |",
-			r.name, r.sizeKB, r.avgMs, r.minMs, r.maxMs, throughputMB))
+		             r.name, r.sizeKB, r.avgMs, r.minMs, r.maxMs, throughputMB))
 		totalMs += r.avgMs
 		totalKB += r.sizeKB
 	}
@@ -149,7 +152,7 @@ func loadSampleFile(_ name: String) throws -> String {
 
 	// Measure tokenizer only (collect tokens, don't build tree)
 	var tokenizerTimes: [Double] = []
-	for _ in 0..<iterations {
+	for _ in 0 ..< iterations {
 		var timer = PrecisionTimer()
 		timer.begin()
 		var tokenCount = 0
@@ -162,7 +165,7 @@ func loadSampleFile(_ name: String) throws -> String {
 
 	// Measure full parse (tokenizer + tree builder)
 	var fullParseTimes: [Double] = []
-	for _ in 0..<iterations {
+	for _ in 0 ..< iterations {
 		var timer = PrecisionTimer()
 		timer.begin()
 		_ = try JustHTML(html)
@@ -194,7 +197,7 @@ func loadSampleFile(_ name: String) throws -> String {
 	var timer = PrecisionTimer()
 	timer.begin()
 	var charCount = 0
-	for _ in 0..<iterations {
+	for _ in 0 ..< iterations {
 		for _ in html {
 			charCount += 1
 		}
@@ -205,7 +208,7 @@ func loadSampleFile(_ name: String) throws -> String {
 	// Test 2: UTF-8 view iteration speed
 	timer.begin()
 	var byteCount = 0
-	for _ in 0..<iterations {
+	for _ in 0 ..< iterations {
 		for _ in html.utf8 {
 			byteCount += 1
 		}
@@ -215,7 +218,7 @@ func loadSampleFile(_ name: String) throws -> String {
 
 	// Test 3: String.Index advancement speed
 	timer.begin()
-	for _ in 0..<iterations {
+	for _ in 0 ..< iterations {
 		var pos = html.startIndex
 		while pos < html.endIndex {
 			pos = html.index(after: pos)
@@ -238,7 +241,7 @@ func loadSampleFile(_ name: String) throws -> String {
 
 	// Generate entity-heavy HTML
 	var entityHtml = "<!DOCTYPE html><html><body>"
-	for i in 0..<1000 {
+	for i in 0 ..< 1000 {
 		entityHtml += "<p>Test \(i): &amp; &lt; &gt; &quot; &nbsp; &#60; &#x3E; &copy; &reg; &trade; &hearts;</p>"
 	}
 	entityHtml += "</body></html>"
@@ -248,12 +251,12 @@ func loadSampleFile(_ name: String) throws -> String {
 	var timer = PrecisionTimer()
 
 	// Warmup
-	for _ in 0..<3 {
+	for _ in 0 ..< 3 {
 		_ = try JustHTML(entityHtml)
 	}
 
 	// Measure
-	for _ in 0..<iterations {
+	for _ in 0 ..< iterations {
 		timer.begin()
 		_ = try JustHTML(entityHtml)
 		timer.stop()
@@ -285,7 +288,7 @@ func loadSampleFile(_ name: String) throws -> String {
 	print(String(repeating: "=", count: 70))
 
 	let entityNames = ["amp", "lt", "gt", "quot", "nbsp", "copy", "reg", "trade", "hearts", "spades",
-		"nonexistent", "notaentity", "AElig", "Aacute", "Alpha", "Beta", "Gamma", "Delta"]
+	                   "nonexistent", "notaentity", "AElig", "Aacute", "Alpha", "Beta", "Gamma", "Delta"]
 
 	let iterations = 100_000
 	var timer = PrecisionTimer()
@@ -293,7 +296,7 @@ func loadSampleFile(_ name: String) throws -> String {
 	// Test NAMED_ENTITIES dictionary lookup
 	timer.begin()
 	var foundCount = 0
-	for _ in 0..<iterations {
+	for _ in 0 ..< iterations {
 		for name in entityNames {
 			if NAMED_ENTITIES[name] != nil {
 				foundCount += 1
@@ -314,7 +317,7 @@ func loadSampleFile(_ name: String) throws -> String {
 	// Test LEGACY_ENTITIES set lookup
 	timer.begin()
 	var legacyFoundCount = 0
-	for _ in 0..<iterations {
+	for _ in 0 ..< iterations {
 		for name in entityNames {
 			if LEGACY_ENTITIES.contains(name) {
 				legacyFoundCount += 1
@@ -344,10 +347,13 @@ func loadSampleFile(_ name: String) throws -> String {
 		var comments = 0
 
 		switch node.name {
-		case "#text": text = 1
-		case "#comment": comments = 1
-		case "#document", "#document-fragment", "!doctype": break
-		default: elements = 1 // Element nodes have their tag name
+			case "#text": text = 1
+
+			case "#comment": comments = 1
+
+			case "#document", "#document-fragment", "!doctype": break
+
+			default: elements = 1 // Element nodes have their tag name
 		}
 
 		for child in node.children {
@@ -383,7 +389,7 @@ func loadSampleFile(_ name: String) throws -> String {
 	// Generate HTML of different sizes
 	func generateHTML(paragraphs: Int) -> String {
 		var html = "<!DOCTYPE html><html><head><title>Test</title></head><body>"
-		for i in 0..<paragraphs {
+		for i in 0 ..< paragraphs {
 			html += "<p>This is paragraph \(i) with <strong>bold</strong> and <em>italic</em> text.</p>"
 		}
 		html += "</body></html>"
@@ -400,13 +406,13 @@ func loadSampleFile(_ name: String) throws -> String {
 		var timer = PrecisionTimer()
 
 		// Warmup
-		for _ in 0..<2 {
+		for _ in 0 ..< 2 {
 			_ = try JustHTML(html)
 		}
 
 		// Measure
 		let iterations = max(3, 50 / (paragraphs / 100))
-		for _ in 0..<iterations {
+		for _ in 0 ..< iterations {
 			timer.begin()
 			_ = try JustHTML(html)
 			timer.stop()
@@ -426,7 +432,7 @@ func loadSampleFile(_ name: String) throws -> String {
 		let timePerKB = r.avgMs / r.sizeKB
 		let ratioToLinear = timePerKB / baselineTimePerKB
 		print(String(format: "| %d | %.1f KB | %.2f ms | %.3f ms/KB | %.2fx |",
-			r.paragraphs, r.sizeKB, r.avgMs, timePerKB, ratioToLinear))
+		             r.paragraphs, r.sizeKB, r.avgMs, timePerKB, ratioToLinear))
 	}
 
 	// Check for non-linear scaling
@@ -437,7 +443,8 @@ func loadSampleFile(_ name: String) throws -> String {
 	print(String(format: "\nScaling factor (10000 vs 100 paragraphs): %.2fx", scalingFactor))
 	if scalingFactor > 1.5 {
 		print("⚠️ WARNING: Non-linear scaling detected! Time per KB increases with document size.")
-	} else {
+	}
+	else {
 		print("✅ Linear scaling - time per KB is consistent")
 	}
 }

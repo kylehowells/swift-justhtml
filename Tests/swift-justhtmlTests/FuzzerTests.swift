@@ -538,10 +538,13 @@ private func generateRandomHTMLish(length: Int) -> String {
 		switch strategy {
 			case 0:
 				data = generateRandomData(length: length)
+
 			case 1:
 				data = generateRandomASCII(length: length)
+
 			case 2:
 				data = generateRandomHTMLish(length: length)
+
 			default:
 				// Mix strategies
 				let part1 = generateRandomData(length: length / 3)
@@ -555,7 +558,8 @@ private func generateRandomHTMLish(length: Int) -> String {
 			let doc = try JustHTML(data)
 			_ = doc.toHTML()
 			_ = doc.toText()
-		} catch {
+		}
+		catch {
 			// Errors are fine, crashes are not
 		}
 
@@ -586,10 +590,13 @@ private func generateRandomHTMLish(length: Int) -> String {
 		switch strategy {
 			case 0:
 				data = generateRandomData(length: length)
+
 			case 1:
 				data = generateRandomASCII(length: length)
+
 			case 2:
 				data = generateRandomHTMLish(length: length)
+
 			default:
 				data = generateRandomData(length: length / 2) + generateRandomHTMLish(length: length / 2)
 		}
@@ -597,7 +604,8 @@ private func generateRandomHTMLish(length: Int) -> String {
 		do {
 			let doc = try JustHTML(data)
 			_ = doc.toHTML()
-		} catch {
+		}
+		catch {
 			// Errors are expected and fine
 		}
 
@@ -624,7 +632,8 @@ private func generateRandomHTMLish(length: Int) -> String {
 			do {
 				let doc = try JustHTML(data, fragmentContext: FragmentContext(ctx))
 				_ = doc.toHTML()
-			} catch {
+			}
+			catch {
 				// Errors are fine
 			}
 
