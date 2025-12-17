@@ -4,7 +4,7 @@ Swift-justhtml performance characteristics and optimization history.
 
 ## Overview
 
-Swift-justhtml is a high-performance HTML5 parser that matches JavaScript (justjshtml) performance while maintaining full spec compliance. This document covers performance benchmarks, memory usage, and the optimization journey.
+Swift-justhtml is a high-performance HTML5 parser that matches JavaScript ([justjshtml](https://github.com/simonw/justjshtml)) performance while maintaining full spec compliance. This document covers performance benchmarks, memory usage, and the optimization journey.
 
 ## Performance Summary
 
@@ -16,7 +16,7 @@ Swift-justhtml is a high-performance HTML5 parser that matches JavaScript (justj
 |----------------|-----------|------------|
 | **Swift** | 97ms | - |
 | JavaScript (justjshtml) | 99ms | 1.02x slower |
-| Python (justhtml) | 398ms | 4.1x slower |
+| Python ([justhtml](https://github.com/EmilStenstrom/justhtml)) | 398ms | 4.1x slower |
 
 *Benchmark: Parsing 2.5MB of HTML across 5 Wikipedia articles*
 
