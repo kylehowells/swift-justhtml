@@ -4,7 +4,7 @@ Testing and benchmarking methodology for swift-justhtml.
 
 ## Overview
 
-Swift-justhtml includes comprehensive benchmarking infrastructure to measure parse time, memory usage, and compare performance against Python (html5lib) and JavaScript (parse5) implementations.
+Swift-justhtml includes comprehensive benchmarking infrastructure to measure parse time, memory usage, and compare performance against Python (justhtml) and JavaScript (justjshtml) implementations.
 
 ## Benchmark Suite
 
