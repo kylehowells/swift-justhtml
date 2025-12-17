@@ -12,9 +12,6 @@ let package = Package(
 		.watchOS(.v9),
 		.visionOS(.v1),
 	],
-	dependencies: [
-		.package(url: "https://github.com/swiftlang/swift-docc-plugin", from: "1.4.3"),
-	],
 	products: [
 		// Products define the executables and libraries a package produces, making them visible to other packages.
 		.library(
@@ -29,6 +26,13 @@ let package = Package(
 			name: "benchmark",
 			targets: ["Benchmark"]
 		),
+		.executable(
+			name: "htmltool",
+			targets: ["HTMLTool"]
+		),
+	],
+	dependencies: [
+		.package(url: "https://github.com/swiftlang/swift-docc-plugin", from: "1.4.3"),
 	],
 	targets: [
 		// Targets are the basic building blocks of a package, defining a module or a test suite.
@@ -40,6 +44,11 @@ let package = Package(
 			name: "Benchmark",
 			dependencies: ["swift-justhtml"],
 			path: "Benchmarks/Sources"
+		),
+		.executableTarget(
+			name: "HTMLTool",
+			dependencies: ["swift-justhtml"],
+			path: "Examples/htmltool"
 		),
 		.testTarget(
 			name: "swift-justhtmlTests",

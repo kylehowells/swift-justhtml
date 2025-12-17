@@ -15,7 +15,7 @@
 
 ## Examples
 
-- [ ] **CLI Example**
+- [x] **CLI Example**
   - Create `examples/` directory
   - Add a command-line tool that parses HTML from stdin or file argument
   - Demonstrate basic usage: parse, query, serialize
