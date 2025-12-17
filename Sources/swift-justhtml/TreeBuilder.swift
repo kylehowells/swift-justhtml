@@ -1590,7 +1590,7 @@ public final class TreeBuilder: TokenSink {
 			if self.hasElementInButtonScope(.p) {
 				self.closePElement()
 			}
-			if let current = currentNode, kHeadingTags.contains(current.name) {
+			if let current = currentNode, kHeadingTagIDs.contains(current.tagId) {
 				self.emitError("unexpected-start-tag")
 				self.popCurrentElement()
 			}
@@ -1653,7 +1653,7 @@ public final class TreeBuilder: TokenSink {
 				}
 				// Stop at special elements, but NOT address, div, or p
 				if SPECIAL_ELEMENTS.contains(node.name),
-				   !kAddressDivPTags.contains(node.name)
+				   !kAddressDivPTagIDs.contains(node.tagId)
 				{
 					break
 				}
@@ -2420,7 +2420,7 @@ public final class TreeBuilder: TokenSink {
 			// Pop until h1-h6
 			while let current = currentNode {
 				self.popCurrentElement()
-				if kHeadingTags.contains(current.name) {
+				if kHeadingTagIDs.contains(current.tagId) {
 					break
 				}
 			}
@@ -2765,7 +2765,7 @@ public final class TreeBuilder: TokenSink {
 		// insert normally into that element.
 		if self.fosterParentingEnabled {
 			let target = self.adjustedInsertionTarget
-			if kTableRelatedTags.contains(target.name) {
+			if kTableRelatedTagIDs.contains(target.tagId) {
 				self.fosterParentNode(node)
 			}
 			else {
@@ -2839,14 +2839,14 @@ public final class TreeBuilder: TokenSink {
 
 		// Per spec: foster parenting for text only applies when the target is a table element
 		if self.fosterParentingEnabled,
-		   kTableRelatedTags.contains(target.name)
+		   kTableRelatedTagIDs.contains(target.tagId)
 		{
 			self.insertCharacterWithFosterParenting(ch)
 			return
 		}
 
 		// Merge with previous text node if possible
-		if let lastChild = target.children.last, lastChild.name == "#text" {
+		if let lastChild = target.children.last, lastChild.tagId == .text {
 			if case var .text(existing) = lastChild.data {
 				existing.append(ch)
 				lastChild.data = .text(existing)
@@ -2867,7 +2867,7 @@ public final class TreeBuilder: TokenSink {
 
 		// Per spec: foster parenting for text only applies when the target is a table element
 		if self.fosterParentingEnabled,
-		   kTableRelatedTags.contains(target.name)
+		   kTableRelatedTagIDs.contains(target.tagId)
 		{
 			// Fall back to character-by-character for foster parenting
 			for ch in text {
@@ -2877,7 +2877,7 @@ public final class TreeBuilder: TokenSink {
 		}
 
 		// Merge with previous text node if possible
-		if let lastChild = target.children.last, lastChild.name == "#text" {
+		if let lastChild = target.children.last, lastChild.tagId == .text {
 			if case var .text(existing) = lastChild.data {
 				existing.append(text)
 				lastChild.data = .text(existing)
@@ -2909,7 +2909,7 @@ public final class TreeBuilder: TokenSink {
 			if lastTableIndex == nil || templateIndex > lastTableIndex! {
 				if let content = openElements[templateIndex].templateContent {
 					// Merge with previous text node if possible
-					if let lastChild = content.children.last, lastChild.name == "#text" {
+					if let lastChild = content.children.last, lastChild.tagId == .text {
 						if case let .text(existing) = lastChild.data {
 							lastChild.data = .text(existing + String(ch))
 							return
@@ -2925,7 +2925,7 @@ public final class TreeBuilder: TokenSink {
 		// If no table found
 		guard let tableIndex = lastTableIndex else {
 			let target = self.adjustedInsertionTarget
-			if let lastChild = target.children.last, lastChild.name == "#text" {
+			if let lastChild = target.children.last, lastChild.tagId == .text {
 				if case let .text(existing) = lastChild.data {
 					lastChild.data = .text(existing + String(ch))
 					return
@@ -2959,7 +2959,7 @@ public final class TreeBuilder: TokenSink {
 			// Table has no parent - use the element before table in stack
 			if tableIndex > 0 {
 				let target = self.openElements[tableIndex - 1]
-				if let lastChild = target.children.last, lastChild.name == "#text" {
+				if let lastChild = target.children.last, lastChild.tagId == .text {
 					if case let .text(existing) = lastChild.data {
 						lastChild.data = .text(existing + String(ch))
 						return
@@ -3004,7 +3004,7 @@ public final class TreeBuilder: TokenSink {
 	/// Clear the stack back to a table context (table, template, or html)
 	private func clearStackBackToTableContext() {
 		while let current = currentNode {
-			if kTableContextTags.contains(current.name) {
+			if kTableContextTagIDs.contains(current.tagId) {
 				break
 			}
 			self.popCurrentElement()
@@ -3014,7 +3014,7 @@ public final class TreeBuilder: TokenSink {
 	/// Clear the stack back to a table body context (tbody, tfoot, thead, template, or html)
 	private func clearStackBackToTableBodyContext() {
 		while let current = currentNode {
-			if kTableBodyContextTags.contains(current.name) {
+			if kTableBodyContextTagIDs.contains(current.tagId) {
 				break
 			}
 			self.popCurrentElement()
@@ -3026,7 +3026,7 @@ public final class TreeBuilder: TokenSink {
 		// Per Python justhtml: requires both name match AND HTML namespace
 		while let current = currentNode {
 			let isHTML = current.namespace == nil || current.namespace == .html
-			if kRowContextTags.contains(current.name), isHTML {
+			if kRowContextTagIDs.contains(current.tagId), isHTML {
 				break
 			}
 			self.popCurrentElement()
@@ -3146,12 +3146,12 @@ public final class TreeBuilder: TokenSink {
 			if scopeElements.contains(node.name) {
 				// For MathML/SVG scope boundaries, check namespace
 				// Use module-level kMathMLIntegrationTags and kSVGIntegrationTags
-				if kMathMLIntegrationTags.contains(node.name) {
+				if kMathMLIntegrationTagIDs.contains(node.tagId) {
 					if node.namespace == .math {
 						return false
 					}
 				}
-				else if kSVGIntegrationTags.contains(node.name) {
+				else if kSVGIntegrationTagIDs.contains(node.tagId) {
 					if node.namespace == .svg {
 						return false
 					}
@@ -3411,10 +3411,10 @@ public final class TreeBuilder: TokenSink {
 					isSpecial = SPECIAL_ELEMENTS.contains(node.name)
 				}
 				else if node.namespace == .svg {
-					isSpecial = kSVGIntegrationTags.contains(node.name)
+					isSpecial = kSVGIntegrationTagIDs.contains(node.tagId)
 				}
 				else if node.namespace == .math {
-					isSpecial = kMathMLIntegrationTags.contains(node.name)
+					isSpecial = kMathMLIntegrationTagIDs.contains(node.tagId)
 				}
 				else {
 					isSpecial = false
