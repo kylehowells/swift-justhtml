@@ -10,6 +10,10 @@ let package = Package(
 		.iOS(.v16),
 		.tvOS(.v16),
 		.watchOS(.v9),
+		.visionOS(.v1),
+	],
+	dependencies: [
+		.package(url: "https://github.com/swiftlang/swift-docc-plugin", from: "1.4.3"),
 	],
 	products: [
 		// Products define the executables and libraries a package produces, making them visible to other packages.

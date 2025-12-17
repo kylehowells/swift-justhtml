@@ -8,7 +8,7 @@
   - Add GitHub Action to build DocC and deploy to GitHub Pages
   - Link to hosted documentation from README
 
-- [ ] **SPM Installation Instructions**
+- [x] **SPM Installation Instructions**
   - Update README with Swift Package Manager installation instructions
   - Add code example showing how to add the package dependency
   - Verify visionOS platform support in Package.swift
