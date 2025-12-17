@@ -32,7 +32,10 @@ private func tokenToTestArray(_ token: Token) -> [Any] {
 		case let .doctype(dt):
 			return ["DOCTYPE", dt.name ?? "", dt.publicId as Any, dt.systemId as Any, !dt.forceQuirks]
 
-		case let .startTag(name, attrs, _):
+		case let .startTag(name, attrs, selfClosing):
+			if selfClosing {
+				return ["StartTag", name, attrs.isEmpty ? [:] as [String: String] : attrs, true]
+			}
 			if attrs.isEmpty {
 				return ["StartTag", name, [:] as [String: String]]
 			}
@@ -96,7 +99,15 @@ private func tokensEqual(_ actual: [Any], _ expected: [Any]) -> Bool {
 
 			let aAttrs = actual[2] as? [String: String] ?? [:]
 			let eAttrs = expected[2] as? [String: String] ?? [:]
-			return aAttrs == eAttrs
+			if aAttrs != eAttrs { return false }
+
+			// Compare self-closing flag if present in expected
+			if expected.count >= 4 {
+				let eSelfClosing = (expected[3] as? Bool) ?? (expected[3] as? Int == 1)
+				let aSelfClosing = actual.count >= 4 ? ((actual[3] as? Bool) ?? false) : false
+				return aSelfClosing == eSelfClosing
+			}
+			return true
 
 		case "EndTag":
 			guard actual.count >= 2, expected.count >= 2 else { return false }

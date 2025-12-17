@@ -2608,19 +2608,46 @@ public final class Tokenizer {
 				}
 			}
 
-			// Check if this is a legacy entity
-			let matchedName = String(entityName.prefix(matchedLength))
-			if LEGACY_ENTITIES.contains(matchedName) {
-				// Unconsume the extra characters
-				for _ in 0 ..< (consumed - matchedLength) {
-					self.reconsume()
+			// If in attribute and there's a semicolon but we didn't consume exactly the matched length,
+			// that means the full entity name (with semicolon) is invalid - don't use prefix match
+			// e.g., "&noti;" in attribute - "noti" is not valid, so don't match "&not;"
+			// In text content, we DO use prefix matching even with semicolon
+			if self.isInAttribute, hasSemicolon, consumed != matchedLength {
+				// Fall through to emit as text
+			}
+			else {
+				// Check if this is a legacy entity
+				let matchedName = String(entityName.prefix(matchedLength))
+				if LEGACY_ENTITIES.contains(matchedName) {
+					// Unconsume the extra characters
+					for _ in 0 ..< (consumed - matchedLength) {
+						self.reconsume()
+					}
+					if !hasSemicolon {
+						self.emitError("missing-semicolon-after-character-reference")
+					}
+					self.emitCharRefString(match)
+					self.state = self.returnState
+					return
 				}
+
+				// The exact match isn't a legacy entity - try to find a legacy prefix
+				// This handles cases like "&notin" where "notin" isn't legacy but "not" is
 				if !hasSemicolon {
-					self.emitError("missing-semicolon-after-character-reference")
+					for k in stride(from: matchedLength - 1, through: 1, by: -1) {
+						let prefix = String(entityName.prefix(k))
+						if LEGACY_ENTITIES.contains(prefix), let decoded = NAMED_ENTITIES[prefix] {
+							// Unconsume back to just after the prefix
+							for _ in 0 ..< (consumed - k) {
+								self.reconsume()
+							}
+							self.emitError("missing-semicolon-after-character-reference")
+							self.emitCharRefString(decoded)
+							self.state = self.returnState
+							return
+						}
+					}
 				}
-				self.emitCharRefString(match)
-				self.state = self.returnState
-				return
 			}
 		}
 
