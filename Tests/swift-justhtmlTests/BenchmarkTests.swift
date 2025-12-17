@@ -217,3 +217,132 @@ func generateNestedHTML(depth: Int) -> String {
 
 	#expect(avgMs < 100, "toMarkdown should complete in under 100ms")
 }
+
+// MARK: - Comprehensive Benchmark Summary
+
+/// A comprehensive benchmark that tests various parsing scenarios and produces a summary report
+@Test func benchmarkComprehensiveSummary() async throws {
+	print("\n" + String(repeating: "=", count: 60))
+	print("swift-justhtml Benchmark Summary")
+	print(String(repeating: "=", count: 60))
+	print()
+
+	struct BenchResult {
+		let name: String
+		let sizeBytes: Int
+		let iterations: Int
+		let avgMs: Double
+		let minMs: Double
+		let maxMs: Double
+		let throughputMBs: Double
+	}
+
+	func runBenchmark(name: String, html: String, iterations: Int) throws -> BenchResult {
+		var times: [Double] = []
+
+		// Warmup (3 iterations)
+		for _ in 0 ..< 3 {
+			_ = try JustHTML(html)
+		}
+
+		// Actual benchmark
+		for _ in 0 ..< iterations {
+			let start = Date()
+			_ = try JustHTML(html)
+			let elapsed = Date().timeIntervalSince(start)
+			times.append(elapsed * 1000) // Convert to ms
+		}
+
+		let avgMs = times.reduce(0, +) / Double(times.count)
+		let minMs = times.min() ?? 0
+		let maxMs = times.max() ?? 0
+		let throughput = Double(html.count) / (avgMs / 1000) / 1_000_000
+
+		return BenchResult(
+			name: name,
+			sizeBytes: html.count,
+			iterations: iterations,
+			avgMs: avgMs,
+			minMs: minMs,
+			maxMs: maxMs,
+			throughputMBs: throughput
+		)
+	}
+
+	// Define test cases
+	let testCases: [(name: String, html: String, iterations: Int)] = [
+		("Small HTML (10 paragraphs)", generateBenchmarkHTML(paragraphs: 10), 50),
+		("Medium HTML (100 paragraphs)", generateBenchmarkHTML(paragraphs: 100), 25),
+		("Large HTML (500 paragraphs)", generateBenchmarkHTML(paragraphs: 500), 10),
+		("Table (50x10)", generateTableHTML(rows: 50, cols: 10), 25),
+		("Table (100x10)", generateTableHTML(rows: 100, cols: 10), 25),
+		("Nested (depth 50)", generateNestedHTML(depth: 50), 50),
+		("Nested (depth 100)", generateNestedHTML(depth: 100), 50),
+		("Entity-heavy", generateEntityHTML(count: 100), 25),
+		("Malformed HTML", generateMalformedHTML(elements: 100), 25),
+	]
+
+	var results: [BenchResult] = []
+
+	// Run all benchmarks
+	for (name, html, iterations) in testCases {
+		let result = try runBenchmark(name: name, html: html, iterations: iterations)
+		results.append(result)
+	}
+
+	// Print results table
+	print("| Test Case | Size | Iterations | Avg (ms) | Min (ms) | Max (ms) | MB/s |")
+	print("|-----------|------|------------|----------|----------|----------|------|")
+
+	for result in results {
+		let sizeKB = String(format: "%.1f KB", Double(result.sizeBytes) / 1024)
+		let namePadded = result.name.padding(toLength: 26, withPad: " ", startingAt: 0)
+		let sizePadded = sizeKB.padding(toLength: 8, withPad: " ", startingAt: 0)
+		print("| \(namePadded) | \(sizePadded) | \(String(format: "%10d", result.iterations)) | \(String(format: "%8.3f", result.avgMs)) | \(String(format: "%8.3f", result.minMs)) | \(String(format: "%8.3f", result.maxMs)) | \(String(format: "%4.2f", result.throughputMBs)) |")
+	}
+
+	print()
+
+	// Calculate totals
+	let totalSize = results.reduce(0) { $0 + $1.sizeBytes }
+	let totalAvg = results.reduce(0.0) { $0 + $1.avgMs }
+	let avgThroughput = results.reduce(0.0) { $0 + $1.throughputMBs } / Double(results.count)
+
+	print(String(format: "Total input size: %.1f KB", Double(totalSize) / 1024))
+	print(String(format: "Total average parse time: %.3f ms", totalAvg))
+	print(String(format: "Average throughput: %.2f MB/s", avgThroughput))
+	print()
+	print(String(repeating: "=", count: 60))
+
+	// Assertions to ensure reasonable performance
+	for result in results {
+		#expect(result.avgMs < 500, "\(result.name) should complete in under 500ms (was \(result.avgMs)ms)")
+	}
+}
+
+/// Generate HTML with many entities
+func generateEntityHTML(count: Int) -> String {
+	var html = "<!DOCTYPE html><html><head><title>Entity Test</title></head><body>"
+	for i in 0 ..< count {
+		html += "<p>Entity test \(i): &amp; &lt; &gt; &quot; &nbsp; &#60; &#x3E; &copy; &reg; &trade;</p>"
+	}
+	html += "</body></html>"
+	return html
+}
+
+/// Generate malformed HTML for error recovery testing
+func generateMalformedHTML(elements: Int) -> String {
+	var html = "<!DOCTYPE html><html><head><title>Malformed</title></head><body>"
+	for i in 0 ..< elements {
+		switch i % 5 {
+			case 0: html += "<p>Unclosed paragraph"
+			case 1: html += "<div><span>Mismatched</div></span>"
+			case 2: html += "<table><tr><td>Missing end tags"
+			case 3: html += "<select><option>Option 1<option>Option 2"
+			case 4: html += "<p><p>Adjacent paragraphs"
+			default: break
+		}
+	}
+	html += "</body></html>"
+	return html
+}

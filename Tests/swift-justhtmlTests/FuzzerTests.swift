@@ -487,6 +487,157 @@ private func generateFuzzedHTML() -> String {
 	print("Fuzzer completed \(totalTests) parse operations successfully")
 }
 
+// MARK: - Random Data Fuzzer
+
+/// Generates completely random bytes as a string
+private func generateRandomData(length: Int) -> String {
+	var bytes = [UInt8](repeating: 0, count: length)
+	for i in 0 ..< length {
+		bytes[i] = UInt8.random(in: 0 ... 255)
+	}
+	// Convert to string, replacing invalid UTF-8 sequences
+	return String(decoding: bytes, as: UTF8.self)
+}
+
+/// Generates random ASCII-ish data (more likely to trigger parsing paths)
+private func generateRandomASCII(length: Int) -> String {
+	let chars = Array(" \t\n\r<>\"'=/!?-abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789&;#")
+	return String((0 ..< length).map { _ in chars.randomElement()! })
+}
+
+/// Generates random data with HTML-like characters mixed in
+private func generateRandomHTMLish(length: Int) -> String {
+	let strategies: [() -> Character] = [
+		{ Character(UnicodeScalar(UInt8.random(in: 0 ... 127))) }, // ASCII
+		{ Character(UnicodeScalar(UInt8.random(in: 0 ... 255))) }, // Any byte
+		{ ["<", ">", "/", "\"", "'", "=", "&", ";", "#", "!", "-", "?"].randomElement()! }, // HTML chars
+		{ ["\0", "\t", "\n", "\r", "\u{000C}"].randomElement()! }, // Whitespace/null
+	]
+	return String((0 ..< length).map { _ in strategies.randomElement()!() })
+}
+
+/// Pure chaos fuzzer - sends completely random data to the parser
+/// This tests that the parser doesn't crash on arbitrary junk input
+@Test func testRandomDataFuzzer() throws {
+	let numTests = 2500
+	var completed = 0
+
+	print("Random data fuzzer: testing \(numTests) random inputs...")
+
+	for i in 0 ..< numTests {
+		if i % 1000 == 0 {
+			print("  Progress: \(i)/\(numTests)...")
+		}
+
+		// Vary the length randomly
+		let length = Int.random(in: 0 ... 1000)
+
+		// Pick a random generation strategy
+		let strategy = Int.random(in: 0 ..< 4)
+		let data: String
+		switch strategy {
+			case 0:
+				data = generateRandomData(length: length)
+			case 1:
+				data = generateRandomASCII(length: length)
+			case 2:
+				data = generateRandomHTMLish(length: length)
+			default:
+				// Mix strategies
+				let part1 = generateRandomData(length: length / 3)
+				let part2 = generateRandomASCII(length: length / 3)
+				let part3 = generateRandomHTMLish(length: length / 3)
+				data = part1 + part2 + part3
+		}
+
+		// Try parsing - we don't care what it returns, just that it doesn't crash
+		do {
+			let doc = try JustHTML(data)
+			_ = doc.toHTML()
+			_ = doc.toText()
+		} catch {
+			// Errors are fine, crashes are not
+		}
+
+		completed += 1
+	}
+
+	print("Random data fuzzer completed \(completed)/\(numTests) tests without crashes")
+	#expect(completed == numTests, "All random data tests should complete without crashes")
+}
+
+/// Extended random data fuzzer with longer inputs
+@Test func testRandomDataFuzzerLongInputs() throws {
+	let numTests = 250
+	var completed = 0
+
+	print("Random data fuzzer (long inputs): testing \(numTests) random inputs...")
+
+	for i in 0 ..< numTests {
+		if i % 100 == 0 {
+			print("  Progress: \(i)/\(numTests)...")
+		}
+
+		// Longer lengths for stress testing
+		let length = Int.random(in: 1000 ... 10000)
+
+		let strategy = Int.random(in: 0 ..< 4)
+		let data: String
+		switch strategy {
+			case 0:
+				data = generateRandomData(length: length)
+			case 1:
+				data = generateRandomASCII(length: length)
+			case 2:
+				data = generateRandomHTMLish(length: length)
+			default:
+				data = generateRandomData(length: length / 2) + generateRandomHTMLish(length: length / 2)
+		}
+
+		do {
+			let doc = try JustHTML(data)
+			_ = doc.toHTML()
+		} catch {
+			// Errors are expected and fine
+		}
+
+		completed += 1
+	}
+
+	print("Random data fuzzer (long) completed \(completed)/\(numTests) tests without crashes")
+	#expect(completed == numTests, "All long random data tests should complete without crashes")
+}
+
+/// Test random data with fragment parsing contexts
+@Test func testRandomDataFragmentFuzzer() throws {
+	let contexts = ["div", "table", "template", "svg", "math", "select", "script", "style", "title", "textarea"]
+	let testsPerContext = 100
+	var completed = 0
+
+	print("Random data fragment fuzzer: testing \(contexts.count * testsPerContext) inputs...")
+
+	for ctx in contexts {
+		for _ in 0 ..< testsPerContext {
+			let length = Int.random(in: 0 ... 500)
+			let data = generateRandomHTMLish(length: length)
+
+			do {
+				let doc = try JustHTML(data, fragmentContext: FragmentContext(ctx))
+				_ = doc.toHTML()
+			} catch {
+				// Errors are fine
+			}
+
+			completed += 1
+		}
+	}
+
+	print("Random data fragment fuzzer completed \(completed) tests without crashes")
+	#expect(completed == contexts.count * testsPerContext)
+}
+
+// MARK: - Regression Tests
+
 /// Regression test for select fragment crash with table + li + table sequence
 /// Bug found by fuzzer: infinite recursion when table tag seen in inSelect mode
 /// with select as context-only element (not on open elements stack)

@@ -1709,7 +1709,7 @@ public final class TreeBuilder: TokenSink {
 		else if name == "math" {
 			self.reconstructActiveFormattingElements()
 			let adjustedAttrs = self.adjustForeignAttributes(attrs, namespace: .math)
-			let element = self.insertElement(name: name, namespace: .math, attrs: adjustedAttrs)
+			_ = self.insertElement(name: name, namespace: .math, attrs: adjustedAttrs)
 			if selfClosing {
 				self.popCurrentElement()
 			}
@@ -1717,7 +1717,7 @@ public final class TreeBuilder: TokenSink {
 		else if name == "svg" {
 			self.reconstructActiveFormattingElements()
 			let adjustedAttrs = self.adjustForeignAttributes(attrs, namespace: .svg)
-			let element = self.insertElement(name: name, namespace: .svg, attrs: adjustedAttrs)
+			_ = self.insertElement(name: name, namespace: .svg, attrs: adjustedAttrs)
 			if selfClosing {
 				self.popCurrentElement()
 			}

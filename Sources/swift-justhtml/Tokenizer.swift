@@ -2507,15 +2507,6 @@ public final class Tokenizer {
 		self.charRefTempBuffer = ""
 	}
 
-	private func emitCharRefChar(_ ch: Character) {
-		if self.isInAttribute {
-			self.currentAttrValue.append(ch)
-		}
-		else {
-			self.emitChar(ch)
-		}
-	}
-
 	private func emitCharRefString(_ s: String) {
 		if self.isInAttribute {
 			self.currentAttrValue.append(s)
@@ -2805,9 +2796,6 @@ public final class Tokenizer {
 	}
 
 	private func numericCharacterReferenceEndState() {
-		// Apply replacements and validation per spec
-		let decoded = decodeNumericEntity(String(charRefCode, radix: 10), isHex: false)
-
 		// Check for various error conditions
 		if self.charRefCode == 0 {
 			self.emitError("null-character-reference")
