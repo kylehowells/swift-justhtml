@@ -2,7 +2,7 @@
 
 ## Documentation & Distribution
 
-- [ ] **DocC Documentation**
+- [x] **DocC Documentation**
   - Add documentation comments to all public API types and methods
   - Create `Documentation.docc` catalog with overview and tutorials
   - Add GitHub Action to build DocC and deploy to GitHub Pages
