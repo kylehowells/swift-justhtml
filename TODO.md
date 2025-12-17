@@ -20,7 +20,7 @@
   - Add a command-line tool that parses HTML from stdin or file argument
   - Demonstrate basic usage: parse, query, serialize
 
-- [ ] **Swift Playground**
+- [x] **Swift Playground**
   - Create a `.playground` file in examples/
   - Include interactive examples of parsing, querying, and serialization
   - Add markdown documentation within the playground
