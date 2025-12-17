@@ -352,15 +352,15 @@ func generateMalformedHTML(elements: Int) -> String {
 	return html
 }
 
-// MARK: - ARC Overhead Benchmarks
+// MARK: - StructNode
 
 /// Simple struct node for comparison (no parent tracking)
 struct StructNode {
 	var name: String
 	var tagId: TagID
-	var namespace: Namespace?
+	var namespace: Namespace? = nil
 	var attrs: [String: String]
-	var textContent: String?
+	var textContent: String? = nil
 	var children: [StructNode] = []
 
 	init(name: String, namespace: Namespace? = nil, attrs: [String: String] = [:], text: String? = nil) {
@@ -372,7 +372,7 @@ struct StructNode {
 	}
 
 	mutating func appendChild(_ child: StructNode) {
-		children.append(child)
+		self.children.append(child)
 	}
 }
 
@@ -384,15 +384,16 @@ struct StructNode {
 
 	// Benchmark class-based Node creation
 	var classNodeTimes: [Double] = []
-	for _ in 0..<iterations {
+	for _ in 0 ..< iterations {
 		let start = Date()
 		let doc = Node(name: "#document")
 
-		for i in 0..<nodeCount {
+		for i in 0 ..< nodeCount {
 			if i % 2 == 0 {
 				let element = Node(name: "div", namespace: .html, attrs: ["class": "item-\(i)"])
 				doc.appendChild(element)
-			} else {
+			}
+			else {
 				let text = Node(name: "#text", data: .text("Content \(i)"))
 				if let lastChild = doc.children.last {
 					lastChild.appendChild(text)
@@ -402,21 +403,22 @@ struct StructNode {
 
 		let elapsed = Date().timeIntervalSince(start)
 		classNodeTimes.append(elapsed * 1000)
-		_ = doc  // Keep alive
+		_ = doc // Keep alive
 	}
 
 	// Benchmark struct-based node creation (flat, no hierarchy)
 	var structFlatTimes: [Double] = []
-	for _ in 0..<iterations {
+	for _ in 0 ..< iterations {
 		let start = Date()
 		var nodes: [StructNode] = []
 		nodes.reserveCapacity(nodeCount)
 
-		for i in 0..<nodeCount {
+		for i in 0 ..< nodeCount {
 			if i % 2 == 0 {
 				let element = StructNode(name: "div", namespace: .html, attrs: ["class": "item-\(i)"])
 				nodes.append(element)
-			} else {
+			}
+			else {
 				let text = StructNode(name: "#text", text: "Content \(i)")
 				nodes.append(text)
 			}
@@ -424,23 +426,24 @@ struct StructNode {
 
 		let elapsed = Date().timeIntervalSince(start)
 		structFlatTimes.append(elapsed * 1000)
-		_ = nodes  // Keep alive
+		_ = nodes // Keep alive
 	}
 
 	// Benchmark arena-based (struct + indices)
 	var arenaTimes: [Double] = []
-	for _ in 0..<iterations {
+	for _ in 0 ..< iterations {
 		let start = Date()
 		let arena = NodeArena(estimatedNodeCount: nodeCount)
 		let doc = arena.createNode(name: "#document")
 
 		var lastElement: NodeHandle = .invalid
-		for i in 0..<nodeCount {
+		for i in 0 ..< nodeCount {
 			if i % 2 == 0 {
 				let element = arena.createNode(name: "div", namespace: .html, attrs: ["class": "item-\(i)"])
 				arena.appendChild(parent: doc, child: element)
 				lastElement = element
-			} else {
+			}
+			else {
 				let text = arena.createTextNode("Content \(i)")
 				if lastElement.isValid {
 					arena.appendChild(parent: lastElement, child: text)

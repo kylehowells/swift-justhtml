@@ -572,21 +572,21 @@ func loadSampleFile(_ name: String) throws -> String {
 
 	// Test 2: Tag-heavy content (many short tags)
 	var tagHeavy = "<!DOCTYPE html><html><body>"
-	for i in 0..<5000 {
+	for i in 0 ..< 5000 {
 		tagHeavy += "<span>x\(i)</span>"
 	}
 	tagHeavy += "</body></html>"
 
 	// Test 3: Attribute-heavy content
 	var attrHeavy = "<!DOCTYPE html><html><body>"
-	for i in 0..<2000 {
+	for i in 0 ..< 2000 {
 		attrHeavy += "<div id=\"id\(i)\" class=\"cls\(i)\" data-value=\"val\(i)\">x</div>"
 	}
 	attrHeavy += "</body></html>"
 
 	// Test 4: Entity-heavy content
 	var entityHeavy = "<!DOCTYPE html><html><body>"
-	for i in 0..<2000 {
+	for i in 0 ..< 2000 {
 		entityHeavy += "<p>&amp;\(i) &lt; &gt; &quot;</p>"
 	}
 	entityHeavy += "</body></html>"
@@ -612,12 +612,12 @@ func loadSampleFile(_ name: String) throws -> String {
 		var timer = PrecisionTimer()
 
 		// Warmup
-		for _ in 0..<3 {
+		for _ in 0 ..< 3 {
 			_ = try JustHTML(html)
 		}
 
 		// Measure
-		for _ in 0..<iterations {
+		for _ in 0 ..< iterations {
 			timer.begin()
 			_ = try JustHTML(html)
 			timer.stop()
@@ -652,7 +652,7 @@ func loadSampleFile(_ name: String) throws -> String {
 	var str1 = ""
 	str1.reserveCapacity(iterations)
 	timer.begin()
-	for _ in 0..<iterations {
+	for _ in 0 ..< iterations {
 		str1.append("x")
 	}
 	timer.stop()
@@ -662,7 +662,7 @@ func loadSampleFile(_ name: String) throws -> String {
 	var str2 = ""
 	str2.reserveCapacity(iterations * 5)
 	timer.begin()
-	for _ in 0..<iterations {
+	for _ in 0 ..< iterations {
 		str2.append("hello")
 	}
 	timer.stop()
@@ -672,7 +672,7 @@ func loadSampleFile(_ name: String) throws -> String {
 	var bytes1 = ContiguousArray<UInt8>()
 	bytes1.reserveCapacity(iterations)
 	timer.begin()
-	for _ in 0..<iterations {
+	for _ in 0 ..< iterations {
 		bytes1.append(0x78) // 'x'
 	}
 	timer.stop()
@@ -683,7 +683,7 @@ func loadSampleFile(_ name: String) throws -> String {
 	bytes2.reserveCapacity(iterations * 5)
 	let fiveBytes: [UInt8] = [0x68, 0x65, 0x6c, 0x6c, 0x6f] // "hello"
 	timer.begin()
-	for _ in 0..<iterations {
+	for _ in 0 ..< iterations {
 		bytes2.append(contentsOf: fiveBytes)
 	}
 	timer.stop()
@@ -692,7 +692,7 @@ func loadSampleFile(_ name: String) throws -> String {
 	// Test: String(decoding:as:) conversion
 	let testBytes = ContiguousArray<UInt8>(repeating: 0x78, count: 100)
 	timer.begin()
-	for _ in 0..<iterations {
+	for _ in 0 ..< iterations {
 		let _ = String(decoding: testBytes, as: UTF8.self)
 	}
 	timer.stop()
@@ -700,7 +700,7 @@ func loadSampleFile(_ name: String) throws -> String {
 
 	// Test: Character creation from UInt8
 	timer.begin()
-	for _ in 0..<iterations {
+	for _ in 0 ..< iterations {
 		let _ = Character(UnicodeScalar(0x78))
 	}
 	timer.stop()
@@ -709,7 +709,7 @@ func loadSampleFile(_ name: String) throws -> String {
 	// Test: Dictionary lookup
 	let dict: [String: Int] = ["amp": 1, "lt": 2, "gt": 3, "nbsp": 4]
 	timer.begin()
-	for _ in 0..<iterations {
+	for _ in 0 ..< iterations {
 		let _ = dict["amp"]
 	}
 	timer.stop()
@@ -718,7 +718,7 @@ func loadSampleFile(_ name: String) throws -> String {
 	// Test: Set contains
 	let set: Set<String> = ["div", "span", "p", "a", "table"]
 	timer.begin()
-	for _ in 0..<iterations {
+	for _ in 0 ..< iterations {
 		let _ = set.contains("div")
 	}
 	timer.stop()
@@ -759,7 +759,7 @@ func loadSampleFile(_ name: String) throws -> String {
 
 	// Strategy 1: Scan for '<' using byte comparison
 	timer.begin()
-	for _ in 0..<iterations {
+	for _ in 0 ..< iterations {
 		var count = 0
 		for byte in bytes {
 			if byte == 0x3C { count += 1 }
@@ -771,9 +771,9 @@ func loadSampleFile(_ name: String) throws -> String {
 
 	// Strategy 2: Scan using array index
 	timer.begin()
-	for _ in 0..<iterations {
+	for _ in 0 ..< iterations {
 		var count = 0
-		for i in 0..<bytes.count {
+		for i in 0 ..< bytes.count {
 			if bytes[i] == 0x3C { count += 1 }
 		}
 		_ = count
@@ -783,10 +783,10 @@ func loadSampleFile(_ name: String) throws -> String {
 
 	// Strategy 3: Scan using withUnsafeBufferPointer
 	timer.begin()
-	for _ in 0..<iterations {
+	for _ in 0 ..< iterations {
 		var count = 0
 		bytes.withUnsafeBufferPointer { ptr in
-			for i in 0..<ptr.count {
+			for i in 0 ..< ptr.count {
 				if ptr[i] == 0x3C { count += 1 }
 			}
 		}
@@ -797,7 +797,7 @@ func loadSampleFile(_ name: String) throws -> String {
 
 	// Strategy 4: Character iteration
 	timer.begin()
-	for _ in 0..<iterations {
+	for _ in 0 ..< iterations {
 		var count = 0
 		for ch in html {
 			if ch == "<" { count += 1 }
@@ -830,7 +830,7 @@ func loadSampleFile(_ name: String) throws -> String {
 
 	// Test 1: Node creation cost
 	timer.begin()
-	for _ in 0..<iterations {
+	for _ in 0 ..< iterations {
 		let node = Node(name: "div", namespace: .html)
 		_ = node
 	}
@@ -839,7 +839,7 @@ func loadSampleFile(_ name: String) throws -> String {
 
 	// Test 2: Node creation with attributes
 	timer.begin()
-	for _ in 0..<iterations {
+	for _ in 0 ..< iterations {
 		let node = Node(name: "div", namespace: .html, attrs: ["id": "test", "class": "foo bar"])
 		_ = node
 	}
@@ -848,7 +848,7 @@ func loadSampleFile(_ name: String) throws -> String {
 
 	// Test 3: appendChild cost
 	let parent = Node(name: "div")
-	let children: [Node] = (0..<iterations).map { _ in Node(name: "span") }
+	let children: [Node] = (0 ..< iterations).map { _ in Node(name: "span") }
 	timer.begin()
 	for child in children {
 		parent.appendChild(child)
@@ -859,13 +859,13 @@ func loadSampleFile(_ name: String) throws -> String {
 	// Test 4: Array push/pop (simulating open elements stack)
 	var stack: [Node] = []
 	stack.reserveCapacity(100)
-	let stackNodes: [Node] = (0..<100).map { _ in Node(name: "div") }
+	let stackNodes: [Node] = (0 ..< 100).map { _ in Node(name: "div") }
 	timer.begin()
-	for _ in 0..<iterations {
+	for _ in 0 ..< iterations {
 		for node in stackNodes {
 			stack.append(node)
 		}
-		for _ in 0..<stackNodes.count {
+		for _ in 0 ..< stackNodes.count {
 			_ = stack.removeLast()
 		}
 	}
@@ -877,7 +877,7 @@ func loadSampleFile(_ name: String) throws -> String {
 	let testTag = "table"
 	timer.begin()
 	var matchCount = 0
-	for _ in 0..<iterations {
+	for _ in 0 ..< iterations {
 		for tag in tagNames {
 			if tag == testTag { matchCount += 1 }
 		}
@@ -890,7 +890,7 @@ func loadSampleFile(_ name: String) throws -> String {
 	let testTagId = TagID.table
 	timer.begin()
 	var tagIdMatchCount = 0
-	for _ in 0..<iterations {
+	for _ in 0 ..< iterations {
 		for tagId in tagIds {
 			if tagId == testTagId { tagIdMatchCount += 1 }
 		}
@@ -900,7 +900,7 @@ func loadSampleFile(_ name: String) throws -> String {
 
 	// Test 7: Text node creation
 	timer.begin()
-	for _ in 0..<iterations {
+	for _ in 0 ..< iterations {
 		let node = Node(name: "#text", data: .text("Sample text content"))
 		_ = node
 	}
@@ -920,7 +920,7 @@ func loadSampleFile(_ name: String) throws -> String {
 	print(String(format: "Attrs add %.1f ns overhead to node creation", nodeWithAttrsNs - nodeCreateNs))
 }
 
-// Use @inline(never) to prevent optimizer from eliminating benchmark code
+/// Use @inline(never) to prevent optimizer from eliminating benchmark code
 @inline(never)
 func blackhole<T>(_ x: T) {
 	// Prevent dead code elimination
@@ -942,14 +942,14 @@ func blackhole<T>(_ x: T) {
 	// Strategy 1: Linear search with string comparison (current approach)
 	var linearStringResults: [Double] = []
 	for stackSize in stackSizes {
-		let stack: [String] = (0..<stackSize).map { i in
+		let stack: [String] = (0 ..< stackSize).map { i in
 			["html", "body", "div", "p", "span", "a", "ul", "li", "table", "tr"][i % 10]
 		}
 		let target = "p"
 
 		timer.begin()
 		var found = 0
-		for _ in 0..<iterations {
+		for _ in 0 ..< iterations {
 			for name in stack.reversed() {
 				if name == target {
 					found += 1
@@ -965,14 +965,14 @@ func blackhole<T>(_ x: T) {
 	// Strategy 2: Linear search with TagID comparison
 	var linearTagIdResults: [Double] = []
 	for stackSize in stackSizes {
-		let stack: [TagID] = (0..<stackSize).map { i in
+		let stack: [TagID] = (0 ..< stackSize).map { i in
 			[TagID.html, .body, .div, .p, .span, .a, .ul, .li, .table, .tr][i % 10]
 		}
 		let target = TagID.p
 
 		timer.begin()
 		var found = 0
-		for _ in 0..<iterations {
+		for _ in 0 ..< iterations {
 			for tagId in stack.reversed() {
 				if tagId == target {
 					found += 1
@@ -989,14 +989,14 @@ func blackhole<T>(_ x: T) {
 	var setLookupResults: [Double] = []
 	for stackSize in stackSizes {
 		var tagSet: Set<TagID> = []
-		for i in 0..<stackSize {
+		for i in 0 ..< stackSize {
 			tagSet.insert([TagID.html, .body, .div, .p, .span, .a, .ul, .li, .table, .tr][i % 10])
 		}
 		let target = TagID.p
 
 		timer.begin()
 		var found = 0
-		for _ in 0..<iterations {
+		for _ in 0 ..< iterations {
 			if tagSet.contains(target) {
 				found += 1
 			}
@@ -1010,7 +1010,7 @@ func blackhole<T>(_ x: T) {
 	var bitmapResults: [Double] = []
 	for stackSize in stackSizes {
 		var bitmap: UInt64 = 0
-		for i in 0..<stackSize {
+		for i in 0 ..< stackSize {
 			let tagId = [TagID.html, .body, .div, .p, .span, .a, .ul, .li, .table, .tr][i % 10]
 			bitmap |= (1 << tagId.rawValue)
 		}
@@ -1018,7 +1018,7 @@ func blackhole<T>(_ x: T) {
 
 		timer.begin()
 		var found = 0
-		for _ in 0..<iterations {
+		for _ in 0 ..< iterations {
 			if (bitmap & (1 << target.rawValue)) != 0 {
 				found += 1
 			}
@@ -1064,7 +1064,7 @@ func blackhole<T>(_ x: T) {
 		timer.begin()
 		var nodes: [Node] = []
 		nodes.reserveCapacity(tagCount)
-		for i in 0..<tagCount {
+		for i in 0 ..< tagCount {
 			let name = ["div", "p", "span", "a", "li"][i % 5]
 			nodes.append(Node(name: name, namespace: .html))
 		}
@@ -1080,7 +1080,8 @@ func blackhole<T>(_ x: T) {
 			// Simulate typical stack depth changes
 			if node.name == "div" {
 				stack.append(node)
-			} else if stack.count > 3 && node.name == "a" {
+			}
+			else if stack.count > 3, node.name == "a" {
 				_ = stack.popLast()
 			}
 		}
@@ -1093,9 +1094,9 @@ func blackhole<T>(_ x: T) {
 		let avgStackDepth = 10
 		timer.begin()
 		var scopeFound = 0
-		for _ in 0..<scopeCheckCount {
+		for _ in 0 ..< scopeCheckCount {
 			// Simulate linear search through stack
-			for j in (0..<min(avgStackDepth, stack.count)).reversed() {
+			for j in (0 ..< min(avgStackDepth, stack.count)).reversed() {
 				if stack[j].tagId == .p {
 					scopeFound += 1
 					break
@@ -1159,8 +1160,8 @@ func blackhole<T>(_ x: T) {
 	// Sets used in processStartTagInBody (simulating the actual checks)
 	let headTags: Set<String> = ["base", "basefont", "bgsound", "link", "meta", "noframes", "script", "style", "template", "title"]
 	let blockTags: Set<String> = ["address", "article", "aside", "blockquote", "center", "details", "dialog", "dir", "div",
-	                               "dl", "fieldset", "figcaption", "figure", "footer", "header", "hgroup", "main", "menu", "nav",
-	                               "ol", "p", "search", "section", "summary", "ul"]
+	                              "dl", "fieldset", "figcaption", "figure", "footer", "header", "hgroup", "main", "menu", "nav",
+	                              "ol", "p", "search", "section", "summary", "ul"]
 	let headingTags: Set<String> = ["h1", "h2", "h3", "h4", "h5", "h6"]
 	let formattingTags: Set<String> = ["b", "big", "code", "em", "font", "i", "s", "small", "strike", "strong", "tt", "u"]
 	let voidTags: Set<String> = ["area", "br", "embed", "img", "keygen", "wbr"]
@@ -1169,40 +1170,55 @@ func blackhole<T>(_ x: T) {
 	// Strategy 1: String-based if/else chain (current approach)
 	var result1 = 0
 	timer.begin()
-	for _ in 0..<iterations {
+	for _ in 0 ..< iterations {
 		for name in allTags {
 			// Simulate the processStartTagInBody dispatch
 			if name == "html" {
 				result1 += 1
-			} else if headTags.contains(name) {
+			}
+			else if headTags.contains(name) {
 				result1 += 2
-			} else if name == "body" {
+			}
+			else if name == "body" {
 				result1 += 3
-			} else if name == "frameset" {
+			}
+			else if name == "frameset" {
 				result1 += 4
-			} else if blockTags.contains(name) {
+			}
+			else if blockTags.contains(name) {
 				result1 += 5
-			} else if headingTags.contains(name) {
+			}
+			else if headingTags.contains(name) {
 				result1 += 6
-			} else if name == "form" {
+			}
+			else if name == "form" {
 				result1 += 7
-			} else if name == "li" {
+			}
+			else if name == "li" {
 				result1 += 8
-			} else if name == "button" {
+			}
+			else if name == "button" {
 				result1 += 9
-			} else if name == "a" {
+			}
+			else if name == "a" {
 				result1 += 10
-			} else if formattingTags.contains(name) {
+			}
+			else if formattingTags.contains(name) {
 				result1 += 11
-			} else if name == "table" {
+			}
+			else if name == "table" {
 				result1 += 12
-			} else if voidTags.contains(name) {
+			}
+			else if voidTags.contains(name) {
 				result1 += 13
-			} else if name == "input" {
+			}
+			else if name == "input" {
 				result1 += 14
-			} else if tableTags.contains(name) {
+			}
+			else if tableTags.contains(name) {
 				result1 += 15
-			} else {
+			}
+			else {
 				result1 += 16
 			}
 		}
@@ -1217,8 +1233,8 @@ func blackhole<T>(_ x: T) {
 
 	let headTagIDs: Set<TagID> = [.base, .basefont, .bgsound, .link, .meta, .noframes, .script, .style, .template, .title]
 	let blockTagIDs: Set<TagID> = [.address, .article, .aside, .blockquote, .center, .details, .dialog, .div,
-	                                .dl, .fieldset, .figcaption, .figure, .footer, .header, .main, .menu, .nav,
-	                                .ol, .p, .search, .section, .summary, .ul]
+	                               .dl, .fieldset, .figcaption, .figure, .footer, .header, .main, .menu, .nav,
+	                               .ol, .p, .search, .section, .summary, .ul]
 	let headingTagIDs: Set<TagID> = [.h1, .h2, .h3, .h4, .h5, .h6]
 	let formattingTagIDs: Set<TagID> = [.b, .big, .code, .em, .font, .i, .s, .small, .strike, .strong, .tt, .u]
 	let voidTagIDs: Set<TagID> = [.area, .br, .embed, .img, .keygen, .wbr]
@@ -1226,40 +1242,55 @@ func blackhole<T>(_ x: T) {
 
 	var result2 = 0
 	timer.begin()
-	for _ in 0..<iterations {
+	for _ in 0 ..< iterations {
 		for tagId in tagIDs {
 			// Simulate TagID-based dispatch
 			if tagId == .html {
 				result2 += 1
-			} else if headTagIDs.contains(tagId) {
+			}
+			else if headTagIDs.contains(tagId) {
 				result2 += 2
-			} else if tagId == .body {
+			}
+			else if tagId == .body {
 				result2 += 3
-			} else if tagId == .frameset {
+			}
+			else if tagId == .frameset {
 				result2 += 4
-			} else if blockTagIDs.contains(tagId) {
+			}
+			else if blockTagIDs.contains(tagId) {
 				result2 += 5
-			} else if headingTagIDs.contains(tagId) {
+			}
+			else if headingTagIDs.contains(tagId) {
 				result2 += 6
-			} else if tagId == .form {
+			}
+			else if tagId == .form {
 				result2 += 7
-			} else if tagId == .li {
+			}
+			else if tagId == .li {
 				result2 += 8
-			} else if tagId == .button {
+			}
+			else if tagId == .button {
 				result2 += 9
-			} else if tagId == .a {
+			}
+			else if tagId == .a {
 				result2 += 10
-			} else if formattingTagIDs.contains(tagId) {
+			}
+			else if formattingTagIDs.contains(tagId) {
 				result2 += 11
-			} else if tagId == .table {
+			}
+			else if tagId == .table {
 				result2 += 12
-			} else if voidTagIDs.contains(tagId) {
+			}
+			else if voidTagIDs.contains(tagId) {
 				result2 += 13
-			} else if tagId == .input {
+			}
+			else if tagId == .input {
 				result2 += 14
-			} else if tableTagIDs.contains(tagId) {
+			}
+			else if tableTagIDs.contains(tagId) {
 				result2 += 15
-			} else {
+			}
+			else {
 				result2 += 16
 			}
 		}
@@ -1271,41 +1302,56 @@ func blackhole<T>(_ x: T) {
 	// Strategy 3: TagID switch statement (potential for jump table)
 	var result3 = 0
 	timer.begin()
-	for _ in 0..<iterations {
+	for _ in 0 ..< iterations {
 		for tagId in tagIDs {
 			switch tagId {
 				case .html:
 					result3 += 1
+
 				case .base, .basefont, .bgsound, .link, .meta, .noframes, .script, .style, .template, .title:
 					result3 += 2
+
 				case .body:
 					result3 += 3
+
 				case .frameset:
 					result3 += 4
+
 				case .address, .article, .aside, .blockquote, .center, .details, .dialog, .div,
 				     .dl, .fieldset, .figcaption, .figure, .footer, .header, .main, .menu, .nav,
 				     .ol, .p, .search, .section, .summary, .ul:
 					result3 += 5
+
 				case .h1, .h2, .h3, .h4, .h5, .h6:
 					result3 += 6
+
 				case .form:
 					result3 += 7
+
 				case .li:
 					result3 += 8
+
 				case .button:
 					result3 += 9
+
 				case .a:
 					result3 += 10
+
 				case .b, .big, .code, .em, .font, .i, .s, .small, .strike, .strong, .tt, .u:
 					result3 += 11
+
 				case .table:
 					result3 += 12
+
 				case .area, .br, .embed, .img, .keygen, .wbr:
 					result3 += 13
+
 				case .input:
 					result3 += 14
+
 				case .caption, .col, .colgroup, .frame, .head, .tbody, .td, .tfoot, .th, .thead, .tr:
 					result3 += 15
+
 				default:
 					result3 += 16
 			}
@@ -1380,8 +1426,10 @@ func blackhole<T>(_ x: T) {
 		switch node.name {
 			case "#text":
 				textCount += 1
+
 			case "#comment", "#document", "#document-fragment", "!doctype":
 				break
+
 			default:
 				// Element node
 				elementCount += 1
@@ -1406,12 +1454,16 @@ func blackhole<T>(_ x: T) {
 	for event in HTMLStream(html) {
 		switch event {
 			case .start: startTags += 1
+
 			case .end: endTags += 1
+
 			case let .text(t):
 				charTokens += 1
 				// Count & characters as potential entity refs
 				entityRefs += t.filter { $0 == "&" }.count
+
 			case .comment: commentTokens += 1
+
 			case .doctype: break
 		}
 	}
@@ -1427,9 +1479,9 @@ func blackhole<T>(_ x: T) {
 	print("Entity references (approx): \(entityRefs)")
 
 	// Estimate component costs based on micro-benchmarks
-	let nodeCreateNs = 43.0  // from profileTreeBuilderOperations
+	let nodeCreateNs = 43.0 // from profileTreeBuilderOperations
 	let appendChildNs = 40.0
-	let tagDispatchNs = 75.0  // from profileTagDispatchCost
+	let tagDispatchNs = 75.0 // from profileTagDispatchCost
 
 	let nodeCreateMs = Double(elementCount + textCount) * nodeCreateNs / 1_000_000
 	let appendChildMs = Double(elementCount + textCount) * appendChildNs / 1_000_000
@@ -1445,9 +1497,9 @@ func blackhole<T>(_ x: T) {
 
 	// Tokenizer breakdown estimate
 	// Based on throughput differences from micro-benchmarks
-	let pureTextThroughput = 125.0  // MB/s from profileTokenizerMicroBenchmarks
-	let tagHeavyThroughput = 9.5    // MB/s
-	let entityThroughput = 13.0     // MB/s
+	let pureTextThroughput = 125.0 // MB/s from profileTokenizerMicroBenchmarks
+	let tagHeavyThroughput = 9.5 // MB/s
+	let entityThroughput = 13.0 // MB/s
 
 	// Estimate time if it were all pure text
 	let pureTextMs = sizeKB / 1024.0 / pureTextThroughput * 1000.0
@@ -1489,9 +1541,11 @@ func blackhole<T>(_ x: T) {
 	// Test 1: Minimal state transitions (pure text)
 	let pureText = String(repeating: "x", count: 100_000)
 	timer.begin()
-	for _ in 0..<iterations {
+	for _ in 0 ..< iterations {
 		var count = 0
-		for _ in HTMLStream(pureText) { count += 1 }
+		for _ in HTMLStream(pureText) {
+			count += 1
+		}
 		blackhole(count)
 	}
 	timer.stop()
@@ -1500,13 +1554,15 @@ func blackhole<T>(_ x: T) {
 
 	// Test 2: Maximum state transitions (alternating tags)
 	var tagHeavy = ""
-	for i in 0..<5000 {
+	for i in 0 ..< 5000 {
 		tagHeavy += "<span id=\"x\(i)\">y</span>"
 	}
 	timer.begin()
-	for _ in 0..<iterations {
+	for _ in 0 ..< iterations {
 		var count = 0
-		for _ in HTMLStream(tagHeavy) { count += 1 }
+		for _ in HTMLStream(tagHeavy) {
+			count += 1
+		}
 		blackhole(count)
 	}
 	timer.stop()
@@ -1515,13 +1571,15 @@ func blackhole<T>(_ x: T) {
 
 	// Test 3: Entity-heavy
 	var entityHeavy = ""
-	for _ in 0..<5000 {
+	for _ in 0 ..< 5000 {
 		entityHeavy += "&amp;&lt;&gt;&quot;&apos;"
 	}
 	timer.begin()
-	for _ in 0..<iterations {
+	for _ in 0 ..< iterations {
 		var count = 0
-		for _ in HTMLStream(entityHeavy) { count += 1 }
+		for _ in HTMLStream(entityHeavy) {
+			count += 1
+		}
 		blackhole(count)
 	}
 	timer.stop()
@@ -1530,13 +1588,15 @@ func blackhole<T>(_ x: T) {
 
 	// Test 4: Comment-heavy
 	var commentHeavy = ""
-	for _ in 0..<2000 {
+	for _ in 0 ..< 2000 {
 		commentHeavy += "<!-- This is a comment with some text -->"
 	}
 	timer.begin()
-	for _ in 0..<iterations {
+	for _ in 0 ..< iterations {
 		var count = 0
-		for _ in HTMLStream(commentHeavy) { count += 1 }
+		for _ in HTMLStream(commentHeavy) {
+			count += 1
+		}
 		blackhole(count)
 	}
 	timer.stop()
@@ -1545,13 +1605,15 @@ func blackhole<T>(_ x: T) {
 
 	// Test 5: Attribute-heavy
 	var attrHeavy = ""
-	for i in 0..<2000 {
+	for i in 0 ..< 2000 {
 		attrHeavy += "<div id=\"id\(i)\" class=\"class\(i)\" data-value=\"value\(i)\" style=\"color: red;\"></div>"
 	}
 	timer.begin()
-	for _ in 0..<iterations {
+	for _ in 0 ..< iterations {
 		var count = 0
-		for _ in HTMLStream(attrHeavy) { count += 1 }
+		for _ in HTMLStream(attrHeavy) {
+			count += 1
+		}
 		blackhole(count)
 	}
 	timer.stop()
@@ -1576,11 +1638,13 @@ func blackhole<T>(_ x: T) {
 	let entityOverhead = pureTextThroughput / entityHeavyThroughput
 	let attrOverhead = pureTextThroughput / attrHeavyThroughput
 
-	if tagOverhead > entityOverhead && tagOverhead > attrOverhead {
-		print("TAG PARSING is the primary bottleneck (%.1fx overhead)" , tagOverhead)
-	} else if entityOverhead > tagOverhead && entityOverhead > attrOverhead {
+	if tagOverhead > entityOverhead, tagOverhead > attrOverhead {
+		print("TAG PARSING is the primary bottleneck (%.1fx overhead)", tagOverhead)
+	}
+	else if entityOverhead > tagOverhead, entityOverhead > attrOverhead {
 		print("ENTITY DECODING is the primary bottleneck (%.1fx overhead)", entityOverhead)
-	} else {
+	}
+	else {
 		print("ATTRIBUTE PARSING is the primary bottleneck (%.1fx overhead)", attrOverhead)
 	}
 }

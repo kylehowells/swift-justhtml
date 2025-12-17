@@ -11,7 +11,7 @@ public struct NodeHandle: Hashable, Sendable, Equatable {
 	public static let invalid = NodeHandle(index: UInt32.max)
 
 	@inline(__always)
-	public var isValid: Bool { index != UInt32.max }
+	public var isValid: Bool { self.index != UInt32.max }
 
 	public init(index: UInt32) {
 		self.index = index
@@ -25,22 +25,22 @@ public struct ArenaNodeData {
 	// Identity
 	public var name: String
 	public var tagId: TagID
-	public var namespace: Namespace?
+	public var namespace: Namespace? = nil
 
-	// Attributes
+	/// Attributes
 	public var attrs: [String: String]
 
 	// Content for text/comment/doctype nodes
-	public var textContent: String?
-	public var doctypeData: Doctype?
+	public var textContent: String? = nil
+	public var doctypeData: Doctype? = nil
 
 	// Tree structure (indices, not pointers - no ARC!)
 	public var parent: NodeHandle = .invalid
 	public var firstChild: NodeHandle = .invalid
-	public var lastChild: NodeHandle = .invalid  // Track last child for O(1) append
+	public var lastChild: NodeHandle = .invalid // Track last child for O(1) append
 	public var nextSibling: NodeHandle = .invalid
 
-	// For template elements
+	/// For template elements
 	public var templateContent: NodeHandle = .invalid
 
 	public init(
@@ -69,7 +69,7 @@ public final class NodeArena {
 
 	/// Pre-allocate capacity
 	public init(estimatedNodeCount: Int = 1000) {
-		nodes.reserveCapacity(estimatedNodeCount)
+		self.nodes.reserveCapacity(estimatedNodeCount)
 	}
 
 	// MARK: - Node Creation
@@ -93,11 +93,11 @@ public final class NodeArena {
 
 		// Auto-create template content for template elements
 		if tagId == .template, namespace == nil || namespace == .html {
-			let templateHandle = createNode(name: "#document-fragment")
+			let templateHandle = self.createNode(name: "#document-fragment")
 			node.templateContent = templateHandle
 		}
 
-		nodes.append(node)
+		self.nodes.append(node)
 		return handle
 	}
 
@@ -111,7 +111,7 @@ public final class NodeArena {
 			namespace: nil,
 			textContent: text
 		)
-		nodes.append(node)
+		self.nodes.append(node)
 		return handle
 	}
 
@@ -125,7 +125,7 @@ public final class NodeArena {
 			namespace: nil,
 			textContent: text
 		)
-		nodes.append(node)
+		self.nodes.append(node)
 		return handle
 	}
 
@@ -139,7 +139,7 @@ public final class NodeArena {
 			namespace: nil,
 			doctypeData: doctype
 		)
-		nodes.append(node)
+		self.nodes.append(node)
 		return handle
 	}
 
@@ -148,8 +148,8 @@ public final class NodeArena {
 	/// Get node data by handle
 	@inline(__always)
 	public subscript(_ handle: NodeHandle) -> ArenaNodeData {
-		get { nodes[Int(handle.index)] }
-		set { nodes[Int(handle.index)] = newValue }
+		get { self.nodes[Int(handle.index)] }
+		set { self.nodes[Int(handle.index)] = newValue }
 	}
 
 	// MARK: - Tree Manipulation
@@ -157,41 +157,43 @@ public final class NodeArena {
 	/// Append a child to a parent node - O(1) operation
 	@inline(__always)
 	public func appendChild(parent: NodeHandle, child: NodeHandle) {
-		nodes[Int(child.index)].parent = parent
+		self.nodes[Int(child.index)].parent = parent
 
-		let lastChild = nodes[Int(parent.index)].lastChild
+		let lastChild = self.nodes[Int(parent.index)].lastChild
 		if !lastChild.isValid {
 			// No children yet
-			nodes[Int(parent.index)].firstChild = child
-		} else {
-			// Link to last child
-			nodes[Int(lastChild.index)].nextSibling = child
+			self.nodes[Int(parent.index)].firstChild = child
 		}
-		nodes[Int(parent.index)].lastChild = child
+		else {
+			// Link to last child
+			self.nodes[Int(lastChild.index)].nextSibling = child
+		}
+		self.nodes[Int(parent.index)].lastChild = child
 	}
 
 	/// Insert child before reference node
 	public func insertBefore(parent: NodeHandle, child: NodeHandle, reference: NodeHandle?) {
 		guard let ref = reference, ref.isValid else {
-			appendChild(parent: parent, child: child)
+			self.appendChild(parent: parent, child: child)
 			return
 		}
 
-		nodes[Int(child.index)].parent = parent
+		self.nodes[Int(child.index)].parent = parent
 
-		let firstChild = nodes[Int(parent.index)].firstChild
+		let firstChild = self.nodes[Int(parent.index)].firstChild
 		if firstChild == ref {
 			// Insert at beginning
-			nodes[Int(child.index)].nextSibling = firstChild
-			nodes[Int(parent.index)].firstChild = child
-		} else {
+			self.nodes[Int(child.index)].nextSibling = firstChild
+			self.nodes[Int(parent.index)].firstChild = child
+		}
+		else {
 			// Find node before reference
 			var prev = firstChild
 			while prev.isValid {
-				let next = nodes[Int(prev.index)].nextSibling
+				let next = self.nodes[Int(prev.index)].nextSibling
 				if next == ref {
-					nodes[Int(prev.index)].nextSibling = child
-					nodes[Int(child.index)].nextSibling = ref
+					self.nodes[Int(prev.index)].nextSibling = child
+					self.nodes[Int(child.index)].nextSibling = ref
 					break
 				}
 				prev = next
@@ -201,26 +203,27 @@ public final class NodeArena {
 
 	/// Remove child from parent
 	public func removeChild(parent: NodeHandle, child: NodeHandle) {
-		let firstChild = nodes[Int(parent.index)].firstChild
+		let firstChild = self.nodes[Int(parent.index)].firstChild
 
 		if firstChild == child {
 			// Remove first child
-			nodes[Int(parent.index)].firstChild = nodes[Int(child.index)].nextSibling
-		} else {
+			self.nodes[Int(parent.index)].firstChild = self.nodes[Int(child.index)].nextSibling
+		}
+		else {
 			// Find and unlink
 			var prev = firstChild
 			while prev.isValid {
-				let next = nodes[Int(prev.index)].nextSibling
+				let next = self.nodes[Int(prev.index)].nextSibling
 				if next == child {
-					nodes[Int(prev.index)].nextSibling = nodes[Int(child.index)].nextSibling
+					self.nodes[Int(prev.index)].nextSibling = self.nodes[Int(child.index)].nextSibling
 					break
 				}
 				prev = next
 			}
 		}
 
-		nodes[Int(child.index)].parent = .invalid
-		nodes[Int(child.index)].nextSibling = .invalid
+		self.nodes[Int(child.index)].parent = .invalid
+		self.nodes[Int(child.index)].nextSibling = .invalid
 	}
 
 	// MARK: - Tree Queries
@@ -228,10 +231,10 @@ public final class NodeArena {
 	/// Get children of a node
 	public func children(of handle: NodeHandle) -> [NodeHandle] {
 		var result: [NodeHandle] = []
-		var current = nodes[Int(handle.index)].firstChild
+		var current = self.nodes[Int(handle.index)].firstChild
 		while current.isValid {
 			result.append(current)
-			current = nodes[Int(current.index)].nextSibling
+			current = self.nodes[Int(current.index)].nextSibling
 		}
 		return result
 	}
@@ -239,13 +242,13 @@ public final class NodeArena {
 	/// Check if node has children
 	@inline(__always)
 	public func hasChildren(_ handle: NodeHandle) -> Bool {
-		nodes[Int(handle.index)].firstChild.isValid
+		self.nodes[Int(handle.index)].firstChild.isValid
 	}
 
 	/// Get last child - O(1) operation
 	@inline(__always)
 	public func lastChild(of handle: NodeHandle) -> NodeHandle {
-		return nodes[Int(handle.index)].lastChild
+		return self.nodes[Int(handle.index)].lastChild
 	}
 
 	// MARK: - Text Operations
@@ -255,9 +258,10 @@ public final class NodeArena {
 	public func appendText(to handle: NodeHandle, text: String) {
 		if var existing = nodes[Int(handle.index)].textContent {
 			existing.append(text)
-			nodes[Int(handle.index)].textContent = existing
-		} else {
-			nodes[Int(handle.index)].textContent = text
+			self.nodes[Int(handle.index)].textContent = existing
+		}
+		else {
+			self.nodes[Int(handle.index)].textContent = text
 		}
 	}
 
@@ -265,25 +269,29 @@ public final class NodeArena {
 
 	/// Convert arena to traditional Node tree (for API compatibility)
 	public func toNodeTree(root: NodeHandle) -> Node {
-		return convertToNode(handle: root)
+		return self.convertToNode(handle: root)
 	}
 
 	private func convertToNode(handle: NodeHandle) -> Node {
-		let data = nodes[Int(handle.index)]
+		let data = self.nodes[Int(handle.index)]
 
 		// Create node with appropriate data
 		let nodeData: NodeData?
 		if let text = data.textContent {
 			if data.tagId == .text {
 				nodeData = .text(text)
-			} else if data.tagId == .comment {
+			}
+			else if data.tagId == .comment {
 				nodeData = .comment(text)
-			} else {
+			}
+			else {
 				nodeData = nil
 			}
-		} else if let doctype = data.doctypeData {
+		}
+		else if let doctype = data.doctypeData {
 			nodeData = .doctype(doctype)
-		} else {
+		}
+		else {
 			nodeData = nil
 		}
 
@@ -297,14 +305,14 @@ public final class NodeArena {
 		// Convert children
 		var childHandle = data.firstChild
 		while childHandle.isValid {
-			let childNode = convertToNode(handle: childHandle)
+			let childNode = self.convertToNode(handle: childHandle)
 			node.appendChild(childNode)
-			childHandle = nodes[Int(childHandle.index)].nextSibling
+			childHandle = self.nodes[Int(childHandle.index)].nextSibling
 		}
 
 		// Convert template content
 		if data.templateContent.isValid {
-			node.templateContent = convertToNode(handle: data.templateContent)
+			node.templateContent = self.convertToNode(handle: data.templateContent)
 		}
 
 		return node

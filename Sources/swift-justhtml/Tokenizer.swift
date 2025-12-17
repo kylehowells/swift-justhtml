@@ -867,7 +867,8 @@ public final class Tokenizer {
 			if byte == 0x0A {
 				self.line += 1
 				self.column = 0
-			} else {
+			}
+			else {
 				self.column += 1
 			}
 			self.pos += 1
@@ -884,7 +885,7 @@ public final class Tokenizer {
 	@inline(__always)
 	private func emitTextBytes(from start: Int, to end: Int) {
 		// Just append the bytes - conversion happens in flushCharBuffer
-		self.charBuffer.append(contentsOf: self.inputBytes[start..<end])
+		self.charBuffer.append(contentsOf: self.inputBytes[start ..< end])
 	}
 
 	private func rcdataState() {
@@ -928,7 +929,8 @@ public final class Tokenizer {
 			if byte == 0x0A {
 				self.line += 1
 				self.column = 0
-			} else {
+			}
+			else {
 				self.column += 1
 			}
 			self.pos += 1
@@ -970,7 +972,8 @@ public final class Tokenizer {
 			if byte == 0x0A {
 				self.line += 1
 				self.column = 0
-			} else {
+			}
+			else {
 				self.column += 1
 			}
 			self.pos += 1
@@ -1110,9 +1113,10 @@ public final class Tokenizer {
 
 				default:
 					// Lowercase ASCII A-Z (0x41-0x5A) -> a-z (0x61-0x7A)
-					if byte >= 0x41 && byte <= 0x5A {
+					if byte >= 0x41, byte <= 0x5A {
 						nameBytes.append(byte + 32)
-					} else {
+					}
+					else {
 						nameBytes.append(byte)
 					}
 
@@ -1120,7 +1124,8 @@ public final class Tokenizer {
 					if byte == 0x0A {
 						self.line += 1
 						self.column = 0
-					} else {
+					}
+					else {
 						self.column += 1
 					}
 					self.pos += 1
@@ -1128,7 +1133,7 @@ public final class Tokenizer {
 					// Handle multi-byte UTF-8 sequences
 					if byte >= 0x80 {
 						// Skip continuation bytes (10xxxxxx pattern)
-						while self.pos < self.inputLength && (self.inputBytes[self.pos] & 0xC0) == 0x80 {
+						while self.pos < self.inputLength, (self.inputBytes[self.pos] & 0xC0) == 0x80 {
 							nameBytes.append(self.inputBytes[self.pos])
 							self.pos += 1
 						}
@@ -1929,9 +1934,10 @@ public final class Tokenizer {
 
 				default:
 					// Lowercase ASCII A-Z
-					if byte >= 0x41 && byte <= 0x5A {
+					if byte >= 0x41, byte <= 0x5A {
 						nameBytes.append(byte + 32)
-					} else {
+					}
+					else {
 						nameBytes.append(byte)
 					}
 					self.column += 1
@@ -1939,7 +1945,7 @@ public final class Tokenizer {
 
 					// Handle multi-byte UTF-8
 					if byte >= 0x80 {
-						while self.pos < self.inputLength && (self.inputBytes[self.pos] & 0xC0) == 0x80 {
+						while self.pos < self.inputLength, (self.inputBytes[self.pos] & 0xC0) == 0x80 {
 							nameBytes.append(self.inputBytes[self.pos])
 							self.pos += 1
 						}
@@ -2025,7 +2031,7 @@ public final class Tokenizer {
 			switch byte {
 				case 0x22: // "
 					if self.pos > startPos {
-						self.currentAttrValue.append(String(decoding: self.inputBytes[startPos..<self.pos], as: UTF8.self))
+						self.currentAttrValue.append(String(decoding: self.inputBytes[startPos ..< self.pos], as: UTF8.self))
 					}
 					self.pos += 1
 					self.column += 1
@@ -2035,7 +2041,7 @@ public final class Tokenizer {
 
 				case 0x26: // &
 					if self.pos > startPos {
-						self.currentAttrValue.append(String(decoding: self.inputBytes[startPos..<self.pos], as: UTF8.self))
+						self.currentAttrValue.append(String(decoding: self.inputBytes[startPos ..< self.pos], as: UTF8.self))
 					}
 					self.pos += 1
 					self.column += 1
@@ -2045,7 +2051,7 @@ public final class Tokenizer {
 
 				case 0x00: // null
 					if self.pos > startPos {
-						self.currentAttrValue.append(String(decoding: self.inputBytes[startPos..<self.pos], as: UTF8.self))
+						self.currentAttrValue.append(String(decoding: self.inputBytes[startPos ..< self.pos], as: UTF8.self))
 					}
 					self.pos += 1
 					self.column += 1
@@ -2059,7 +2065,8 @@ public final class Tokenizer {
 					if byte == 0x0A {
 						self.line += 1
 						self.column = 0
-					} else {
+					}
+					else {
 						self.column += 1
 					}
 					self.pos += 1
@@ -2068,7 +2075,7 @@ public final class Tokenizer {
 
 		// EOF
 		if self.pos > startPos {
-			self.currentAttrValue.append(String(decoding: self.inputBytes[startPos..<self.pos], as: UTF8.self))
+			self.currentAttrValue.append(String(decoding: self.inputBytes[startPos ..< self.pos], as: UTF8.self))
 		}
 		self.emitError("eof-in-tag")
 		self.state = .data
@@ -2084,7 +2091,7 @@ public final class Tokenizer {
 			switch byte {
 				case 0x27: // '
 					if self.pos > startPos {
-						self.currentAttrValue.append(String(decoding: self.inputBytes[startPos..<self.pos], as: UTF8.self))
+						self.currentAttrValue.append(String(decoding: self.inputBytes[startPos ..< self.pos], as: UTF8.self))
 					}
 					self.pos += 1
 					self.column += 1
@@ -2094,7 +2101,7 @@ public final class Tokenizer {
 
 				case 0x26: // &
 					if self.pos > startPos {
-						self.currentAttrValue.append(String(decoding: self.inputBytes[startPos..<self.pos], as: UTF8.self))
+						self.currentAttrValue.append(String(decoding: self.inputBytes[startPos ..< self.pos], as: UTF8.self))
 					}
 					self.pos += 1
 					self.column += 1
@@ -2104,7 +2111,7 @@ public final class Tokenizer {
 
 				case 0x00: // null
 					if self.pos > startPos {
-						self.currentAttrValue.append(String(decoding: self.inputBytes[startPos..<self.pos], as: UTF8.self))
+						self.currentAttrValue.append(String(decoding: self.inputBytes[startPos ..< self.pos], as: UTF8.self))
 					}
 					self.pos += 1
 					self.column += 1
@@ -2118,7 +2125,8 @@ public final class Tokenizer {
 					if byte == 0x0A {
 						self.line += 1
 						self.column = 0
-					} else {
+					}
+					else {
 						self.column += 1
 					}
 					self.pos += 1
@@ -2127,7 +2135,7 @@ public final class Tokenizer {
 
 		// EOF
 		if self.pos > startPos {
-			self.currentAttrValue.append(String(decoding: self.inputBytes[startPos..<self.pos], as: UTF8.self))
+			self.currentAttrValue.append(String(decoding: self.inputBytes[startPos ..< self.pos], as: UTF8.self))
 		}
 		self.emitError("eof-in-tag")
 		self.state = .data
@@ -2143,7 +2151,7 @@ public final class Tokenizer {
 			switch byte {
 				case 0x09, 0x0A, 0x0C, 0x20: // \t \n \f space
 					if self.pos > startPos {
-						self.currentAttrValue.append(String(decoding: self.inputBytes[startPos..<self.pos], as: UTF8.self))
+						self.currentAttrValue.append(String(decoding: self.inputBytes[startPos ..< self.pos], as: UTF8.self))
 					}
 					self.pos += 1
 					self.column += 1
@@ -2153,7 +2161,7 @@ public final class Tokenizer {
 
 				case 0x26: // &
 					if self.pos > startPos {
-						self.currentAttrValue.append(String(decoding: self.inputBytes[startPos..<self.pos], as: UTF8.self))
+						self.currentAttrValue.append(String(decoding: self.inputBytes[startPos ..< self.pos], as: UTF8.self))
 					}
 					self.pos += 1
 					self.column += 1
@@ -2163,7 +2171,7 @@ public final class Tokenizer {
 
 				case 0x3E: // >
 					if self.pos > startPos {
-						self.currentAttrValue.append(String(decoding: self.inputBytes[startPos..<self.pos], as: UTF8.self))
+						self.currentAttrValue.append(String(decoding: self.inputBytes[startPos ..< self.pos], as: UTF8.self))
 					}
 					self.pos += 1
 					self.column += 1
@@ -2174,7 +2182,7 @@ public final class Tokenizer {
 
 				case 0x00: // null
 					if self.pos > startPos {
-						self.currentAttrValue.append(String(decoding: self.inputBytes[startPos..<self.pos], as: UTF8.self))
+						self.currentAttrValue.append(String(decoding: self.inputBytes[startPos ..< self.pos], as: UTF8.self))
 					}
 					self.pos += 1
 					self.column += 1
@@ -2186,7 +2194,7 @@ public final class Tokenizer {
 
 				case 0x22, 0x27, 0x3C, 0x3D, 0x60: // " ' < = `
 					if self.pos > startPos {
-						self.currentAttrValue.append(String(decoding: self.inputBytes[startPos..<self.pos], as: UTF8.self))
+						self.currentAttrValue.append(String(decoding: self.inputBytes[startPos ..< self.pos], as: UTF8.self))
 					}
 					self.pos += 1
 					self.column += 1
@@ -2200,7 +2208,8 @@ public final class Tokenizer {
 					if byte == 0x0A {
 						self.line += 1
 						self.column = 0
-					} else {
+					}
+					else {
 						self.column += 1
 					}
 					self.pos += 1
@@ -2209,7 +2218,7 @@ public final class Tokenizer {
 
 		// EOF
 		if self.pos > startPos {
-			self.currentAttrValue.append(String(decoding: self.inputBytes[startPos..<self.pos], as: UTF8.self))
+			self.currentAttrValue.append(String(decoding: self.inputBytes[startPos ..< self.pos], as: UTF8.self))
 		}
 		self.emitError("eof-in-tag")
 		self.state = .data

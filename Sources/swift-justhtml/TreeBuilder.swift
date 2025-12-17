@@ -85,29 +85,29 @@ private let kBodyCaptionHtmlTags: Set<String> = ["body", "caption", "col", "colg
 private let kBodyCaptionCellTags: Set<String> = ["body", "caption", "col", "colgroup", "html", "td", "th"]
 private let kBodyCaptionRowTags: Set<String> = ["body", "caption", "col", "colgroup", "html", "td", "th", "tr"]
 
-// Head tags that should be processed using "in head" rules when encountered in body
+/// Head tags that should be processed using "in head" rules when encountered in body
 private let kHeadProcessingTags: Set<String> = [
 	"base", "basefont", "bgsound", "link", "meta", "noframes", "script", "style", "template", "title",
 ]
 
-// Block/structural tags that close p elements
+/// Block/structural tags that close p elements
 private let kBlockStructureTags: Set<String> = [
 	"address", "article", "aside", "blockquote", "center", "details", "dialog", "dir", "div",
 	"dl", "fieldset", "figcaption", "figure", "footer", "header", "hgroup", "main", "menu", "nav",
 	"ol", "p", "search", "section", "summary", "ul",
 ]
 
-// Table-related start tags to ignore in body
+/// Table-related start tags to ignore in body
 private let kIgnoredTableStartTags: Set<String> = [
 	"caption", "col", "colgroup", "frame", "head", "tbody", "td", "tfoot", "th", "thead", "tr",
 ]
 
-// Tags to ignore when processing end tags in table mode
+/// Tags to ignore when processing end tags in table mode
 private let kIgnoredTableEndTags: Set<String> = [
 	"body", "caption", "col", "colgroup", "html", "tbody", "td", "tfoot", "th", "thead", "tr",
 ]
 
-// Block/structural end tags that need scope checking
+/// Block/structural end tags that need scope checking
 private let kBlockStructureEndTags: Set<String> = [
 	"address", "article", "aside", "blockquote", "button", "center", "details", "dialog", "dir",
 	"div", "dl", "fieldset", "figcaption", "figure", "footer", "header", "hgroup", "listing",
