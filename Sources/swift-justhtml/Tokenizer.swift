@@ -237,8 +237,8 @@ public final class Tokenizer {
 	private var currentDoctypeSystemId: String? = nil
 	private var currentDoctypeForceQuirks: Bool = false
 
-	/// Character buffer
-	private var charBuffer: String = ""
+	/// Character buffer (bytes - converted to String only when flushing)
+	private var charBuffer: ContiguousArray<UInt8> = []
 
 	// Temporary buffer for rawtext/rcdata end tag matching
 	private var tempBuffer: String = ""
@@ -701,22 +701,39 @@ public final class Tokenizer {
 
 	@inline(__always)
 	private func emitChar(_ ch: Character) {
-		self.charBuffer.append(ch)
+		// Convert character to UTF-8 bytes
+		for byte in String(ch).utf8 {
+			self.charBuffer.append(byte)
+		}
 	}
 
 	@inline(__always)
 	private func emitString(_ s: String) {
-		self.charBuffer.append(s)
+		// Append string as UTF-8 bytes
+		for byte in s.utf8 {
+			self.charBuffer.append(byte)
+		}
+	}
+
+	@inline(__always)
+	private func emitByte(_ byte: UInt8) {
+		self.charBuffer.append(byte)
+	}
+
+	@inline(__always)
+	private func emitBytes(_ bytes: ArraySlice<UInt8>) {
+		self.charBuffer.append(contentsOf: bytes)
 	}
 
 	private func flushCharBuffer() {
 		if !self.charBuffer.isEmpty {
-			var text = self.charBuffer
+			// Convert bytes to String only when flushing
+			var text = String(decoding: self.charBuffer, as: UTF8.self)
 			if self.opts.xmlCoercion {
 				text = coerceTextForXML(text)
 			}
 			self.sink?.processToken(.character(text))
-			self.charBuffer = ""
+			self.charBuffer.removeAll(keepingCapacity: true)
 		}
 	}
 
@@ -863,16 +880,11 @@ public final class Tokenizer {
 		self.emit(.eof)
 	}
 
-	/// Emit a run of bytes as text (batch conversion)
+	/// Emit a run of bytes as text (just copy bytes, convert when flushing)
 	@inline(__always)
 	private func emitTextBytes(from start: Int, to end: Int) {
-		// Fast path: convert UTF-8 bytes directly to String
-		self.inputBytes.withUnsafeBufferPointer { buffer in
-			let slice = UnsafeBufferPointer(rebasing: buffer[start..<end])
-			if let text = String(bytes: slice, encoding: .utf8) {
-				self.charBuffer.append(text)
-			}
-		}
+		// Just append the bytes - conversion happens in flushCharBuffer
+		self.charBuffer.append(contentsOf: self.inputBytes[start..<end])
 	}
 
 	private func rcdataState() {
