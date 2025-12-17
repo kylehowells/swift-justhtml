@@ -58,24 +58,46 @@ function benchmarkFile(filepath, iterations = 10) {
     };
 }
 
+function collectHTMLFiles(directory) {
+    if (!existsSync(directory)) {
+        return [];
+    }
+    return readdirSync(directory)
+        .filter(f => f.endsWith('.html'))
+        .map(filename => {
+            const filepath = join(directory, filename);
+            const fileSize = statSync(filepath).size;
+            return { filepath, filename, fileSize };
+        });
+}
+
 function main() {
     const samplesDir = join(__dirname, 'samples');
+    const testFilesDir = join(__dirname, 'test_files');
 
     if (!existsSync(samplesDir)) {
         console.error(`Error: samples directory not found: ${samplesDir}`);
         process.exit(1);
     }
 
+    // Collect files from samples directory
+    let allFiles = collectHTMLFiles(samplesDir);
+
+    // Add files from test_files directory if it exists
+    allFiles = allFiles.concat(collectHTMLFiles(testFilesDir));
+
+    // Sort by filename
+    allFiles.sort((a, b) => a.filename.localeCompare(b.filename));
+
     const results = [];
-    const files = readdirSync(samplesDir).filter(f => f.endsWith('.html')).sort();
 
-    for (const filename of files) {
-        const filepath = join(samplesDir, filename);
-        const fileSize = statSync(filepath).size;
-
+    for (const { filepath, filename, fileSize } of allFiles) {
         // Adjust iterations based on file size
         let iterations;
-        if (fileSize > 500_000) {
+        if (fileSize > 5_000_000) {
+            // Very large files (>5MB) - fewer iterations
+            iterations = 3;
+        } else if (fileSize > 500_000) {
             iterations = 10;
         } else if (fileSize > 100_000) {
             iterations = 25;

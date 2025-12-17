@@ -49,24 +49,45 @@ def benchmark_file(filepath, iterations=10):
         'output': output
     }
 
+def collect_html_files(directory):
+    """Collect all HTML files from a directory with their sizes."""
+    if not os.path.exists(directory):
+        return []
+    files = []
+    for filename in os.listdir(directory):
+        if filename.endswith('.html'):
+            filepath = os.path.join(directory, filename)
+            file_size = os.path.getsize(filepath)
+            files.append((filepath, filename, file_size))
+    return files
+
+
 def main():
-    samples_dir = os.path.join(os.path.dirname(__file__), 'samples')
+    script_dir = os.path.dirname(__file__)
+    samples_dir = os.path.join(script_dir, 'samples')
+    test_files_dir = os.path.join(script_dir, 'test_files')
 
     if not os.path.exists(samples_dir):
         print(f"Error: samples directory not found: {samples_dir}", file=sys.stderr)
         sys.exit(1)
 
+    # Collect files from samples directory
+    all_files = collect_html_files(samples_dir)
+
+    # Add files from test_files directory if it exists
+    all_files.extend(collect_html_files(test_files_dir))
+
+    # Sort by filename
+    all_files.sort(key=lambda x: x[1])
+
     results = []
 
-    for filename in sorted(os.listdir(samples_dir)):
-        if not filename.endswith('.html'):
-            continue
-
-        filepath = os.path.join(samples_dir, filename)
-        file_size = os.path.getsize(filepath)
-
+    for filepath, filename, file_size in all_files:
         # Adjust iterations based on file size
-        if file_size > 500_000:
+        if file_size > 5_000_000:
+            # Very large files (>5MB) - fewer iterations
+            iterations = 3
+        elif file_size > 500_000:
             iterations = 10
         elif file_size > 100_000:
             iterations = 25

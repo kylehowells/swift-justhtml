@@ -32,7 +32,7 @@
   - Include nested tags, tables, entities, attributes, comments
   - Use for stress testing and benchmarking (not committed to repo)
 
-- [ ] **Update compare.py**
+- [x] **Update compare.py**
   - Add the large synthetic HTML file to the benchmark suite
   - Ensure all three implementations (Swift, JS, Python) can parse it
 

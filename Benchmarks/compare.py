@@ -303,6 +303,8 @@ def generate_markdown_report(swift_results, python_results, js_results, all_matc
             source = "Wikipedia"
         elif 'hackernews' in filename:
             source = "Hacker News"
+        elif 'synthetic' in filename:
+            source = "Generated (stress test)"
         else:
             source = "Unknown"
         lines.append(f"| {filename} | {source} | {size:,} bytes |")

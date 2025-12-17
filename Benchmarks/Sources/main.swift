@@ -83,66 +83,96 @@ func benchmarkFile(_ filepath: String, iterations: Int) -> BenchmarkResult {
 
 // MARK: - Main
 
+func findDirectory(_ name: String, baseDir: String, fileManager: FileManager) -> String? {
+	// Try relative to current directory
+	var path = "\(baseDir)/Benchmarks/\(name)"
+	if fileManager.fileExists(atPath: path) {
+		return path
+	}
+	// Try relative to executable
+	let executablePath = CommandLine.arguments[0]
+	let executableDir = URL(fileURLWithPath: executablePath).deletingLastPathComponent().path
+	path = "\(executableDir)/../Benchmarks/\(name)"
+	if fileManager.fileExists(atPath: path) {
+		return path
+	}
+	// Try current directory directly
+	path = "\(baseDir)/\(name)"
+	if fileManager.fileExists(atPath: path) {
+		return path
+	}
+	return nil
+}
+
+func collectHTMLFiles(from directory: String, fileManager: FileManager) -> [(path: String, name: String, size: Int)] {
+	guard let files = try? fileManager.contentsOfDirectory(atPath: directory) else {
+		return []
+	}
+
+	return files
+		.filter { $0.hasSuffix(".html") }
+		.compactMap { filename -> (String, String, Int)? in
+			let filepath = "\(directory)/\(filename)"
+			guard let attrs = try? fileManager.attributesOfItem(atPath: filepath),
+			      let fileSize = attrs[.size] as? Int
+			else {
+				return nil
+			}
+
+			return (filepath, filename, fileSize)
+		}
+}
+
 func main() {
-	// Find samples directory relative to executable or current directory
 	let fileManager = FileManager.default
 	let currentDir = fileManager.currentDirectoryPath
 
-	var samplesDir = "\(currentDir)/Benchmarks/samples"
-	if !fileManager.fileExists(atPath: samplesDir) {
-		// Try relative to executable
-		let executablePath = CommandLine.arguments[0]
-		let executableDir = URL(fileURLWithPath: executablePath).deletingLastPathComponent().path
-		samplesDir = "\(executableDir)/../Benchmarks/samples"
-	}
-	if !fileManager.fileExists(atPath: samplesDir) {
-		samplesDir = "\(currentDir)/samples"
-	}
-
-	guard fileManager.fileExists(atPath: samplesDir) else {
+	// Find samples directory (required)
+	guard let samplesDir = findDirectory("samples", baseDir: currentDir, fileManager: fileManager) else {
 		writeStderr("Error: samples directory not found. Tried:\n")
 		writeStderr("  \(currentDir)/Benchmarks/samples\n")
 		writeStderr("  \(currentDir)/samples\n")
 		exit(1)
 	}
 
+	// Find test_files directory (optional - for synthetic.html)
+	let testFilesDir = findDirectory("test_files", baseDir: currentDir, fileManager: fileManager)
+
 	var results: [BenchmarkResult] = []
 
-	do {
-		let files = try fileManager.contentsOfDirectory(atPath: samplesDir)
-			.filter { $0.hasSuffix(".html") }
-			.sorted()
+	// Collect files from samples directory
+	var allFiles = collectHTMLFiles(from: samplesDir, fileManager: fileManager)
 
-		for filename in files {
-			let filepath = "\(samplesDir)/\(filename)"
-
-			guard let attrs = try? fileManager.attributesOfItem(atPath: filepath),
-			      let fileSize = attrs[.size] as? Int
-			else {
-				continue
-			}
-
-			// Adjust iterations based on file size
-			let iterations: Int
-			if fileSize > 500_000 {
-				iterations = 10
-			}
-			else if fileSize > 100_000 {
-				iterations = 25
-			}
-			else {
-				iterations = 50
-			}
-
-			writeStderr("Benchmarking \(filename) (\(formatNumber(fileSize)) bytes, \(iterations) iterations)...\n")
-			let result = benchmarkFile(filepath, iterations: iterations)
-			results.append(result)
-			writeStderr("  Average: \(String(format: "%.2f", result.avg_ms)) ms, Throughput: \(String(format: "%.2f", result.throughput_mbs)) MB/s\n")
-		}
+	// Add files from test_files directory if it exists
+	if let testFilesDir = testFilesDir {
+		let testFiles = collectHTMLFiles(from: testFilesDir, fileManager: fileManager)
+		allFiles.append(contentsOf: testFiles)
 	}
-	catch {
-		writeStderr("Error reading samples directory: \(error)\n")
-		exit(1)
+
+	// Sort by filename
+	allFiles.sort { $0.name < $1.name }
+
+	for (filepath, filename, fileSize) in allFiles {
+		// Adjust iterations based on file size
+		let iterations: Int
+		if fileSize > 5_000_000 {
+			// Very large files (>5MB) - fewer iterations
+			iterations = 3
+		}
+		else if fileSize > 500_000 {
+			iterations = 10
+		}
+		else if fileSize > 100_000 {
+			iterations = 25
+		}
+		else {
+			iterations = 50
+		}
+
+		writeStderr("Benchmarking \(filename) (\(formatNumber(fileSize)) bytes, \(iterations) iterations)...\n")
+		let result = benchmarkFile(filepath, iterations: iterations)
+		results.append(result)
+		writeStderr("  Average: \(String(format: "%.2f", result.avg_ms)) ms, Throughput: \(String(format: "%.2f", result.throughput_mbs)) MB/s\n")
 	}
 
 	// Output JSON to stdout
