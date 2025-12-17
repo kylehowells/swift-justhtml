@@ -39,7 +39,10 @@ let package = Package(
 		),
 		.testTarget(
 			name: "swift-justhtmlTests",
-			dependencies: ["swift-justhtml"]
+			dependencies: ["swift-justhtml"],
+			resources: [
+				.copy("html5lib-tests"),
+			]
 		),
 	]
 )
