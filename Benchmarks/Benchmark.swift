@@ -16,13 +16,13 @@ struct BenchmarkResult {
     let averageTime: TimeInterval
     let minTime: TimeInterval
     let maxTime: TimeInterval
-    let throughput: Double  // MB/s
-    let inputSize: Int  // bytes
+    let throughput: Double // MB/s
+    let inputSize: Int // bytes
 
     var description: String {
-        let avgMs = averageTime * 1000
-        let minMs = minTime * 1000
-        let maxMs = maxTime * 1000
+        let avgMs = self.averageTime * 1000
+        let minMs = self.minTime * 1000
+        let maxMs = self.maxTime * 1000
         return String(format: """
         %@:
           Iterations: %d
@@ -31,7 +31,7 @@ struct BenchmarkResult {
           Min/Max: %.3f / %.3f ms
           Input size: %d bytes
           Throughput: %.2f MB/s
-        """, name, iterations, totalTime, avgMs, minMs, maxMs, inputSize, throughput)
+        """, self.name, self.iterations, self.totalTime, avgMs, minMs, maxMs, self.inputSize, self.throughput)
     }
 }
 
@@ -40,12 +40,12 @@ func benchmark(name: String, iterations: Int, inputSize: Int, block: () -> Void)
     var times: [TimeInterval] = []
 
     // Warmup
-    for _ in 0..<min(3, iterations / 10 + 1) {
+    for _ in 0 ..< min(3, iterations / 10 + 1) {
         block()
     }
 
     // Actual benchmark
-    for _ in 0..<iterations {
+    for _ in 0 ..< iterations {
         let start = Date()
         block()
         let end = Date()
@@ -75,7 +75,7 @@ func benchmark(name: String, iterations: Int, inputSize: Int, block: () -> Void)
 /// Generate a simple HTML document
 func generateSimpleHTML(paragraphs: Int) -> String {
     var html = "<!DOCTYPE html><html><head><title>Test</title></head><body>"
-    for i in 0..<paragraphs {
+    for i in 0 ..< paragraphs {
         html += "<p>This is paragraph \(i) with some <strong>bold</strong> and <em>italic</em> text.</p>"
     }
     html += "</body></html>"
@@ -86,13 +86,13 @@ func generateSimpleHTML(paragraphs: Int) -> String {
 func generateTableHTML(rows: Int, cols: Int) -> String {
     var html = "<!DOCTYPE html><html><head><title>Table Test</title></head><body><table>"
     html += "<thead><tr>"
-    for c in 0..<cols {
+    for c in 0 ..< cols {
         html += "<th>Column \(c)</th>"
     }
     html += "</tr></thead><tbody>"
-    for r in 0..<rows {
+    for r in 0 ..< rows {
         html += "<tr>"
-        for c in 0..<cols {
+        for c in 0 ..< cols {
             html += "<td>Cell \(r),\(c)</td>"
         }
         html += "</tr>"
@@ -104,11 +104,11 @@ func generateTableHTML(rows: Int, cols: Int) -> String {
 /// Generate a deeply nested HTML document
 func generateNestedHTML(depth: Int) -> String {
     var html = "<!DOCTYPE html><html><head><title>Nested Test</title></head><body>"
-    for _ in 0..<depth {
+    for _ in 0 ..< depth {
         html += "<div><span><a href=\"#\">"
     }
     html += "Deep content"
-    for _ in 0..<depth {
+    for _ in 0 ..< depth {
         html += "</a></span></div>"
     }
     html += "</body></html>"
@@ -120,7 +120,7 @@ func generateListHTML(items: Int, nestedLevels: Int) -> String {
     func generateList(level: Int) -> String {
         if level > nestedLevels { return "" }
         var html = "<ul>"
-        for i in 0..<items {
+        for i in 0 ..< items {
             html += "<li>Item \(i) at level \(level)"
             if level < nestedLevels {
                 html += generateList(level: level + 1)
@@ -137,7 +137,7 @@ func generateListHTML(items: Int, nestedLevels: Int) -> String {
 /// Generate a form-heavy HTML document
 func generateFormHTML(fields: Int) -> String {
     var html = "<!DOCTYPE html><html><head><title>Form Test</title></head><body><form>"
-    for i in 0..<fields {
+    for i in 0 ..< fields {
         html += """
         <div class="form-group">
             <label for="field\(i)">Field \(i):</label>
@@ -152,7 +152,7 @@ func generateFormHTML(fields: Int) -> String {
 /// Generate malformed HTML (stress test for error recovery)
 func generateMalformedHTML(elements: Int) -> String {
     var html = "<!DOCTYPE html><html><head><title>Malformed</title></head><body>"
-    for i in 0..<elements {
+    for i in 0 ..< elements {
         // Unclosed tags, mismatched tags, etc.
         switch i % 5 {
         case 0: html += "<p>Unclosed paragraph"
@@ -198,6 +198,7 @@ print("Test HTML sizes:")
 for (name, html) in testCases {
     print(String(format: "  %@: %d bytes (%.1f KB)", name, html.count, Double(html.count) / 1024))
 }
+
 print()
 
 print("Note: To run actual parsing benchmarks, import swift_justhtml and use:")
@@ -206,16 +207,16 @@ print()
 
 // Example benchmark template (requires swift_justhtml import):
 /*
-import swift_justhtml
+ import swift_justhtml
 
-for (name, html) in testCases {
-    let result = benchmark(name: name, iterations: 100, inputSize: html.count) {
-        _ = try! JustHTML(html)
-    }
-    print(result.description)
-    print()
-}
-*/
+ for (name, html) in testCases {
+     let result = benchmark(name: name, iterations: 100, inputSize: html.count) {
+         _ = try! JustHTML(html)
+     }
+     print(result.description)
+     print()
+ }
+ */
 
 print("Benchmark infrastructure created successfully.")
 print()
@@ -224,7 +225,7 @@ print("1. Build the library: swift build -c release")
 print("2. Run tests with benchmarks: swift test --filter Benchmark")
 
 extension String {
-    static func *(lhs: String, rhs: Int) -> String {
+    static func * (lhs: String, rhs: Int) -> String {
         return String(repeating: lhs, count: rhs)
     }
 }
