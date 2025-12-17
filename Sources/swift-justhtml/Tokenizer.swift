@@ -809,68 +809,165 @@ public final class Tokenizer {
 	// MARK: - Tokenizer States
 
 	private func dataState() {
-		guard let ch = consume() else {
-			self.emit(.eof)
-			return
-		}
+		// Batch scan: find next special character and emit all text at once
+		let startPos = self.pos
+		while self.pos < self.inputLength {
+			let byte = self.inputBytes[self.pos]
 
-		switch ch {
-			case "&":
+			if byte == 0x3C { // '<'
+				if self.pos > startPos {
+					self.emitTextBytes(from: startPos, to: self.pos)
+				}
+				self.pos += 1
+				self.column += 1
+				self.state = .tagOpen
+				return
+			}
+
+			if byte == 0x26 { // '&'
+				if self.pos > startPos {
+					self.emitTextBytes(from: startPos, to: self.pos)
+				}
+				self.pos += 1
+				self.column += 1
 				self.returnState = .data
 				self.state = .characterReference
+				return
+			}
 
-			case "<":
-				self.state = .tagOpen
-
-			case "\0":
+			if byte == 0x00 { // null
+				if self.pos > startPos {
+					self.emitTextBytes(from: startPos, to: self.pos)
+				}
+				self.pos += 1
+				self.column += 1
 				self.emitError("unexpected-null-character")
-				self.emitChar(ch)
+				self.emitChar("\0")
+				return
+			}
 
-			default:
-				self.emitChar(ch)
+			// Track line/column for error reporting
+			if byte == 0x0A {
+				self.line += 1
+				self.column = 0
+			} else {
+				self.column += 1
+			}
+			self.pos += 1
+		}
+
+		// EOF
+		if self.pos > startPos {
+			self.emitTextBytes(from: startPos, to: self.pos)
+		}
+		self.emit(.eof)
+	}
+
+	/// Emit a run of bytes as text (batch conversion)
+	@inline(__always)
+	private func emitTextBytes(from start: Int, to end: Int) {
+		// Fast path: convert UTF-8 bytes directly to String
+		self.inputBytes.withUnsafeBufferPointer { buffer in
+			let slice = UnsafeBufferPointer(rebasing: buffer[start..<end])
+			if let text = String(bytes: slice, encoding: .utf8) {
+				self.charBuffer.append(text)
+			}
 		}
 	}
 
 	private func rcdataState() {
-		guard let ch = consume() else {
-			self.emit(.eof)
-			return
-		}
+		// Batch scan for RCDATA (entities processed, so stop at &)
+		let startPos = self.pos
+		while self.pos < self.inputLength {
+			let byte = self.inputBytes[self.pos]
 
-		switch ch {
-			case "&":
+			if byte == 0x3C { // '<'
+				if self.pos > startPos {
+					self.emitTextBytes(from: startPos, to: self.pos)
+				}
+				self.pos += 1
+				self.column += 1
+				self.state = .rcdataLessThan
+				return
+			}
+
+			if byte == 0x26 { // '&'
+				if self.pos > startPos {
+					self.emitTextBytes(from: startPos, to: self.pos)
+				}
+				self.pos += 1
+				self.column += 1
 				self.returnState = .rcdata
 				self.state = .characterReference
+				return
+			}
 
-			case "<":
-				self.state = .rcdataLessThan
-
-			case "\0":
+			if byte == 0x00 { // null
+				if self.pos > startPos {
+					self.emitTextBytes(from: startPos, to: self.pos)
+				}
+				self.pos += 1
+				self.column += 1
 				self.emitError("unexpected-null-character")
 				self.emitChar("\u{FFFD}")
+				return
+			}
 
-			default:
-				self.emitChar(ch)
+			if byte == 0x0A {
+				self.line += 1
+				self.column = 0
+			} else {
+				self.column += 1
+			}
+			self.pos += 1
 		}
+
+		if self.pos > startPos {
+			self.emitTextBytes(from: startPos, to: self.pos)
+		}
+		self.emit(.eof)
 	}
 
 	private func rawtextState() {
-		guard let ch = consume() else {
-			self.emit(.eof)
-			return
-		}
+		// Batch scan for RAWTEXT (no entity processing, only stop at <)
+		let startPos = self.pos
+		while self.pos < self.inputLength {
+			let byte = self.inputBytes[self.pos]
 
-		switch ch {
-			case "<":
+			if byte == 0x3C { // '<'
+				if self.pos > startPos {
+					self.emitTextBytes(from: startPos, to: self.pos)
+				}
+				self.pos += 1
+				self.column += 1
 				self.state = .rawtextLessThan
+				return
+			}
 
-			case "\0":
+			if byte == 0x00 { // null
+				if self.pos > startPos {
+					self.emitTextBytes(from: startPos, to: self.pos)
+				}
+				self.pos += 1
+				self.column += 1
 				self.emitError("unexpected-null-character")
 				self.emitChar("\u{FFFD}")
+				return
+			}
 
-			default:
-				self.emitChar(ch)
+			if byte == 0x0A {
+				self.line += 1
+				self.column = 0
+			} else {
+				self.column += 1
+			}
+			self.pos += 1
 		}
+
+		if self.pos > startPos {
+			self.emitTextBytes(from: startPos, to: self.pos)
+		}
+		self.emit(.eof)
 	}
 
 	private func plaintextState() {
