@@ -749,6 +749,532 @@ func getEncodingTestsDirectory() -> URL? {
     #expect(totalFailed == 0, "Expected 0 encoding test failures but got \(totalFailed)")
 }
 
+// MARK: - Serializer Tests
+
+private let VOID_ELEMENTS: Set<String> = [
+    "area", "base", "br", "col", "embed", "hr", "img", "input",
+    "link", "meta", "param", "source", "track", "wbr"
+]
+
+/// Serialize a token stream for html5lib serializer tests
+func serializeSerializerTokenStream(_ tokens: [[Any]], options: [String: Any] = [:]) -> String? {
+    var parts: [String] = []
+    var rawtext: String? = nil
+    let escapeRcdata = options["escape_rcdata"] as? Bool ?? false
+    var openElements: [String] = []
+
+    for i in 0..<tokens.count {
+        let token = tokens[i]
+        guard let kind = token.first as? String else { continue }
+
+        let prevToken = i > 0 ? tokens[i - 1] : nil
+        let nextToken = i + 1 < tokens.count ? tokens[i + 1] : nil
+
+        switch kind {
+        case "StartTag":
+            // ["StartTag", namespace, name, attrs]
+            guard token.count >= 3 else { continue }
+            let name = (token[2] as? String)?.lowercased() ?? ""
+            let attrs = parseSerializerAttrs(token.count > 3 ? token[3] : [])
+
+            openElements.append(name)
+
+            // Check if start tag should be omitted
+            if shouldOmitStartTag(name, attrs: attrs, prevToken: prevToken, nextToken: nextToken) {
+                if ["script", "style"].contains(name) && !escapeRcdata {
+                    rawtext = name
+                }
+                continue
+            }
+
+            parts.append(serializeStartTag(name, attrs: attrs, options: options, isVoid: VOID_ELEMENTS.contains(name)))
+
+            if ["script", "style"].contains(name) && !escapeRcdata {
+                rawtext = name
+            }
+
+        case "EndTag":
+            // ["EndTag", namespace, name]
+            guard token.count >= 3 else { continue }
+            let name = (token[2] as? String)?.lowercased() ?? ""
+
+            // Pop from open elements
+            if let idx = openElements.lastIndex(of: name) {
+                openElements.remove(at: idx)
+            }
+
+            // Check if end tag should be omitted
+            let nextNextToken = i + 2 < tokens.count ? tokens[i + 2] : nil
+            if shouldOmitEndTag(name, nextToken: nextToken, nextNextToken: nextNextToken) {
+                if rawtext == name {
+                    rawtext = nil
+                }
+                continue
+            }
+
+            parts.append("</\(name)>")
+            if rawtext == name {
+                rawtext = nil
+            }
+
+        case "EmptyTag":
+            // ["EmptyTag", name, attrs]
+            guard token.count >= 2 else { continue }
+            let name = (token[1] as? String)?.lowercased() ?? ""
+            let attrs = parseSerializerAttrs(token.count > 2 ? token[2] : [:])
+            parts.append(serializeStartTag(name, attrs: attrs, options: options, isVoid: true))
+
+        case "Characters":
+            guard token.count >= 2 else { continue }
+            let text = token[1] as? String ?? ""
+            if rawtext != nil {
+                parts.append(text)
+            } else {
+                parts.append(escapeTextForSerializer(text))
+            }
+
+        case "Comment":
+            guard token.count >= 2 else { continue }
+            let text = token[1] as? String ?? ""
+            parts.append("<!--\(text)-->")
+
+        case "Doctype":
+            // ["Doctype", name, publicId?, systemId?]
+            let name = token.count > 1 ? (token[1] as? String ?? "") : ""
+            let publicId = token.count > 2 ? token[2] as? String : nil
+            let systemId = token.count > 3 ? token[3] as? String : nil
+
+            if publicId == nil && systemId == nil {
+                parts.append("<!DOCTYPE \(name)>")
+            } else if let pub = publicId, !pub.isEmpty {
+                if let sys = systemId, !sys.isEmpty {
+                    parts.append("<!DOCTYPE \(name) PUBLIC \"\(pub)\" \"\(sys)\">")
+                } else {
+                    parts.append("<!DOCTYPE \(name) PUBLIC \"\(pub)\">")
+                }
+            } else if let sys = systemId, !sys.isEmpty {
+                parts.append("<!DOCTYPE \(name) SYSTEM \"\(sys)\">")
+            } else {
+                parts.append("<!DOCTYPE \(name)>")
+            }
+
+        default:
+            continue
+        }
+    }
+
+    return parts.joined()
+}
+
+/// Check if a start tag should be omitted per HTML5 optional tag rules
+func shouldOmitStartTag(_ name: String, attrs: [String: String], prevToken: [Any]?, nextToken: [Any]?) -> Bool {
+    // Can't omit if it has attributes
+    if !attrs.isEmpty { return false }
+
+    // Check what follows
+    let nextKind = nextToken?.first as? String
+
+    switch name {
+    case "html":
+        // html start tag can be omitted if not followed by a comment
+        if nextKind == "Comment" { return false }
+        // Also can't omit if followed by space character at start
+        if nextKind == "Characters", let text = nextToken?[1] as? String {
+            if text.hasPrefix(" ") || text.hasPrefix("\t") || text.hasPrefix("\n") ||
+               text.hasPrefix("\r") || text.hasPrefix("\u{0C}") {
+                return false
+            }
+        }
+        return true
+
+    case "head":
+        // head start tag can be omitted if element is empty or first child is an element
+        if nextKind == nil { return true }
+        if nextKind == "StartTag" || nextKind == "EmptyTag" { return true }
+        // Also omit if followed by head end tag (empty element)
+        if nextKind == "EndTag", let nextName = nextToken?[2] as? String {
+            if nextName.lowercased() == "head" { return true }
+        }
+        return false
+
+    case "body":
+        // body start tag can be omitted if element is empty or first child is not space/comment/certain elements
+        if nextKind == nil { return true }
+        if nextKind == "Comment" { return false }
+        if nextKind == "Characters", let text = nextToken?[1] as? String {
+            if text.hasPrefix(" ") || text.hasPrefix("\t") || text.hasPrefix("\n") ||
+               text.hasPrefix("\r") || text.hasPrefix("\u{0C}") {
+                return false
+            }
+        }
+        // Can't omit if followed by certain elements
+        if nextKind == "StartTag", let nextName = nextToken?[2] as? String {
+            let cantOmitBefore = ["meta", "link", "script", "style", "template"]
+            if cantOmitBefore.contains(nextName.lowercased()) {
+                return false
+            }
+        }
+        return true
+
+    case "colgroup":
+        // colgroup start tag can be omitted if first child is col
+        if nextKind == "StartTag", let nextName = nextToken?[2] as? String {
+            return nextName.lowercased() == "col"
+        }
+        if nextKind == "EmptyTag", let nextName = nextToken?[1] as? String {
+            return nextName.lowercased() == "col"
+        }
+        return false
+
+    case "tbody":
+        // tbody start tag can be omitted if first child is tr
+        if nextKind == "StartTag", let nextName = nextToken?[2] as? String {
+            return nextName.lowercased() == "tr"
+        }
+        return false
+
+    default:
+        return false
+    }
+}
+
+/// Check if an end tag should be omitted per HTML5 optional tag rules
+func shouldOmitEndTag(_ name: String, nextToken: [Any]?, nextNextToken: [Any]? = nil) -> Bool {
+    let nextKind = nextToken?.first as? String
+    let nextName = {
+        if nextKind == "StartTag" { return (nextToken?[2] as? String)?.lowercased() }
+        if nextKind == "EndTag" { return (nextToken?[2] as? String)?.lowercased() }
+        if nextKind == "EmptyTag" { return (nextToken?[1] as? String)?.lowercased() }
+        return nil
+    }()
+
+    // Helper to check if a following tbody start tag would be omitted
+    let tbodyStartWouldBeOmitted: Bool = {
+        guard nextName == "tbody" && nextKind == "StartTag" else { return false }
+        // tbody start tag is omitted if first child is tr
+        if let nnKind = nextNextToken?.first as? String {
+            if nnKind == "StartTag", let nnName = nextNextToken?[2] as? String {
+                return nnName.lowercased() == "tr"
+            }
+        }
+        return false
+    }()
+
+    switch name {
+    case "html":
+        // html end tag can be omitted if not followed by comment or whitespace
+        if nextKind == "Comment" { return false }
+        if nextKind == "Characters", let text = nextToken?[1] as? String {
+            if text.hasPrefix(" ") || text.hasPrefix("\t") || text.hasPrefix("\n") ||
+               text.hasPrefix("\r") || text.hasPrefix("\u{0C}") {
+                return false
+            }
+        }
+        return true
+
+    case "head":
+        // head end tag can be omitted if not followed by space or comment
+        if nextKind == "Comment" { return false }
+        if nextKind == "Characters", let text = nextToken?[1] as? String {
+            if text.hasPrefix(" ") || text.hasPrefix("\t") || text.hasPrefix("\n") ||
+               text.hasPrefix("\r") || text.hasPrefix("\u{0C}") {
+                return false
+            }
+        }
+        return true
+
+    case "body":
+        // body end tag can be omitted if not followed by comment or whitespace
+        if nextKind == "Comment" { return false }
+        if nextKind == "Characters", let text = nextToken?[1] as? String {
+            if text.hasPrefix(" ") || text.hasPrefix("\t") || text.hasPrefix("\n") ||
+               text.hasPrefix("\r") || text.hasPrefix("\u{0C}") {
+                return false
+            }
+        }
+        return true
+
+    case "li":
+        // li end tag can be omitted if followed by li or end of parent
+        return nextKind == nil || nextName == "li" || nextKind == "EndTag"
+
+    case "dt":
+        // dt end tag can be omitted if followed by dt or dd
+        return nextName == "dt" || nextName == "dd"
+
+    case "dd":
+        // dd end tag can be omitted if followed by dd, dt, or end of parent
+        return nextKind == nil || nextName == "dd" || nextName == "dt" || nextKind == "EndTag"
+
+    case "p":
+        // p end tag can be omitted if followed by certain elements
+        let omitBefore: Set<String> = [
+            "address", "article", "aside", "blockquote", "datagrid", "details",
+            "dialog", "dir", "div", "dl", "fieldset", "figcaption", "figure",
+            "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "header", "hgroup",
+            "hr", "main", "menu", "nav", "ol", "p", "pre", "search", "section",
+            "table", "ul"
+        ]
+        if let next = nextName, omitBefore.contains(next) { return true }
+        if nextKind == "EndTag" { return true }
+        if nextKind == nil { return true }
+        return false
+
+    case "rt", "rp":
+        return nextName == "rt" || nextName == "rp" || nextKind == "EndTag" || nextKind == nil
+
+    case "optgroup":
+        return nextName == "optgroup" || nextKind == "EndTag" || nextKind == nil
+
+    case "option":
+        return nextName == "option" || nextName == "optgroup" || nextKind == "EndTag" || nextKind == nil
+
+    case "colgroup":
+        // colgroup end tag can be omitted if not followed by space or comment
+        // But NOT if followed by colgroup start tag (would merge elements)
+        if nextKind == "Comment" { return false }
+        if nextKind == "Characters", let text = nextToken?[1] as? String {
+            if text.hasPrefix(" ") || text.hasPrefix("\t") { return false }
+        }
+        if nextKind == "StartTag" && nextName == "colgroup" { return false }
+        return true
+
+    case "caption":
+        return true // caption end tag can always be omitted when followed properly
+
+    case "thead":
+        // thead end tag can be omitted if followed by tbody or tfoot
+        // But NOT if the tbody start tag would also be omitted (would merge elements)
+        if nextName == "tfoot" { return true }
+        if nextName == "tbody" {
+            // If tbody start would be omitted (has tr child), keep this end tag
+            // Otherwise (tbody start kept), omit this end tag
+            return !tbodyStartWouldBeOmitted
+        }
+        return false
+
+    case "tbody":
+        // tbody end tag can be omitted if followed by tbody, tfoot, or end of parent
+        // But NOT if the next tbody start tag would also be omitted (would merge elements)
+        if nextName == "tfoot" { return true }
+        if nextKind == "EndTag" || nextKind == nil { return true }
+        if nextName == "tbody" {
+            // If tbody start would be omitted, keep this end tag
+            // Otherwise, omit this end tag
+            return !tbodyStartWouldBeOmitted
+        }
+        return false
+
+    case "tfoot":
+        if nextKind == "EndTag" || nextKind == nil { return true }
+        if nextName == "tbody" {
+            return !tbodyStartWouldBeOmitted
+        }
+        return false
+
+    case "tr":
+        return nextName == "tr" || nextKind == "EndTag" || nextKind == nil
+
+    case "td", "th":
+        return nextName == "td" || nextName == "th" || nextKind == "EndTag" || nextKind == nil
+
+    default:
+        return false
+    }
+}
+
+func parseSerializerAttrs(_ input: Any) -> [String: String] {
+    var result: [String: String] = [:]
+
+    if let arr = input as? [[String: Any]] {
+        // Array of {namespace, name, value} objects
+        for item in arr {
+            if let name = item["name"] as? String,
+               let value = item["value"] as? String {
+                result[name] = value
+            }
+        }
+    } else if let dict = input as? [String: Any] {
+        // Simple dict
+        for (key, val) in dict {
+            if let str = val as? String {
+                result[key] = str
+            } else {
+                result[key] = ""
+            }
+        }
+    }
+
+    return result
+}
+
+func serializeStartTag(_ name: String, attrs: [String: String], options: [String: Any], isVoid: Bool) -> String {
+    var result = "<\(name)"
+
+    // Sort attributes for deterministic output
+    let sortedAttrs = attrs.sorted { $0.key < $1.key }
+
+    for (attrName, attrValue) in sortedAttrs {
+        result += " "
+        result += serializeAttribute(attrName, value: attrValue, options: options)
+    }
+
+    result += ">"
+    return result
+}
+
+func serializeAttribute(_ name: String, value: String, options: [String: Any]) -> String {
+    // Determine quote character needed
+    let hasDoubleQuote = value.contains("\"")
+    let hasSingleQuote = value.contains("'")
+    let needsQuotes = value.isEmpty ||
+                      value.contains(" ") || value.contains("\t") ||
+                      value.contains("\n") || value.contains("\r") ||
+                      value.contains("\u{0C}") ||
+                      value.contains("=") || value.contains(">") ||
+                      value.contains("`")
+
+    if !needsQuotes && !hasDoubleQuote && !hasSingleQuote {
+        // Unquoted attribute
+        return "\(name)=\(value)"
+    }
+
+    // Choose quote character
+    let quoteChar: Character
+    if hasDoubleQuote && !hasSingleQuote {
+        quoteChar = "'"
+    } else if hasSingleQuote && !hasDoubleQuote {
+        quoteChar = "\""
+    } else if hasDoubleQuote && hasSingleQuote {
+        // Escape double quotes
+        quoteChar = "\""
+    } else {
+        quoteChar = "\""
+    }
+
+    // Escape value
+    var escaped = value.replacingOccurrences(of: "&", with: "&amp;")
+    if quoteChar == "\"" {
+        escaped = escaped.replacingOccurrences(of: "\"", with: "&quot;")
+    }
+
+    return "\(name)=\(quoteChar)\(escaped)\(quoteChar)"
+}
+
+func escapeTextForSerializer(_ text: String) -> String {
+    var result = text
+    result = result.replacingOccurrences(of: "&", with: "&amp;")
+    result = result.replacingOccurrences(of: "<", with: "&lt;")
+    result = result.replacingOccurrences(of: ">", with: "&gt;")
+    return result
+}
+
+func getSerializerTestsDirectory() -> URL? {
+    let fileManager = FileManager.default
+    let cwd = fileManager.currentDirectoryPath
+    let cwdUrl = URL(fileURLWithPath: cwd)
+
+    let possiblePaths = [
+        cwdUrl.appendingPathComponent("html5lib-tests/serializer"),
+        cwdUrl.appendingPathComponent("../html5lib-tests/serializer")
+    ]
+
+    for path in possiblePaths {
+        if fileManager.fileExists(atPath: path.path) {
+            return path
+        }
+    }
+    return nil
+}
+
+@Test func html5libSerializerTests() async throws {
+    guard let testsDir = getSerializerTestsDirectory() else {
+        print("Serializer tests directory not found")
+        return
+    }
+
+    let fileManager = FileManager.default
+    var testFiles: [URL] = []
+
+    if let enumerator = fileManager.enumerator(at: testsDir, includingPropertiesForKeys: nil) {
+        while let url = enumerator.nextObject() as? URL {
+            if url.pathExtension == "test" {
+                testFiles.append(url)
+            }
+        }
+    }
+
+    testFiles.sort { $0.lastPathComponent < $1.lastPathComponent }
+
+    var totalPassed = 0
+    var totalFailed = 0
+    var totalSkipped = 0
+
+    // Options we support
+    let supportedOptionKeys: Set<String> = [
+        "encoding", "escape_rcdata"
+    ]
+
+    for fileURL in testFiles {
+        let filename = fileURL.lastPathComponent
+        guard let content = try? Data(contentsOf: fileURL),
+              let json = try? JSONSerialization.jsonObject(with: content) as? [String: Any],
+              let tests = json["tests"] as? [[String: Any]] else {
+            continue
+        }
+
+        var passed = 0
+        var failed = 0
+        var skipped = 0
+
+        for (idx, test) in tests.enumerated() {
+            let options = test["options"] as? [String: Any] ?? [:]
+
+            // Skip tests with unsupported options
+            let hasUnsupportedOptions = options.keys.contains { !supportedOptionKeys.contains($0) }
+            if hasUnsupportedOptions {
+                skipped += 1
+                continue
+            }
+
+            guard let input = test["input"] as? [[Any]] else {
+                skipped += 1
+                continue
+            }
+
+            guard let actual = serializeSerializerTokenStream(input, options: options) else {
+                skipped += 1
+                continue
+            }
+
+            let expectedList = test["expected"] as? [String] ?? []
+
+            if expectedList.contains(actual) {
+                passed += 1
+            } else {
+                failed += 1
+                if failed <= 3 {
+                    let desc = test["description"] as? String ?? ""
+                    print("\nSERIALIZER FAIL: \(filename):\(idx) \(desc)")
+                    print("EXPECTED one of: \(expectedList)")
+                    print("ACTUAL: \(actual)")
+                }
+            }
+        }
+
+        print("  \(filename): \(passed)/\(passed + failed) passed, \(skipped) skipped")
+        totalPassed += passed
+        totalFailed += failed
+        totalSkipped += skipped
+    }
+
+    let passRate = Double(totalPassed) / Double(max(1, totalPassed + totalFailed)) * 100
+    print("\nSERIALIZER TESTS: \(totalPassed)/\(totalPassed + totalFailed) passed, \(totalFailed) failed, \(totalSkipped) skipped")
+    print("Pass rate: \(String(format: "%.1f", passRate))%")
+    #expect(totalPassed + totalFailed + totalSkipped > 0, "No serializer tests were run")
+    #expect(totalFailed == 0, "Expected 0 serializer test failures but got \(totalFailed)")
+}
+
 // MARK: - CSS Selector Tests
 
 @Test func testSelectorTypeSelector() async throws {
