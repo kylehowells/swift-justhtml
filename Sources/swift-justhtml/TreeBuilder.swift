@@ -1338,27 +1338,27 @@ public final class TreeBuilder: TokenSink {
 					self.processStartTagInBody(name: name, attrs: attrs, selfClosing: selfClosing)
 				}
 				else if name == "option" {
-					if let current = currentNode, current.name == "option" {
+					if let current = currentNode, current.tagId == .option {
 						self.popCurrentElement()
 					}
 					self.reconstructActiveFormattingElements()
 					_ = self.insertElement(name: name, attrs: attrs)
 				}
 				else if name == "optgroup" {
-					if let current = currentNode, current.name == "option" {
+					if let current = currentNode, current.tagId == .option {
 						self.popCurrentElement()
 					}
-					if let current = currentNode, current.name == "optgroup" {
+					if let current = currentNode, current.tagId == .optgroup {
 						self.popCurrentElement()
 					}
 					_ = self.insertElement(name: name, attrs: attrs)
 				}
 				else if name == "hr" || name == "keygen" {
 					// hr and keygen are inserted inside select as self-closing elements
-					if let current = currentNode, current.name == "option" {
+					if let current = currentNode, current.tagId == .option {
 						self.popCurrentElement()
 					}
-					if let current = currentNode, current.name == "optgroup" {
+					if let current = currentNode, current.tagId == .optgroup {
 						self.popCurrentElement()
 					}
 					_ = self.insertElement(name: name, attrs: attrs)
@@ -1366,10 +1366,10 @@ public final class TreeBuilder: TokenSink {
 				}
 				else if name == "plaintext" {
 					// plaintext is inserted and switches tokenizer to plaintext mode
-					if let current = currentNode, current.name == "option" {
+					if let current = currentNode, current.tagId == .option {
 						self.popCurrentElement()
 					}
-					if let current = currentNode, current.name == "optgroup" {
+					if let current = currentNode, current.tagId == .optgroup {
 						self.popCurrentElement()
 					}
 					_ = self.insertElement(name: name, attrs: attrs)
@@ -1378,7 +1378,7 @@ public final class TreeBuilder: TokenSink {
 				else if name == "select" {
 					self.emitError("unexpected-start-tag-in-select")
 					// Per browser behavior, check if select is anywhere on the stack, not using strict scope
-					if self.openElements.contains(where: { $0.name == "select" }) {
+					if self.openElements.contains(where: { $0.tagId == .select }) {
 						self.popUntil("select")
 						self.resetInsertionMode()
 					}
@@ -1392,8 +1392,8 @@ public final class TreeBuilder: TokenSink {
 					// In fragment parsing, if select is only the context element,
 					// we conceptually close it by clearing the context and going to inBody
 					let selectIsContextOnly =
-						self.contextElement?.name == "select"
-							&& !self.openElements.contains { $0.name == "select" }
+						self.contextElement?.tagId == .select
+							&& !self.openElements.contains { $0.tagId == .select }
 					if selectIsContextOnly {
 						self.contextElement = nil
 						// Go directly to inBody without creating implicit head/body
@@ -1467,8 +1467,8 @@ public final class TreeBuilder: TokenSink {
 					// In fragment parsing, if select is only the context element,
 					// we conceptually close it by clearing the context and going to inBody
 					let selectIsContextOnly =
-						self.contextElement?.name == "select"
-							&& !self.openElements.contains { $0.name == "select" }
+						self.contextElement?.tagId == .select
+							&& !self.openElements.contains { $0.tagId == .select }
 					if selectIsContextOnly {
 						self.contextElement = nil
 						self.insertionMode = .inBody
@@ -1492,8 +1492,8 @@ public final class TreeBuilder: TokenSink {
 					// In fragment parsing, if select is only the context element,
 					// we conceptually close it by clearing the context and going to inBody
 					let selectIsContextOnly =
-						self.contextElement?.name == "select"
-							&& !self.openElements.contains { $0.name == "select" }
+						self.contextElement?.tagId == .select
+							&& !self.openElements.contains { $0.tagId == .select }
 					if selectIsContextOnly {
 						self.contextElement = nil
 						self.insertionMode = .inBody
@@ -1550,7 +1550,7 @@ public final class TreeBuilder: TokenSink {
 			self.emitError("unexpected-start-tag")
 			// Don't merge attributes if inside a template
 			if self.templateInsertionModes.isEmpty,
-			   self.openElements.count >= 2, self.openElements[1].name == "body"
+			   self.openElements.count >= 2, self.openElements[1].tagId == .body
 			{
 				self.framesetOk = false
 				for (key, value) in attrs where self.openElements[1].attrs[key] == nil {
@@ -1561,7 +1561,7 @@ public final class TreeBuilder: TokenSink {
 		else if name == "frameset" {
 			self.emitError("unexpected-start-tag")
 			// Check conditions for allowing frameset
-			if self.openElements.count > 1, self.openElements[1].name == "body", self.framesetOk {
+			if self.openElements.count > 1, self.openElements[1].tagId == .body, self.framesetOk {
 				// Remove the body element from its parent
 				if let body = openElements.count > 1 ? openElements[1] : nil {
 					body.parent?.removeChild(body)
@@ -1620,7 +1620,7 @@ public final class TreeBuilder: TokenSink {
 			self.framesetOk = false
 			// Close any open li elements in list item scope
 			for node in self.openElements.reversed() {
-				if node.name == "li" {
+				if node.tagId == .li {
 					self.generateImpliedEndTags(except: "li")
 					if self.currentNode?.tagId != .li {
 						self.emitError("end-tag-too-early")
@@ -1629,7 +1629,7 @@ public final class TreeBuilder: TokenSink {
 					break
 				}
 				// Stop at list item scope boundary elements
-				if LIST_ITEM_SCOPE_ELEMENTS.contains(node.name) {
+				if LIST_ITEM_SCOPE_ELEMENTS_ID.contains(node.tagId) {
 					break
 				}
 			}
@@ -1643,9 +1643,9 @@ public final class TreeBuilder: TokenSink {
 			// Close any open dd or dt elements in scope
 			// Per spec: stop at special elements EXCEPT address, div, and p
 			for node in self.openElements.reversed() {
-				if node.name == "dd" || node.name == "dt" {
+				if node.tagId == .dd || node.tagId == .dt {
 					self.generateImpliedEndTags(except: node.name)
-					if self.currentNode?.name != node.name {
+					if self.currentNode?.tagId != node.tagId {
 						self.emitError("end-tag-too-early")
 					}
 					self.popUntil(node.name)
@@ -2656,7 +2656,7 @@ public final class TreeBuilder: TokenSink {
 			case .inTemplate:
 				// EOF in template - pop template and close
 				// Check if template is in the stack (not in scope - table breaks scope but template is still there)
-				let hasTemplate = self.openElements.contains { $0.name == "template" }
+				let hasTemplate = self.openElements.contains { $0.tagId == .template }
 				if !hasTemplate {
 					// No template in stack - stop processing
 					break

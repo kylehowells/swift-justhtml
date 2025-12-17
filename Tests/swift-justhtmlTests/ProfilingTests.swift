@@ -919,3 +919,203 @@ func loadSampleFile(_ name: String) throws -> String {
 	print(String(format: "TagID is %.1fx faster than string comparison", stringCompareNs / tagIdCompareNs))
 	print(String(format: "Attrs add %.1f ns overhead to node creation", nodeWithAttrsNs - nodeCreateNs))
 }
+
+// Use @inline(never) to prevent optimizer from eliminating benchmark code
+@inline(never)
+func blackhole<T>(_ x: T) {
+	// Prevent dead code elimination
+}
+
+@Test func profileScopeCheckingStrategies() async throws {
+	print("\n" + String(repeating: "=", count: 70))
+	print("SCOPE CHECKING STRATEGIES")
+	print(String(repeating: "=", count: 70))
+
+	// Simulate open elements stack with typical HTML structure
+	let stackSizes = [5, 10, 20, 50]
+	let iterations = 1_000_000
+	var timer = PrecisionTimer()
+
+	print("\n| Strategy | Stack=5 | Stack=10 | Stack=20 | Stack=50 |")
+	print("|----------|---------|----------|----------|----------|")
+
+	// Strategy 1: Linear search with string comparison (current approach)
+	var linearStringResults: [Double] = []
+	for stackSize in stackSizes {
+		let stack: [String] = (0..<stackSize).map { i in
+			["html", "body", "div", "p", "span", "a", "ul", "li", "table", "tr"][i % 10]
+		}
+		let target = "p"
+
+		timer.begin()
+		var found = 0
+		for _ in 0..<iterations {
+			for name in stack.reversed() {
+				if name == target {
+					found += 1
+					break
+				}
+			}
+		}
+		timer.stop()
+		blackhole(found)
+		linearStringResults.append(Double(timer.elapsedNanoseconds) / Double(iterations))
+	}
+
+	// Strategy 2: Linear search with TagID comparison
+	var linearTagIdResults: [Double] = []
+	for stackSize in stackSizes {
+		let stack: [TagID] = (0..<stackSize).map { i in
+			[TagID.html, .body, .div, .p, .span, .a, .ul, .li, .table, .tr][i % 10]
+		}
+		let target = TagID.p
+
+		timer.begin()
+		var found = 0
+		for _ in 0..<iterations {
+			for tagId in stack.reversed() {
+				if tagId == target {
+					found += 1
+					break
+				}
+			}
+		}
+		timer.stop()
+		blackhole(found)
+		linearTagIdResults.append(Double(timer.elapsedNanoseconds) / Double(iterations))
+	}
+
+	// Strategy 3: Set lookup for existence (O(1))
+	var setLookupResults: [Double] = []
+	for stackSize in stackSizes {
+		var tagSet: Set<TagID> = []
+		for i in 0..<stackSize {
+			tagSet.insert([TagID.html, .body, .div, .p, .span, .a, .ul, .li, .table, .tr][i % 10])
+		}
+		let target = TagID.p
+
+		timer.begin()
+		var found = 0
+		for _ in 0..<iterations {
+			if tagSet.contains(target) {
+				found += 1
+			}
+		}
+		timer.stop()
+		blackhole(found)
+		setLookupResults.append(Double(timer.elapsedNanoseconds) / Double(iterations))
+	}
+
+	// Strategy 4: Bitmap for common tags (very fast)
+	var bitmapResults: [Double] = []
+	for stackSize in stackSizes {
+		var bitmap: UInt64 = 0
+		for i in 0..<stackSize {
+			let tagId = [TagID.html, .body, .div, .p, .span, .a, .ul, .li, .table, .tr][i % 10]
+			bitmap |= (1 << tagId.rawValue)
+		}
+		let target = TagID.p
+
+		timer.begin()
+		var found = 0
+		for _ in 0..<iterations {
+			if (bitmap & (1 << target.rawValue)) != 0 {
+				found += 1
+			}
+		}
+		timer.stop()
+		blackhole(found)
+		bitmapResults.append(Double(timer.elapsedNanoseconds) / Double(iterations))
+	}
+
+	// Print results
+	print(String(format: "| Linear (String) | %5.1f ns | %6.1f ns | %6.1f ns | %6.1f ns |",
+	             linearStringResults[0], linearStringResults[1], linearStringResults[2], linearStringResults[3]))
+	print(String(format: "| Linear (TagID)  | %5.1f ns | %6.1f ns | %6.1f ns | %6.1f ns |",
+	             linearTagIdResults[0], linearTagIdResults[1], linearTagIdResults[2], linearTagIdResults[3]))
+	print(String(format: "| Set<TagID>      | %5.1f ns | %6.1f ns | %6.1f ns | %6.1f ns |",
+	             setLookupResults[0], setLookupResults[1], setLookupResults[2], setLookupResults[3]))
+	print(String(format: "| Bitmap (UInt64) | %5.1f ns | %6.1f ns | %6.1f ns | %6.1f ns |",
+	             bitmapResults[0], bitmapResults[1], bitmapResults[2], bitmapResults[3]))
+
+	print("\n=== Analysis ===")
+	let tagIdSpeedup = linearStringResults[2] / max(linearTagIdResults[2], 0.1)
+	let setSpeedup = linearStringResults[2] / max(setLookupResults[2], 0.1)
+	let bitmapSpeedup = linearStringResults[2] / max(bitmapResults[2], 0.1)
+	print(String(format: "At stack depth 20: TagID linear is %.1fx faster than String linear", tagIdSpeedup))
+	print(String(format: "At stack depth 20: Set lookup is %.1fx faster than String linear", setSpeedup))
+	print(String(format: "At stack depth 20: Bitmap is %.1fx faster than String linear", bitmapSpeedup))
+}
+
+@Test func profileTreeBuilderSimulation() async throws {
+	print("\n" + String(repeating: "=", count: 70))
+	print("TREE BUILDER SIMULATION")
+	print(String(repeating: "=", count: 70))
+
+	// Simulate processing a document with N tags
+	let tagCounts = [1000, 5000, 10000, 30000]
+	var timer = PrecisionTimer()
+
+	print("\n| Tags | Node Creation | appendChild | Scope Checks | Total Overhead |")
+	print("|------|---------------|-------------|--------------|----------------|")
+
+	for tagCount in tagCounts {
+		// Simulate node creation
+		timer.begin()
+		var nodes: [Node] = []
+		nodes.reserveCapacity(tagCount)
+		for i in 0..<tagCount {
+			let name = ["div", "p", "span", "a", "li"][i % 5]
+			nodes.append(Node(name: name, namespace: .html))
+		}
+		timer.stop()
+		let createMs = timer.elapsedMilliseconds
+
+		// Simulate appendChild (building tree)
+		let root = Node(name: "html")
+		var stack: [Node] = [root]
+		timer.begin()
+		for node in nodes {
+			stack.last!.appendChild(node)
+			// Simulate typical stack depth changes
+			if node.name == "div" {
+				stack.append(node)
+			} else if stack.count > 3 && node.name == "a" {
+				_ = stack.popLast()
+			}
+		}
+		timer.stop()
+		let appendMs = timer.elapsedMilliseconds
+
+		// Simulate scope checking (estimate based on typical call frequency)
+		// Assume ~2 scope checks per tag on average
+		let scopeCheckCount = tagCount * 2
+		let avgStackDepth = 10
+		timer.begin()
+		var scopeFound = 0
+		for _ in 0..<scopeCheckCount {
+			// Simulate linear search through stack
+			for j in (0..<min(avgStackDepth, stack.count)).reversed() {
+				if stack[j].tagId == .p {
+					scopeFound += 1
+					break
+				}
+			}
+		}
+		timer.stop()
+		_ = scopeFound
+		let scopeMs = timer.elapsedMilliseconds
+
+		let totalMs = createMs + appendMs + scopeMs
+
+		print(String(format: "| %5d | %11.2f ms | %9.2f ms | %10.2f ms | %12.2f ms |",
+		             tagCount, createMs, appendMs, scopeMs, totalMs))
+	}
+
+	print("\nNote: Real tree builder has additional overhead from:")
+	print("  - Mode switching (large switch statements)")
+	print("  - Implied end tags generation")
+	print("  - Active formatting elements")
+	print("  - Foster parenting")
+	print("  - String comparisons in tag matching")
+}
