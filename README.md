@@ -133,6 +133,8 @@ for error in doc.errors {
 
 swift-justhtml is optimized for performance, matching or exceeding JavaScript implementations:
 
+### Parse Time
+
 | Implementation | Parse Time | Comparison |
 |----------------|-----------|------------|
 | **Swift** | 97ms | - |
@@ -140,6 +142,18 @@ swift-justhtml is optimized for performance, matching or exceeding JavaScript im
 | Python | 398ms | 4.1x slower |
 
 *Benchmark: Parsing 2.5MB of HTML across 5 Wikipedia articles*
+
+### Memory Usage
+
+| Implementation | Peak RSS | Comparison |
+|----------------|----------|------------|
+| **Swift** | 103 MB | - |
+| Python | 106 MB | 1.03x more |
+| JavaScript | 226 MB | 2.2x more |
+
+*Benchmark: Average peak memory across 6 test files including 20MB synthetic HTML*
+
+See [Benchmarks/MEMORY_RESULTS.md](Benchmarks/MEMORY_RESULTS.md) for detailed memory comparison.
 
 ## Platform Support
 

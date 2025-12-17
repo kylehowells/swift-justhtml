@@ -34,4 +34,3 @@ fastlane/test_output
 Benchmarks/samples/
 Benchmarks/*.json
 Benchmarks/test_files/synthetic.html
-Benchmarks/MEMORY_RESULTS.md
