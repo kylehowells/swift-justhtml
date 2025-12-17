@@ -85,6 +85,35 @@ private let kBodyCaptionHtmlTags: Set<String> = ["body", "caption", "col", "colg
 private let kBodyCaptionCellTags: Set<String> = ["body", "caption", "col", "colgroup", "html", "td", "th"]
 private let kBodyCaptionRowTags: Set<String> = ["body", "caption", "col", "colgroup", "html", "td", "th", "tr"]
 
+// Head tags that should be processed using "in head" rules when encountered in body
+private let kHeadProcessingTags: Set<String> = [
+	"base", "basefont", "bgsound", "link", "meta", "noframes", "script", "style", "template", "title",
+]
+
+// Block/structural tags that close p elements
+private let kBlockStructureTags: Set<String> = [
+	"address", "article", "aside", "blockquote", "center", "details", "dialog", "dir", "div",
+	"dl", "fieldset", "figcaption", "figure", "footer", "header", "hgroup", "main", "menu", "nav",
+	"ol", "p", "search", "section", "summary", "ul",
+]
+
+// Table-related start tags to ignore in body
+private let kIgnoredTableStartTags: Set<String> = [
+	"caption", "col", "colgroup", "frame", "head", "tbody", "td", "tfoot", "th", "thead", "tr",
+]
+
+// Tags to ignore when processing end tags in table mode
+private let kIgnoredTableEndTags: Set<String> = [
+	"body", "caption", "col", "colgroup", "html", "tbody", "td", "tfoot", "th", "thead", "tr",
+]
+
+// Block/structural end tags that need scope checking
+private let kBlockStructureEndTags: Set<String> = [
+	"address", "article", "aside", "blockquote", "button", "center", "details", "dialog", "dir",
+	"div", "dl", "fieldset", "figcaption", "figure", "footer", "header", "hgroup", "listing",
+	"main", "menu", "nav", "ol", "pre", "search", "section", "summary", "ul",
+]
+
 // MARK: - TagID Sets (fast integer comparisons)
 
 private let kTableSectionTagIDs: Set<TagID> = [.tbody, .tfoot, .thead]
@@ -916,10 +945,7 @@ public final class TreeBuilder: TokenSink {
 					_ = self.insertElement(name: name, attrs: attrs)
 					self.insertionMode = .inFrameset
 				}
-				else if [
-					"base", "basefont", "bgsound", "link", "meta", "noframes", "script", "style", "template",
-					"title",
-				].contains(name) {
+				else if kHeadProcessingTags.contains(name) {
 					self.emitError("unexpected-start-tag")
 					if let head = headElement {
 						self.openElements.append(head)
@@ -1271,10 +1297,7 @@ public final class TreeBuilder: TokenSink {
 
 			case .inTemplate:
 				// Handle start tags in "in template" insertion mode
-				if [
-					"base", "basefont", "bgsound", "link", "meta", "noframes", "script", "style", "template",
-					"title",
-				].contains(name) {
+				if kHeadProcessingTags.contains(name) {
 					// Process using "in head" rules
 					let savedMode = self.insertionMode
 					self.insertionMode = .inHead
@@ -1529,10 +1552,7 @@ public final class TreeBuilder: TokenSink {
 				}
 			}
 		}
-		else if [
-			"base", "basefont", "bgsound", "link", "meta", "noframes", "script", "style", "template",
-			"title",
-		].contains(name) || (name == "noscript" && self.scripting) {
+		else if kHeadProcessingTags.contains(name) || (name == "noscript" && self.scripting) {
 			// Process using "in head" rules
 			let savedMode = self.insertionMode
 			self.insertionMode = .inHead
@@ -1576,11 +1596,7 @@ public final class TreeBuilder: TokenSink {
 			}
 			// Otherwise ignore
 		}
-		else if [
-			"address", "article", "aside", "blockquote", "center", "details", "dialog", "dir", "div",
-			"dl", "fieldset", "figcaption", "figure", "footer", "header", "hgroup", "main", "menu", "nav",
-			"ol", "p", "search", "section", "summary", "ul",
-		].contains(name) {
+		else if kBlockStructureTags.contains(name) {
 			if self.hasElementInButtonScope(.p) {
 				self.closePElement()
 			}
@@ -1843,9 +1859,7 @@ public final class TreeBuilder: TokenSink {
 				self.popCurrentElement()
 			}
 		}
-		else if [
-			"caption", "col", "colgroup", "frame", "head", "tbody", "td", "tfoot", "th", "thead", "tr",
-		].contains(name) {
+		else if kIgnoredTableStartTags.contains(name) {
 			self.emitError("unexpected-start-tag")
 			// Ignore
 		}
@@ -2132,9 +2146,7 @@ public final class TreeBuilder: TokenSink {
 					self.popUntil("table")
 					self.resetInsertionMode()
 				}
-				else if [
-					"body", "caption", "col", "colgroup", "html", "tbody", "td", "tfoot", "th", "thead", "tr",
-				].contains(name) {
+				else if kIgnoredTableEndTags.contains(name) {
 					self.emitError("unexpected-end-tag")
 					// Ignore
 				}
@@ -2346,11 +2358,7 @@ public final class TreeBuilder: TokenSink {
 			self.insertionMode = .afterBody
 			self.processEndTag(name: name)
 		}
-		else if [
-			"address", "article", "aside", "blockquote", "button", "center", "details", "dialog", "dir",
-			"div", "dl", "fieldset", "figcaption", "figure", "footer", "header", "hgroup", "listing",
-			"main", "menu", "nav", "ol", "pre", "search", "section", "summary", "ul",
-		].contains(name) {
+		else if kBlockStructureEndTags.contains(name) {
 			if !self.hasElementInScope(name) {
 				self.emitError("unexpected-end-tag")
 				return

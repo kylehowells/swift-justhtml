@@ -1119,3 +1119,212 @@ func blackhole<T>(_ x: T) {
 	print("  - Foster parenting")
 	print("  - String comparisons in tag matching")
 }
+
+@Test func profileTagDispatchCost() async throws {
+	print("\n" + String(repeating: "=", count: 70))
+	print("TAG DISPATCH COST ANALYSIS")
+	print(String(repeating: "=", count: 70))
+
+	// Simulate the tag names found in a typical document
+	// Distribution based on actual Wikipedia pages
+	let tagDistribution: [(String, Int)] = [
+		("span", 3000),
+		("a", 2000),
+		("div", 1500),
+		("li", 1000),
+		("p", 500),
+		("td", 400),
+		("tr", 200),
+		("table", 50),
+		("img", 100),
+		("br", 100),
+		("b", 200),
+		("i", 150),
+		("script", 20),
+		("style", 5),
+		("html", 1),
+		("head", 1),
+		("body", 1),
+	]
+
+	var allTags: [String] = []
+	for (tag, count) in tagDistribution {
+		allTags.append(contentsOf: Array(repeating: tag, count: count))
+	}
+	allTags.shuffle() // Randomize order
+
+	let iterations = 10
+	var timer = PrecisionTimer()
+
+	// Sets used in processStartTagInBody (simulating the actual checks)
+	let headTags: Set<String> = ["base", "basefont", "bgsound", "link", "meta", "noframes", "script", "style", "template", "title"]
+	let blockTags: Set<String> = ["address", "article", "aside", "blockquote", "center", "details", "dialog", "dir", "div",
+	                               "dl", "fieldset", "figcaption", "figure", "footer", "header", "hgroup", "main", "menu", "nav",
+	                               "ol", "p", "search", "section", "summary", "ul"]
+	let headingTags: Set<String> = ["h1", "h2", "h3", "h4", "h5", "h6"]
+	let formattingTags: Set<String> = ["b", "big", "code", "em", "font", "i", "s", "small", "strike", "strong", "tt", "u"]
+	let voidTags: Set<String> = ["area", "br", "embed", "img", "keygen", "wbr"]
+	let tableTags: Set<String> = ["caption", "col", "colgroup", "frame", "head", "tbody", "td", "tfoot", "th", "thead", "tr"]
+
+	// Strategy 1: String-based if/else chain (current approach)
+	var result1 = 0
+	timer.begin()
+	for _ in 0..<iterations {
+		for name in allTags {
+			// Simulate the processStartTagInBody dispatch
+			if name == "html" {
+				result1 += 1
+			} else if headTags.contains(name) {
+				result1 += 2
+			} else if name == "body" {
+				result1 += 3
+			} else if name == "frameset" {
+				result1 += 4
+			} else if blockTags.contains(name) {
+				result1 += 5
+			} else if headingTags.contains(name) {
+				result1 += 6
+			} else if name == "form" {
+				result1 += 7
+			} else if name == "li" {
+				result1 += 8
+			} else if name == "button" {
+				result1 += 9
+			} else if name == "a" {
+				result1 += 10
+			} else if formattingTags.contains(name) {
+				result1 += 11
+			} else if name == "table" {
+				result1 += 12
+			} else if voidTags.contains(name) {
+				result1 += 13
+			} else if name == "input" {
+				result1 += 14
+			} else if tableTags.contains(name) {
+				result1 += 15
+			} else {
+				result1 += 16
+			}
+		}
+	}
+	timer.stop()
+	let stringDispatchMs = timer.elapsedMilliseconds / Double(iterations)
+	blackhole(result1)
+
+	// Strategy 2: TagID-based switch (proposed optimization)
+	// Convert tags to TagIDs once
+	let tagIDs = allTags.map { TagID.from($0) }
+
+	let headTagIDs: Set<TagID> = [.base, .basefont, .bgsound, .link, .meta, .noframes, .script, .style, .template, .title]
+	let blockTagIDs: Set<TagID> = [.address, .article, .aside, .blockquote, .center, .details, .dialog, .div,
+	                                .dl, .fieldset, .figcaption, .figure, .footer, .header, .main, .menu, .nav,
+	                                .ol, .p, .search, .section, .summary, .ul]
+	let headingTagIDs: Set<TagID> = [.h1, .h2, .h3, .h4, .h5, .h6]
+	let formattingTagIDs: Set<TagID> = [.b, .big, .code, .em, .font, .i, .s, .small, .strike, .strong, .tt, .u]
+	let voidTagIDs: Set<TagID> = [.area, .br, .embed, .img, .keygen, .wbr]
+	let tableTagIDs: Set<TagID> = [.caption, .col, .colgroup, .frame, .head, .tbody, .td, .tfoot, .th, .thead, .tr]
+
+	var result2 = 0
+	timer.begin()
+	for _ in 0..<iterations {
+		for tagId in tagIDs {
+			// Simulate TagID-based dispatch
+			if tagId == .html {
+				result2 += 1
+			} else if headTagIDs.contains(tagId) {
+				result2 += 2
+			} else if tagId == .body {
+				result2 += 3
+			} else if tagId == .frameset {
+				result2 += 4
+			} else if blockTagIDs.contains(tagId) {
+				result2 += 5
+			} else if headingTagIDs.contains(tagId) {
+				result2 += 6
+			} else if tagId == .form {
+				result2 += 7
+			} else if tagId == .li {
+				result2 += 8
+			} else if tagId == .button {
+				result2 += 9
+			} else if tagId == .a {
+				result2 += 10
+			} else if formattingTagIDs.contains(tagId) {
+				result2 += 11
+			} else if tagId == .table {
+				result2 += 12
+			} else if voidTagIDs.contains(tagId) {
+				result2 += 13
+			} else if tagId == .input {
+				result2 += 14
+			} else if tableTagIDs.contains(tagId) {
+				result2 += 15
+			} else {
+				result2 += 16
+			}
+		}
+	}
+	timer.stop()
+	let tagIdDispatchMs = timer.elapsedMilliseconds / Double(iterations)
+	blackhole(result2)
+
+	// Strategy 3: TagID switch statement (potential for jump table)
+	var result3 = 0
+	timer.begin()
+	for _ in 0..<iterations {
+		for tagId in tagIDs {
+			switch tagId {
+				case .html:
+					result3 += 1
+				case .base, .basefont, .bgsound, .link, .meta, .noframes, .script, .style, .template, .title:
+					result3 += 2
+				case .body:
+					result3 += 3
+				case .frameset:
+					result3 += 4
+				case .address, .article, .aside, .blockquote, .center, .details, .dialog, .div,
+				     .dl, .fieldset, .figcaption, .figure, .footer, .header, .main, .menu, .nav,
+				     .ol, .p, .search, .section, .summary, .ul:
+					result3 += 5
+				case .h1, .h2, .h3, .h4, .h5, .h6:
+					result3 += 6
+				case .form:
+					result3 += 7
+				case .li:
+					result3 += 8
+				case .button:
+					result3 += 9
+				case .a:
+					result3 += 10
+				case .b, .big, .code, .em, .font, .i, .s, .small, .strike, .strong, .tt, .u:
+					result3 += 11
+				case .table:
+					result3 += 12
+				case .area, .br, .embed, .img, .keygen, .wbr:
+					result3 += 13
+				case .input:
+					result3 += 14
+				case .caption, .col, .colgroup, .frame, .head, .tbody, .td, .tfoot, .th, .thead, .tr:
+					result3 += 15
+				default:
+					result3 += 16
+			}
+		}
+	}
+	timer.stop()
+	let switchDispatchMs = timer.elapsedMilliseconds / Double(iterations)
+	blackhole(result3)
+
+	print("\nTag dispatch cost for \(allTags.count) tags:")
+	print(String(format: "  String if/else chain:    %.3f ms", stringDispatchMs))
+	print(String(format: "  TagID if/else chain:     %.3f ms", tagIdDispatchMs))
+	print(String(format: "  TagID switch statement:  %.3f ms", switchDispatchMs))
+	print()
+	print(String(format: "Speedup (TagID if/else vs String): %.1fx", stringDispatchMs / tagIdDispatchMs))
+	print(String(format: "Speedup (TagID switch vs String):  %.1fx", stringDispatchMs / switchDispatchMs))
+	print()
+	print("Per-tag costs:")
+	print(String(format: "  String if/else:    %.1f ns/tag", stringDispatchMs * 1_000_000 / Double(allTags.count)))
+	print(String(format: "  TagID if/else:     %.1f ns/tag", tagIdDispatchMs * 1_000_000 / Double(allTags.count)))
+	print(String(format: "  TagID switch:      %.1f ns/tag", switchDispatchMs * 1_000_000 / Double(allTags.count)))
+}
