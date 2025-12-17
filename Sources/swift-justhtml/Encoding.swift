@@ -15,7 +15,7 @@ private let ASCII_WHITESPACE_BYTES: Set<UInt8> = [0x09, 0x0A, 0x0C, 0x0D, 0x20]
 public func normalizeEncodingLabel(_ label: String?) -> String? {
     guard let label = label else { return nil }
 
-    let s = label.trimmingCharacters(in: .whitespaces).lowercased()
+    let s = label.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     if s.isEmpty { return nil }
 
     // UTF-7 variants become windows-1252 (security)
