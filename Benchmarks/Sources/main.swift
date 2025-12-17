@@ -2,7 +2,7 @@
 // Outputs JSON to stdout for comparison with Python and JavaScript implementations
 
 import Foundation
-import swift_justhtml
+import justhtml
 
 // MARK: - BenchmarkResult
 

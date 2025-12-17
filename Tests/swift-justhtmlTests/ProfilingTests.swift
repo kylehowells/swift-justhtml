@@ -2,7 +2,7 @@
 
 import Foundation
 import Testing
-@testable import swift_justhtml
+@testable import justhtml
 
 // MARK: - PrecisionTimer
 

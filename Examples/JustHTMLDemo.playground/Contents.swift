@@ -14,7 +14,7 @@
  */
 
 import Foundation
-import swift_justhtml
+import justhtml
 
 //: ## Basic Parsing
 //: Parse an HTML document from a string:

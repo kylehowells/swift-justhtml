@@ -2,7 +2,7 @@
 // A minimal CLI tool demonstrating the toMarkdown() API
 
 import Foundation
-import swift_justhtml
+import justhtml
 
 func printUsage() {
 	let name = (CommandLine.arguments.first as NSString?)?.lastPathComponent ?? "html2md"

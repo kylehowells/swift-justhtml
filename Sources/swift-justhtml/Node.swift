@@ -542,6 +542,6 @@ public final class Node {
 
 	/// Query using CSS selector
 	public func query(_ selector: String) throws -> [Node] {
-		return try swift_justhtml.query(self, selector: selector)
+		return try justhtml.query(self, selector: selector)
 	}
 }

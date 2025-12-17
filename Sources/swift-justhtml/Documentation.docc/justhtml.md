@@ -1,4 +1,4 @@
-# ``swift_justhtml``
+# ``justhtml``
 
 A dependency-free HTML5 parser for Swift, following the WHATWG HTML parsing specification.
 
@@ -7,7 +7,7 @@ A dependency-free HTML5 parser for Swift, following the WHATWG HTML parsing spec
 swift-justhtml is a complete HTML5 parser that passes all html5lib test suites. It provides a simple API for parsing HTML documents and fragments, querying with CSS selectors, and serializing to various formats.
 
 ```swift
-import swift_justhtml
+import justhtml
 
 // Parse an HTML document
 let doc = try JustHTML("<html><body><p class='intro'>Hello, World!</p></body></html>")

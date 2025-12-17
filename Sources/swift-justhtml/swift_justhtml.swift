@@ -4,7 +4,7 @@
 // the html5lib-tests test suite.
 //
 // Usage:
-//     import swift_justhtml
+//     import justhtml
 //
 //     let doc = try JustHTML("<p>Hello, World!</p>")
 //     print(doc.toText())  // "Hello, World!"

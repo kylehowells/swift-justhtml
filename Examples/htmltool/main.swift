@@ -17,7 +17,7 @@
 //   -h, --help            Show this help message
 
 import Foundation
-import swift_justhtml
+import justhtml
 
 // MARK: - Helpers
 

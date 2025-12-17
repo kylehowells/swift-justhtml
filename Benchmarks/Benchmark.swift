@@ -182,7 +182,7 @@ print("=" * 60)
 print()
 
 // Note: This benchmark script demonstrates the benchmark infrastructure.
-// To actually benchmark the parser, you need to import swift_justhtml.
+// To actually benchmark the parser, you need to import justhtml.
 // For now, we'll just generate the test HTML and measure generation time.
 
 print("Generating test HTML documents...")
@@ -208,13 +208,13 @@ for (name, html) in testCases {
 
 print()
 
-print("Note: To run actual parsing benchmarks, import swift_justhtml and use:")
+print("Note: To run actual parsing benchmarks, import justhtml and use:")
 print("  try JustHTML(html)")
 print()
 
-// Example benchmark template (requires swift_justhtml import):
+// Example benchmark template (requires JustHTML import):
 /*
- import swift_justhtml
+ import justhtml
 
  for (name, html) in testCases {
      let result = benchmark(name: name, iterations: 100, inputSize: html.count) {

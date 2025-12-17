@@ -108,7 +108,7 @@ def create_swift_memory_test(filepath):
     """Create a Swift script to parse a file and exit."""
     script = f'''
 import Foundation
-import swift_justhtml
+import JustHTML
 
 let url = URL(fileURLWithPath: "{filepath}")
 let html = try! String(contentsOf: url, encoding: .utf8)
@@ -197,7 +197,7 @@ def measure_swift_memory_simple(filepath):
     main_swift = sources_dir / "main.swift"
     main_swift.write_text(f'''
 import Foundation
-import swift_justhtml
+import JustHTML
 
 let url = URL(fileURLWithPath: "{filepath}")
 let html = try! String(contentsOf: url, encoding: .utf8)

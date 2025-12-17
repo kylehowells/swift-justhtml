@@ -28,7 +28,7 @@ Package name: `JustHTML` (Swift module name)
 ### Imports
 
 ```swift
-import JustHTML
+import justhtml
 
 // Primary types
 let doc = JustHTML("<p class='intro'>Hello</p>")

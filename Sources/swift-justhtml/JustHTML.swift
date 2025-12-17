@@ -176,7 +176,7 @@ public struct JustHTML {
 	/// - Parameter selector: The CSS selector
 	/// - Returns: Array of matching nodes
 	public func query(_ selector: String) throws -> [Node] {
-		return try swift_justhtml.query(self.root, selector: selector)
+		return try justhtml.query(self.root, selector: selector)
 	}
 
 	/// Serialize the document to HTML

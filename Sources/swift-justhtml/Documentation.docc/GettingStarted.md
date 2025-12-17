@@ -24,7 +24,7 @@ Then add it to your target's dependencies:
 targets: [
     .target(
         name: "YourTarget",
-        dependencies: ["swift-justhtml"]
+        dependencies: ["justhtml"]
     )
 ]
 ```
@@ -40,7 +40,7 @@ targets: [
 The ``JustHTML`` struct is the main entry point for parsing HTML:
 
 ```swift
-import swift_justhtml
+import justhtml
 
 // Parse from a string
 let doc = try JustHTML("<p>Hello</p>")

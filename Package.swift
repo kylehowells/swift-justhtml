@@ -15,12 +15,8 @@ let package = Package(
 	products: [
 		// Products define the executables and libraries a package produces, making them visible to other packages.
 		.library(
-			name: "swift-justhtml",
-			targets: ["swift-justhtml"]
-		),
-		.library(
-			name: "JustHTML",
-			targets: ["swift-justhtml"]
+			name: "justhtml",
+			targets: ["justhtml"]
 		),
 		.executable(
 			name: "benchmark",
@@ -46,31 +42,32 @@ let package = Package(
 		// Targets are the basic building blocks of a package, defining a module or a test suite.
 		// Targets can depend on other targets in this package and products from dependencies.
 		.target(
-			name: "swift-justhtml"
+			name: "justhtml",
+			path: "Sources/swift-justhtml"
 		),
 		.executableTarget(
 			name: "Benchmark",
-			dependencies: ["swift-justhtml"],
+			dependencies: ["justhtml"],
 			path: "Benchmarks/Sources"
 		),
 		.executableTarget(
 			name: "HTMLTool",
-			dependencies: ["swift-justhtml"],
+			dependencies: ["justhtml"],
 			path: "Examples/htmltool"
 		),
 		.executableTarget(
 			name: "HTML2MD",
-			dependencies: ["swift-justhtml"],
+			dependencies: ["justhtml"],
 			path: "Examples/html2md"
 		),
 		.executableTarget(
 			name: "ExtractLinks",
-			dependencies: ["swift-justhtml"],
+			dependencies: ["justhtml"],
 			path: "Examples/extractlinks"
 		),
 		.testTarget(
 			name: "swift-justhtmlTests",
-			dependencies: ["swift-justhtml"],
+			dependencies: ["justhtml"],
 			resources: [
 				.copy("html5lib-tests"),
 			]

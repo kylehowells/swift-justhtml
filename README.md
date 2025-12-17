@@ -32,7 +32,7 @@ Then add it to your target's dependencies:
 targets: [
     .target(
         name: "YourTarget",
-        dependencies: ["swift-justhtml"]
+        dependencies: ["justhtml"]
     )
 ]
 ```
@@ -48,7 +48,7 @@ targets: [
 ### Basic Parsing
 
 ```swift
-import swift_justhtml
+import justhtml
 
 // Parse an HTML document
 let doc = try JustHTML("<html><body><p>Hello, World!</p></body></html>")
@@ -170,8 +170,8 @@ See [Benchmarks/MEMORY_RESULTS.md](Benchmarks/MEMORY_RESULTS.md) for detailed me
 
 ## Documentation
 
-- [API Documentation](https://kylehowells.github.io/swift-justhtml/documentation/swift_justhtml/)
-- [Getting Started Guide](https://kylehowells.github.io/swift-justhtml/documentation/swift_justhtml/gettingstarted)
+- [API Documentation](https://kylehowells.github.io/swift-justhtml/documentation/justhtml/)
+- [Getting Started Guide](https://kylehowells.github.io/swift-justhtml/documentation/justhtml/gettingstarted)
 
 ## License
 

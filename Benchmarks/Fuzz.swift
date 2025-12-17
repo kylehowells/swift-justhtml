@@ -674,7 +674,7 @@ func runFuzzer(numTests: Int, seed: UInt64?, verbose: Bool) -> FuzzResult {
 		let testStart = Date()
 
 		do {
-			// NOTE: This requires swift_justhtml to be imported
+			// NOTE: This requires JustHTML to be imported
 			// For standalone testing, compile with: swift build -c release
 			// Then run the fuzzer from the test suite
 

@@ -2,7 +2,7 @@
 // A minimal CLI tool demonstrating CSS selector queries
 
 import Foundation
-import swift_justhtml
+import justhtml
 
 func printUsage() {
 	let name = (CommandLine.arguments.first as NSString?)?.lastPathComponent ?? "extractlinks"
