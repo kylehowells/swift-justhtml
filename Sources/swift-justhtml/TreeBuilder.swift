@@ -644,7 +644,7 @@ public final class TreeBuilder: TokenSink {
 				}
 				else {
 					// Non-whitespace: pop colgroup and reprocess in inTable
-					if self.currentNode?.name == "colgroup" {
+					if self.currentNode?.tagId == .colgroup {
 						self.popCurrentElement()
 						self.insertionMode = .inTable
 						self.processCharacter(ch)
@@ -1185,7 +1185,7 @@ public final class TreeBuilder: TokenSink {
 				}
 				else {
 					// Close colgroup and reprocess
-					if self.currentNode?.name == "colgroup" {
+					if self.currentNode?.tagId == .colgroup {
 						self.popCurrentElement()
 						self.insertionMode = .inTable
 						self.processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
@@ -1211,7 +1211,7 @@ public final class TreeBuilder: TokenSink {
 						return
 					}
 					self.generateImpliedEndTags()
-					if self.currentNode?.name != "caption" {
+					if self.currentNode?.tagId != .caption {
 						self.emitError("end-tag-too-early")
 					}
 					self.popUntil("caption")
@@ -1622,7 +1622,7 @@ public final class TreeBuilder: TokenSink {
 			for node in self.openElements.reversed() {
 				if node.name == "li" {
 					self.generateImpliedEndTags(except: "li")
-					if self.currentNode?.name != "li" {
+					if self.currentNode?.tagId != .li {
 						self.emitError("end-tag-too-early")
 					}
 					self.popUntil("li")
@@ -1809,7 +1809,7 @@ public final class TreeBuilder: TokenSink {
 			}
 		}
 		else if kOptionTags.contains(name) {
-			if self.currentNode?.name == "option" {
+			if self.currentNode?.tagId == .option {
 				self.popCurrentElement()
 			}
 			self.reconstructActiveFormattingElements()
@@ -2096,7 +2096,7 @@ public final class TreeBuilder: TokenSink {
 
 			case .inColumnGroup:
 				if name == "colgroup" {
-					if self.currentNode?.name == "colgroup" {
+					if self.currentNode?.tagId == .colgroup {
 						self.popCurrentElement()
 						self.insertionMode = .inTable
 					}
@@ -2113,7 +2113,7 @@ public final class TreeBuilder: TokenSink {
 				}
 				else {
 					// Close colgroup and reprocess
-					if self.currentNode?.name == "colgroup" {
+					if self.currentNode?.tagId == .colgroup {
 						self.popCurrentElement()
 						self.insertionMode = .inTable
 						self.processEndTag(name: name)
@@ -2156,7 +2156,7 @@ public final class TreeBuilder: TokenSink {
 						return
 					}
 					self.generateImpliedEndTags()
-					if self.currentNode?.name != "caption" {
+					if self.currentNode?.tagId != .caption {
 						self.emitError("end-tag-too-early")
 					}
 					self.popUntil("caption")
@@ -2169,7 +2169,7 @@ public final class TreeBuilder: TokenSink {
 						return
 					}
 					self.generateImpliedEndTags()
-					if self.currentNode?.name != "caption" {
+					if self.currentNode?.tagId != .caption {
 						self.emitError("end-tag-too-early")
 					}
 					self.popUntil("caption")
@@ -2189,12 +2189,12 @@ public final class TreeBuilder: TokenSink {
 
 			case .inFrameset:
 				if name == "frameset" {
-					if self.currentNode?.name == "html" {
+					if self.currentNode?.tagId == .html {
 						self.emitError("unexpected-end-tag")
 						return
 					}
 					self.popCurrentElement()
-					if self.currentNode?.name != "frameset" {
+					if self.currentNode?.tagId != .frameset {
 						self.insertionMode = .afterFrameset
 					}
 				}
@@ -2389,7 +2389,7 @@ public final class TreeBuilder: TokenSink {
 				return
 			}
 			self.generateImpliedEndTags(except: "li")
-			if self.currentNode?.name != "li" {
+			if self.currentNode?.tagId != .li {
 				self.emitError("end-tag-too-early")
 			}
 			self.popUntil("li")
@@ -2461,7 +2461,7 @@ public final class TreeBuilder: TokenSink {
 				return
 			}
 			self.generateImpliedEndTags()
-			if self.currentNode?.name != "template" {
+			if self.currentNode?.tagId != .template {
 				self.emitError("end-tag-too-early")
 			}
 			// Pop elements until HTML template
@@ -3036,7 +3036,7 @@ public final class TreeBuilder: TokenSink {
 	/// Close the current cell (td or th)
 	private func closeCell() {
 		self.generateImpliedEndTags()
-		if let current = currentNode, current.name != "td", current.name != "th" {
+		if let current = currentNode, current.tagId != .td, current.tagId != .th {
 			self.emitError("end-tag-too-early")
 		}
 		// Pop until td or th in HTML namespace
@@ -3087,7 +3087,7 @@ public final class TreeBuilder: TokenSink {
 			if node.name == name {
 				return true
 			}
-			if node.name != "optgroup", node.name != "option" {
+			if node.tagId != .optgroup, node.tagId != .option {
 				// Per spec: In fragment parsing, if context element matches, consider it in scope
 				if let ctx = contextElement, ctx.name == name {
 					return true
@@ -3249,7 +3249,7 @@ public final class TreeBuilder: TokenSink {
 
 	private func closePElement() {
 		self.generateImpliedEndTags(except: "p")
-		if self.currentNode?.name != "p" {
+		if self.currentNode?.tagId != .p {
 			self.emitError("expected-p-end-tag")
 		}
 		self.popUntil("p")
