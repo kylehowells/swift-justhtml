@@ -2006,6 +2006,7 @@ public final class Tokenizer {
 			self.emitError("eof-in-doctype")
 			self.currentDoctypeForceQuirks = true
 			self.emitCurrentDoctype()
+			self.state = .data
 			return
 		}
 
@@ -2029,6 +2030,7 @@ public final class Tokenizer {
 			self.emitError("eof-in-doctype")
 			self.currentDoctypeForceQuirks = true
 			self.emitCurrentDoctype()
+			self.state = .data
 			return
 		}
 
@@ -2059,6 +2061,7 @@ public final class Tokenizer {
 			self.emitError("eof-in-doctype")
 			self.currentDoctypeForceQuirks = true
 			self.emitCurrentDoctype()
+			self.state = .data
 			return
 		}
 
@@ -2084,6 +2087,7 @@ public final class Tokenizer {
 			self.emitError("eof-in-doctype")
 			self.currentDoctypeForceQuirks = true
 			self.emitCurrentDoctype()
+			self.state = .data
 			return
 		}
 
@@ -2118,6 +2122,7 @@ public final class Tokenizer {
 			self.emitError("eof-in-doctype")
 			self.currentDoctypeForceQuirks = true
 			self.emitCurrentDoctype()
+			self.state = .data
 			return
 		}
 
@@ -2154,6 +2159,7 @@ public final class Tokenizer {
 			self.emitError("eof-in-doctype")
 			self.currentDoctypeForceQuirks = true
 			self.emitCurrentDoctype()
+			self.state = .data
 			return
 		}
 
@@ -2189,6 +2195,7 @@ public final class Tokenizer {
 			self.emitError("eof-in-doctype")
 			self.currentDoctypeForceQuirks = true
 			self.emitCurrentDoctype()
+			self.state = .data
 			return
 		}
 
@@ -2216,6 +2223,7 @@ public final class Tokenizer {
 			self.emitError("eof-in-doctype")
 			self.currentDoctypeForceQuirks = true
 			self.emitCurrentDoctype()
+			self.state = .data
 			return
 		}
 
@@ -2243,6 +2251,7 @@ public final class Tokenizer {
 			self.emitError("eof-in-doctype")
 			self.currentDoctypeForceQuirks = true
 			self.emitCurrentDoctype()
+			self.state = .data
 			return
 		}
 
@@ -2277,6 +2286,7 @@ public final class Tokenizer {
 			self.emitError("eof-in-doctype")
 			self.currentDoctypeForceQuirks = true
 			self.emitCurrentDoctype()
+			self.state = .data
 			return
 		}
 
@@ -2310,6 +2320,7 @@ public final class Tokenizer {
 			self.emitError("eof-in-doctype")
 			self.currentDoctypeForceQuirks = true
 			self.emitCurrentDoctype()
+			self.state = .data
 			return
 		}
 
@@ -2346,6 +2357,7 @@ public final class Tokenizer {
 			self.emitError("eof-in-doctype")
 			self.currentDoctypeForceQuirks = true
 			self.emitCurrentDoctype()
+			self.state = .data
 			return
 		}
 
@@ -2381,6 +2393,7 @@ public final class Tokenizer {
 			self.emitError("eof-in-doctype")
 			self.currentDoctypeForceQuirks = true
 			self.emitCurrentDoctype()
+			self.state = .data
 			return
 		}
 
@@ -2408,6 +2421,7 @@ public final class Tokenizer {
 			self.emitError("eof-in-doctype")
 			self.currentDoctypeForceQuirks = true
 			self.emitCurrentDoctype()
+			self.state = .data
 			return
 		}
 
@@ -2435,6 +2449,7 @@ public final class Tokenizer {
 			self.emitError("eof-in-doctype")
 			self.currentDoctypeForceQuirks = true
 			self.emitCurrentDoctype()
+			self.state = .data
 			return
 		}
 
@@ -2457,6 +2472,7 @@ public final class Tokenizer {
 	private func bogusDoctypeState() {
 		guard let ch = consume() else {
 			self.emitCurrentDoctype()
+			self.state = .data
 			return
 		}
 

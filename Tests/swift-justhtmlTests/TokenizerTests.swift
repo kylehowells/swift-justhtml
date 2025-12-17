@@ -318,6 +318,28 @@ private func deepUnescapeUnicode(_ value: Any) -> Any {
 			else {
 				fileFailed += 1
 				totalFailed += 1
+				// Print first 5 failures per file for debugging
+				if fileFailed <= 5 {
+					let description = test["description"] as? String ?? "Test \(testIdx)"
+					let stateNames = test["initialStates"] as? [String] ?? ["Data state"]
+					// Collect actual tokens for first state for debug
+					let collector = TokenCollector()
+					var debugOpts = TokenizerOpts(initialState: initialStates.first ?? .data)
+					if let lst = lastStartTag {
+						debugOpts.initialRawtextTag = lst
+					}
+					debugOpts.xmlCoercion = isXmlCoercion
+					let tokenizer = Tokenizer(collector, opts: debugOpts, collectErrors: false)
+					tokenizer.run(input)
+					let actualTokens = collector.tokens.map { tokenToTestArray($0) }
+					let expectedTokens = (deepUnescapeUnicode(expectedOutput) as? [[Any]]) ?? expectedOutput
+
+					print("\nTOKENIZER FAIL: \(filename):\(testIdx) \(description)")
+					print("  States: \(stateNames)")
+					print("  Input: \(input.debugDescription)")
+					print("  Expected: \(expectedTokens)")
+					print("  Actual: \(actualTokens)")
+				}
 			}
 		}
 
