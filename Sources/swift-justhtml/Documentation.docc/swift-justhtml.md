@@ -34,6 +34,12 @@ let html = doc.toHTML()
 
 ## Topics
 
+### Guides
+
+- <doc:GettingStarted>
+- <doc:Performance>
+- <doc:Benchmarking>
+
 ### Essentials
 
 - ``JustHTML``
