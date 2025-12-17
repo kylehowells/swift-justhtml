@@ -237,8 +237,11 @@ public final class Tokenizer {
 	private var currentDoctypeSystemId: String? = nil
 	private var currentDoctypeForceQuirks: Bool = false
 
-	/// Character buffer
-	private var charBuffer: String = ""
+	/// Character buffer (bytes - converted to String only when flushing)
+	private var charBuffer: ContiguousArray<UInt8> = []
+
+	/// Reusable buffer for tag/attribute name scanning (avoids allocation per tag)
+	private var nameBuffer: ContiguousArray<UInt8> = []
 
 	// Temporary buffer for rawtext/rcdata end tag matching
 	private var tempBuffer: String = ""
@@ -701,22 +704,39 @@ public final class Tokenizer {
 
 	@inline(__always)
 	private func emitChar(_ ch: Character) {
-		self.charBuffer.append(ch)
+		// Convert character to UTF-8 bytes
+		for byte in String(ch).utf8 {
+			self.charBuffer.append(byte)
+		}
 	}
 
 	@inline(__always)
 	private func emitString(_ s: String) {
-		self.charBuffer.append(s)
+		// Append string as UTF-8 bytes
+		for byte in s.utf8 {
+			self.charBuffer.append(byte)
+		}
+	}
+
+	@inline(__always)
+	private func emitByte(_ byte: UInt8) {
+		self.charBuffer.append(byte)
+	}
+
+	@inline(__always)
+	private func emitBytes(_ bytes: ArraySlice<UInt8>) {
+		self.charBuffer.append(contentsOf: bytes)
 	}
 
 	private func flushCharBuffer() {
 		if !self.charBuffer.isEmpty {
-			var text = self.charBuffer
+			// Convert bytes to String only when flushing
+			var text = String(decoding: self.charBuffer, as: UTF8.self)
 			if self.opts.xmlCoercion {
 				text = coerceTextForXML(text)
 			}
 			self.sink?.processToken(.character(text))
-			self.charBuffer = ""
+			self.charBuffer.removeAll(keepingCapacity: true)
 		}
 	}
 
@@ -809,68 +829,163 @@ public final class Tokenizer {
 	// MARK: - Tokenizer States
 
 	private func dataState() {
-		guard let ch = consume() else {
-			self.emit(.eof)
-			return
-		}
+		// Batch scan: find next special character and emit all text at once
+		let startPos = self.pos
+		while self.pos < self.inputLength {
+			let byte = self.inputBytes[self.pos]
 
-		switch ch {
-			case "&":
+			if byte == 0x3C { // '<'
+				if self.pos > startPos {
+					self.emitTextBytes(from: startPos, to: self.pos)
+				}
+				self.pos += 1
+				self.column += 1
+				self.state = .tagOpen
+				return
+			}
+
+			if byte == 0x26 { // '&'
+				if self.pos > startPos {
+					self.emitTextBytes(from: startPos, to: self.pos)
+				}
+				self.pos += 1
+				self.column += 1
 				self.returnState = .data
 				self.state = .characterReference
+				return
+			}
 
-			case "<":
-				self.state = .tagOpen
-
-			case "\0":
+			if byte == 0x00 { // null
+				if self.pos > startPos {
+					self.emitTextBytes(from: startPos, to: self.pos)
+				}
+				self.pos += 1
+				self.column += 1
 				self.emitError("unexpected-null-character")
-				self.emitChar(ch)
+				self.emitChar("\0")
+				return
+			}
 
-			default:
-				self.emitChar(ch)
+			// Track line/column for error reporting
+			if byte == 0x0A {
+				self.line += 1
+				self.column = 0
+			}
+			else {
+				self.column += 1
+			}
+			self.pos += 1
 		}
+
+		// EOF
+		if self.pos > startPos {
+			self.emitTextBytes(from: startPos, to: self.pos)
+		}
+		self.emit(.eof)
+	}
+
+	/// Emit a run of bytes as text (just copy bytes, convert when flushing)
+	@inline(__always)
+	private func emitTextBytes(from start: Int, to end: Int) {
+		// Just append the bytes - conversion happens in flushCharBuffer
+		self.charBuffer.append(contentsOf: self.inputBytes[start ..< end])
 	}
 
 	private func rcdataState() {
-		guard let ch = consume() else {
-			self.emit(.eof)
-			return
-		}
+		// Batch scan for RCDATA (entities processed, so stop at &)
+		let startPos = self.pos
+		while self.pos < self.inputLength {
+			let byte = self.inputBytes[self.pos]
 
-		switch ch {
-			case "&":
+			if byte == 0x3C { // '<'
+				if self.pos > startPos {
+					self.emitTextBytes(from: startPos, to: self.pos)
+				}
+				self.pos += 1
+				self.column += 1
+				self.state = .rcdataLessThan
+				return
+			}
+
+			if byte == 0x26 { // '&'
+				if self.pos > startPos {
+					self.emitTextBytes(from: startPos, to: self.pos)
+				}
+				self.pos += 1
+				self.column += 1
 				self.returnState = .rcdata
 				self.state = .characterReference
+				return
+			}
 
-			case "<":
-				self.state = .rcdataLessThan
-
-			case "\0":
+			if byte == 0x00 { // null
+				if self.pos > startPos {
+					self.emitTextBytes(from: startPos, to: self.pos)
+				}
+				self.pos += 1
+				self.column += 1
 				self.emitError("unexpected-null-character")
 				self.emitChar("\u{FFFD}")
+				return
+			}
 
-			default:
-				self.emitChar(ch)
+			if byte == 0x0A {
+				self.line += 1
+				self.column = 0
+			}
+			else {
+				self.column += 1
+			}
+			self.pos += 1
 		}
+
+		if self.pos > startPos {
+			self.emitTextBytes(from: startPos, to: self.pos)
+		}
+		self.emit(.eof)
 	}
 
 	private func rawtextState() {
-		guard let ch = consume() else {
-			self.emit(.eof)
-			return
-		}
+		// Batch scan for RAWTEXT (no entity processing, only stop at <)
+		let startPos = self.pos
+		while self.pos < self.inputLength {
+			let byte = self.inputBytes[self.pos]
 
-		switch ch {
-			case "<":
+			if byte == 0x3C { // '<'
+				if self.pos > startPos {
+					self.emitTextBytes(from: startPos, to: self.pos)
+				}
+				self.pos += 1
+				self.column += 1
 				self.state = .rawtextLessThan
+				return
+			}
 
-			case "\0":
+			if byte == 0x00 { // null
+				if self.pos > startPos {
+					self.emitTextBytes(from: startPos, to: self.pos)
+				}
+				self.pos += 1
+				self.column += 1
 				self.emitError("unexpected-null-character")
 				self.emitChar("\u{FFFD}")
+				return
+			}
 
-			default:
-				self.emitChar(ch)
+			if byte == 0x0A {
+				self.line += 1
+				self.column = 0
+			}
+			else {
+				self.column += 1
+			}
+			self.pos += 1
 		}
+
+		if self.pos > startPos {
+			self.emitTextBytes(from: startPos, to: self.pos)
+		}
+		self.emit(.eof)
 	}
 
 	private func plaintextState() {
@@ -952,30 +1067,90 @@ public final class Tokenizer {
 	}
 
 	private func tagNameState() {
-		guard let ch = consume() else {
-			self.emitError("eof-in-tag")
-			self.state = .data
-			return
+		// Batch scan: collect tag name bytes until delimiter
+		// Use reusable buffer to avoid allocation per tag
+		self.nameBuffer.removeAll(keepingCapacity: true)
+
+		while self.pos < self.inputLength {
+			let byte = self.inputBytes[self.pos]
+
+			// Check for delimiters
+			switch byte {
+				case 0x09, 0x0A, 0x0C, 0x20: // \t \n \f space
+					self.pos += 1
+					self.column += 1
+					if !self.nameBuffer.isEmpty {
+						self.currentTagName.append(String(decoding: self.nameBuffer, as: UTF8.self))
+					}
+					self.state = .beforeAttributeName
+					return
+
+				case 0x2F: // /
+					self.pos += 1
+					self.column += 1
+					if !self.nameBuffer.isEmpty {
+						self.currentTagName.append(String(decoding: self.nameBuffer, as: UTF8.self))
+					}
+					self.state = .selfClosingStartTag
+					return
+
+				case 0x3E: // >
+					self.pos += 1
+					self.column += 1
+					if !self.nameBuffer.isEmpty {
+						self.currentTagName.append(String(decoding: self.nameBuffer, as: UTF8.self))
+					}
+					self.state = .data
+					self.emitCurrentTag()
+					return
+
+				case 0x00: // null
+					self.pos += 1
+					self.column += 1
+					if !self.nameBuffer.isEmpty {
+						self.currentTagName.append(String(decoding: self.nameBuffer, as: UTF8.self))
+						self.nameBuffer.removeAll(keepingCapacity: true)
+					}
+					self.emitError("unexpected-null-character")
+					self.currentTagName.append("\u{FFFD}")
+					// Continue scanning
+
+				default:
+					// Lowercase ASCII A-Z (0x41-0x5A) -> a-z (0x61-0x7A)
+					if byte >= 0x41, byte <= 0x5A {
+						self.nameBuffer.append(byte + 32)
+					}
+					else {
+						self.nameBuffer.append(byte)
+					}
+
+					// Track position
+					if byte == 0x0A {
+						self.line += 1
+						self.column = 0
+					}
+					else {
+						self.column += 1
+					}
+					self.pos += 1
+
+					// Handle multi-byte UTF-8 sequences
+					if byte >= 0x80 {
+						// Skip continuation bytes (10xxxxxx pattern)
+						while self.pos < self.inputLength, (self.inputBytes[self.pos] & 0xC0) == 0x80 {
+							self.nameBuffer.append(self.inputBytes[self.pos])
+							self.pos += 1
+						}
+					}
+			}
 		}
 
-		switch ch {
-			case "\t", "\n", "\u{0C}", " ":
-				self.state = .beforeAttributeName
-
-			case "/":
-				self.state = .selfClosingStartTag
-
-			case ">":
-				self.state = .data
-				self.emitCurrentTag()
-
-			case "\0":
-				self.emitError("unexpected-null-character")
-				self.currentTagName.append("\u{FFFD}")
-
-			default:
-				self.currentTagName.append(ch.asLowercaseCharacter)
+		// EOF
+		if !self.nameBuffer.isEmpty {
+			self.currentTagName.append(String(decoding: self.nameBuffer, as: UTF8.self))
 		}
+		self.emitError("eof-in-tag")
+		self.state = .data
 	}
 
 	private func rcdataLessThanState() {
@@ -1694,34 +1869,101 @@ public final class Tokenizer {
 	}
 
 	private func attributeNameState() {
-		guard let ch = consume() else {
-			self.emitError("eof-in-tag")
-			self.state = .data
-			return
-		}
+		// Batch scan: collect attribute name bytes until delimiter
+		// Use reusable buffer to avoid allocation per attribute
+		self.nameBuffer.removeAll(keepingCapacity: true)
 
-		switch ch {
-			case "\t", "\n", "\u{0C}", " ", "/", ">":
-				self.storeCurrentAttr()
-				self.state = ch == "/" ? .selfClosingStartTag : (ch == ">" ? .data : .afterAttributeName)
-				if ch == ">" {
+		while self.pos < self.inputLength {
+			let byte = self.inputBytes[self.pos]
+
+			switch byte {
+				case 0x09, 0x0A, 0x0C, 0x20: // \t \n \f space
+					self.pos += 1
+					self.column += 1
+					if !self.nameBuffer.isEmpty {
+						self.currentAttrName.append(String(decoding: self.nameBuffer, as: UTF8.self))
+					}
+					self.storeCurrentAttr()
+					self.state = .afterAttributeName
+					return
+
+				case 0x2F: // /
+					self.pos += 1
+					self.column += 1
+					if !self.nameBuffer.isEmpty {
+						self.currentAttrName.append(String(decoding: self.nameBuffer, as: UTF8.self))
+					}
+					self.storeCurrentAttr()
+					self.state = .selfClosingStartTag
+					return
+
+				case 0x3E: // >
+					self.pos += 1
+					self.column += 1
+					if !self.nameBuffer.isEmpty {
+						self.currentAttrName.append(String(decoding: self.nameBuffer, as: UTF8.self))
+					}
+					self.storeCurrentAttr()
+					self.state = .data
 					self.emitCurrentTag()
-				}
+					return
 
-			case "=":
-				self.state = .beforeAttributeValue
+				case 0x3D: // =
+					self.pos += 1
+					self.column += 1
+					if !self.nameBuffer.isEmpty {
+						self.currentAttrName.append(String(decoding: self.nameBuffer, as: UTF8.self))
+					}
+					self.state = .beforeAttributeValue
+					return
 
-			case "\0":
-				self.emitError("unexpected-null-character")
-				self.currentAttrName.append("\u{FFFD}")
+				case 0x00: // null
+					self.pos += 1
+					self.column += 1
+					if !self.nameBuffer.isEmpty {
+						self.currentAttrName.append(String(decoding: self.nameBuffer, as: UTF8.self))
+						self.nameBuffer.removeAll(keepingCapacity: true)
+					}
+					self.emitError("unexpected-null-character")
+					self.currentAttrName.append("\u{FFFD}")
 
-			case "\"", "'", "<":
-				self.emitError("unexpected-character-in-attribute-name")
-				self.currentAttrName.append(ch)
+				case 0x22, 0x27, 0x3C: // " ' <
+					self.pos += 1
+					self.column += 1
+					if !self.nameBuffer.isEmpty {
+						self.currentAttrName.append(String(decoding: self.nameBuffer, as: UTF8.self))
+						self.nameBuffer.removeAll(keepingCapacity: true)
+					}
+					self.emitError("unexpected-character-in-attribute-name")
+					self.currentAttrName.append(Character(UnicodeScalar(byte)))
 
-			default:
-				self.currentAttrName.append(ch.asLowercaseCharacter)
+				default:
+					// Lowercase ASCII A-Z
+					if byte >= 0x41, byte <= 0x5A {
+						self.nameBuffer.append(byte + 32)
+					}
+					else {
+						self.nameBuffer.append(byte)
+					}
+					self.column += 1
+					self.pos += 1
+
+					// Handle multi-byte UTF-8
+					if byte >= 0x80 {
+						while self.pos < self.inputLength, (self.inputBytes[self.pos] & 0xC0) == 0x80 {
+							self.nameBuffer.append(self.inputBytes[self.pos])
+							self.pos += 1
+						}
+					}
+			}
 		}
+
+		// EOF
+		if !self.nameBuffer.isEmpty {
+			self.currentAttrName.append(String(decoding: self.nameBuffer, as: UTF8.self))
+		}
+		self.emitError("eof-in-tag")
+		self.state = .data
 	}
 
 	private func afterAttributeNameState() {
@@ -1785,87 +2027,206 @@ public final class Tokenizer {
 	}
 
 	private func attributeValueDoubleQuotedState() {
-		guard let ch = consume() else {
-			self.emitError("eof-in-tag")
-			self.state = .data
-			return
+		// Batch scan until " or & or null or EOF
+		let startPos = self.pos
+
+		while self.pos < self.inputLength {
+			let byte = self.inputBytes[self.pos]
+
+			switch byte {
+				case 0x22: // "
+					if self.pos > startPos {
+						self.currentAttrValue.append(String(decoding: self.inputBytes[startPos ..< self.pos], as: UTF8.self))
+					}
+					self.pos += 1
+					self.column += 1
+					self.storeCurrentAttr()
+					self.state = .afterAttributeValueQuoted
+					return
+
+				case 0x26: // &
+					if self.pos > startPos {
+						self.currentAttrValue.append(String(decoding: self.inputBytes[startPos ..< self.pos], as: UTF8.self))
+					}
+					self.pos += 1
+					self.column += 1
+					self.returnState = .attributeValueDoubleQuoted
+					self.state = .characterReference
+					return
+
+				case 0x00: // null
+					if self.pos > startPos {
+						self.currentAttrValue.append(String(decoding: self.inputBytes[startPos ..< self.pos], as: UTF8.self))
+					}
+					self.pos += 1
+					self.column += 1
+					self.emitError("unexpected-null-character")
+					self.currentAttrValue.append("\u{FFFD}")
+					// Restart scanning from current position
+					self.attributeValueDoubleQuotedState()
+					return
+
+				default:
+					if byte == 0x0A {
+						self.line += 1
+						self.column = 0
+					}
+					else {
+						self.column += 1
+					}
+					self.pos += 1
+			}
 		}
 
-		switch ch {
-			case "\"":
-				self.storeCurrentAttr()
-				self.state = .afterAttributeValueQuoted
-
-			case "&":
-				self.returnState = .attributeValueDoubleQuoted
-				self.state = .characterReference
-
-			case "\0":
-				self.emitError("unexpected-null-character")
-				self.currentAttrValue.append("\u{FFFD}")
-
-			default:
-				self.currentAttrValue.append(ch)
+		// EOF
+		if self.pos > startPos {
+			self.currentAttrValue.append(String(decoding: self.inputBytes[startPos ..< self.pos], as: UTF8.self))
 		}
+		self.emitError("eof-in-tag")
+		self.state = .data
 	}
 
 	private func attributeValueSingleQuotedState() {
-		guard let ch = consume() else {
-			self.emitError("eof-in-tag")
-			self.state = .data
-			return
+		// Batch scan until ' or & or null or EOF
+		let startPos = self.pos
+
+		while self.pos < self.inputLength {
+			let byte = self.inputBytes[self.pos]
+
+			switch byte {
+				case 0x27: // '
+					if self.pos > startPos {
+						self.currentAttrValue.append(String(decoding: self.inputBytes[startPos ..< self.pos], as: UTF8.self))
+					}
+					self.pos += 1
+					self.column += 1
+					self.storeCurrentAttr()
+					self.state = .afterAttributeValueQuoted
+					return
+
+				case 0x26: // &
+					if self.pos > startPos {
+						self.currentAttrValue.append(String(decoding: self.inputBytes[startPos ..< self.pos], as: UTF8.self))
+					}
+					self.pos += 1
+					self.column += 1
+					self.returnState = .attributeValueSingleQuoted
+					self.state = .characterReference
+					return
+
+				case 0x00: // null
+					if self.pos > startPos {
+						self.currentAttrValue.append(String(decoding: self.inputBytes[startPos ..< self.pos], as: UTF8.self))
+					}
+					self.pos += 1
+					self.column += 1
+					self.emitError("unexpected-null-character")
+					self.currentAttrValue.append("\u{FFFD}")
+					// Restart scanning from current position
+					self.attributeValueSingleQuotedState()
+					return
+
+				default:
+					if byte == 0x0A {
+						self.line += 1
+						self.column = 0
+					}
+					else {
+						self.column += 1
+					}
+					self.pos += 1
+			}
 		}
 
-		switch ch {
-			case "'":
-				self.storeCurrentAttr()
-				self.state = .afterAttributeValueQuoted
-
-			case "&":
-				self.returnState = .attributeValueSingleQuoted
-				self.state = .characterReference
-
-			case "\0":
-				self.emitError("unexpected-null-character")
-				self.currentAttrValue.append("\u{FFFD}")
-
-			default:
-				self.currentAttrValue.append(ch)
+		// EOF
+		if self.pos > startPos {
+			self.currentAttrValue.append(String(decoding: self.inputBytes[startPos ..< self.pos], as: UTF8.self))
 		}
+		self.emitError("eof-in-tag")
+		self.state = .data
 	}
 
 	private func attributeValueUnquotedState() {
-		guard let ch = consume() else {
-			self.emitError("eof-in-tag")
-			self.state = .data
-			return
+		// Batch scan until delimiter
+		let startPos = self.pos
+
+		while self.pos < self.inputLength {
+			let byte = self.inputBytes[self.pos]
+
+			switch byte {
+				case 0x09, 0x0A, 0x0C, 0x20: // \t \n \f space
+					if self.pos > startPos {
+						self.currentAttrValue.append(String(decoding: self.inputBytes[startPos ..< self.pos], as: UTF8.self))
+					}
+					self.pos += 1
+					self.column += 1
+					self.storeCurrentAttr()
+					self.state = .beforeAttributeName
+					return
+
+				case 0x26: // &
+					if self.pos > startPos {
+						self.currentAttrValue.append(String(decoding: self.inputBytes[startPos ..< self.pos], as: UTF8.self))
+					}
+					self.pos += 1
+					self.column += 1
+					self.returnState = .attributeValueUnquoted
+					self.state = .characterReference
+					return
+
+				case 0x3E: // >
+					if self.pos > startPos {
+						self.currentAttrValue.append(String(decoding: self.inputBytes[startPos ..< self.pos], as: UTF8.self))
+					}
+					self.pos += 1
+					self.column += 1
+					self.storeCurrentAttr()
+					self.state = .data
+					self.emitCurrentTag()
+					return
+
+				case 0x00: // null
+					if self.pos > startPos {
+						self.currentAttrValue.append(String(decoding: self.inputBytes[startPos ..< self.pos], as: UTF8.self))
+					}
+					self.pos += 1
+					self.column += 1
+					self.emitError("unexpected-null-character")
+					self.currentAttrValue.append("\u{FFFD}")
+					// Restart scanning from current position
+					self.attributeValueUnquotedState()
+					return
+
+				case 0x22, 0x27, 0x3C, 0x3D, 0x60: // " ' < = `
+					if self.pos > startPos {
+						self.currentAttrValue.append(String(decoding: self.inputBytes[startPos ..< self.pos], as: UTF8.self))
+					}
+					self.pos += 1
+					self.column += 1
+					self.emitError("unexpected-character-in-unquoted-attribute-value")
+					self.currentAttrValue.append(Character(UnicodeScalar(byte)))
+					// Restart scanning from current position
+					self.attributeValueUnquotedState()
+					return
+
+				default:
+					if byte == 0x0A {
+						self.line += 1
+						self.column = 0
+					}
+					else {
+						self.column += 1
+					}
+					self.pos += 1
+			}
 		}
 
-		switch ch {
-			case "\t", "\n", "\u{0C}", " ":
-				self.storeCurrentAttr()
-				self.state = .beforeAttributeName
-
-			case "&":
-				self.returnState = .attributeValueUnquoted
-				self.state = .characterReference
-
-			case ">":
-				self.storeCurrentAttr()
-				self.state = .data
-				self.emitCurrentTag()
-
-			case "\0":
-				self.emitError("unexpected-null-character")
-				self.currentAttrValue.append("\u{FFFD}")
-
-			case "\"", "'", "<", "=", "`":
-				self.emitError("unexpected-character-in-unquoted-attribute-value")
-				self.currentAttrValue.append(ch)
-
-			default:
-				self.currentAttrValue.append(ch)
+		// EOF
+		if self.pos > startPos {
+			self.currentAttrValue.append(String(decoding: self.inputBytes[startPos ..< self.pos], as: UTF8.self))
 		}
+		self.emitError("eof-in-tag")
+		self.state = .data
 	}
 
 	private func afterAttributeValueQuotedState() {

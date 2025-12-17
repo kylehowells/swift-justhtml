@@ -85,6 +85,76 @@ private let kBodyCaptionHtmlTags: Set<String> = ["body", "caption", "col", "colg
 private let kBodyCaptionCellTags: Set<String> = ["body", "caption", "col", "colgroup", "html", "td", "th"]
 private let kBodyCaptionRowTags: Set<String> = ["body", "caption", "col", "colgroup", "html", "td", "th", "tr"]
 
+/// Head tags that should be processed using "in head" rules when encountered in body
+private let kHeadProcessingTags: Set<String> = [
+	"base", "basefont", "bgsound", "link", "meta", "noframes", "script", "style", "template", "title",
+]
+
+/// Block/structural tags that close p elements
+private let kBlockStructureTags: Set<String> = [
+	"address", "article", "aside", "blockquote", "center", "details", "dialog", "dir", "div",
+	"dl", "fieldset", "figcaption", "figure", "footer", "header", "hgroup", "main", "menu", "nav",
+	"ol", "p", "search", "section", "summary", "ul",
+]
+
+/// Table-related start tags to ignore in body
+private let kIgnoredTableStartTags: Set<String> = [
+	"caption", "col", "colgroup", "frame", "head", "tbody", "td", "tfoot", "th", "thead", "tr",
+]
+
+/// Tags to ignore when processing end tags in table mode
+private let kIgnoredTableEndTags: Set<String> = [
+	"body", "caption", "col", "colgroup", "html", "tbody", "td", "tfoot", "th", "thead", "tr",
+]
+
+/// Block/structural end tags that need scope checking
+private let kBlockStructureEndTags: Set<String> = [
+	"address", "article", "aside", "blockquote", "button", "center", "details", "dialog", "dir",
+	"div", "dl", "fieldset", "figcaption", "figure", "footer", "header", "hgroup", "listing",
+	"main", "menu", "nav", "ol", "pre", "search", "section", "summary", "ul",
+]
+
+// MARK: - TagID Sets (fast integer comparisons)
+
+private let kTableSectionTagIDs: Set<TagID> = [.tbody, .tfoot, .thead]
+private let kTableRowTagIDs: Set<TagID> = [.tbody, .tfoot, .thead, .tr]
+private let kTableCellTagIDs: Set<TagID> = [.td, .th]
+private let kTableRelatedTagIDs: Set<TagID> = [.table, .tbody, .tfoot, .thead, .tr]
+private let kTableAllTagIDs: Set<TagID> = [.table, .tbody, .tfoot, .thead, .tr, .td, .th]
+private let kTableBoundaryTagIDs: Set<TagID> = [.caption, .table, .tbody, .tfoot, .thead, .tr, .td, .th]
+private let kHeadingTagIDs: Set<TagID> = [.h1, .h2, .h3, .h4, .h5, .h6]
+private let kListItemTagIDs: Set<TagID> = [.dd, .dt]
+private let kHeadMetaTagIDs: Set<TagID> = [.base, .basefont, .bgsound, .link, .meta]
+private let kHeadStyleTagIDs: Set<TagID> = [.noframes, .style]
+private let kTemplateScriptTagIDs: Set<TagID> = [.script, .template]
+private let kVoidElementTagIDs: Set<TagID> = [.area, .br, .embed, .img, .keygen, .wbr]
+private let kFormattingScopeTagIDs: Set<TagID> = [.applet, .marquee, .object]
+private let kBreakoutTagIDs: Set<TagID> = [.head, .body, .html, .br]
+private let kTableContextTagIDs: Set<TagID> = [.table, .template, .html]
+private let kTableBodyContextTagIDs: Set<TagID> = [.tbody, .tfoot, .thead, .template, .html]
+private let kRowContextTagIDs: Set<TagID> = [.tr, .template, .html]
+private let kSelectContentTagIDs: Set<TagID> = [.input, .textarea]
+private let kOptionTagIDs: Set<TagID> = [.optgroup, .option]
+private let kRubyBaseTagIDs: Set<TagID> = [.rb, .rtc]
+private let kRubyTextTagIDs: Set<TagID> = [.rp, .rt]
+private let kSVGIntegrationTagIDs: Set<TagID> = [.foreignObject, .desc, .title]
+private let kMathMLIntegrationTagIDs: Set<TagID> = [.mi, .mo, .mn, .ms, .mtext, .annotationXml]
+private let kMediaTagIDs: Set<TagID> = [.param, .source, .track]
+private let kFormElementTagIDs: Set<TagID> = [.p, .div, .span, .button, .datalist, .selectedcontent, .menuitem]
+private let kHeadInBodyTagIDs: Set<TagID> = [.basefont, .bgsound, .link, .meta, .noframes, .style]
+private let kHeadNoscriptTagIDs: Set<TagID> = [.head, .noscript]
+private let kTableRowCellTagIDs: Set<TagID> = [.td, .th, .tr]
+private let kTableCaptionTagIDs: Set<TagID> = [.caption, .col, .colgroup, .tbody, .tfoot, .thead]
+private let kTableCaptionRowTagIDs: Set<TagID> = [.caption, .col, .colgroup, .tbody, .tfoot, .thead, .tr]
+private let kTableAllCellTagIDs: Set<TagID> = [.caption, .col, .colgroup, .tbody, .td, .tfoot, .th, .thead, .tr]
+private let kTableCaptionGroupTagIDs: Set<TagID> = [.caption, .colgroup, .tbody, .tfoot, .thead]
+private let kPreListingTagIDs: Set<TagID> = [.pre, .listing]
+private let kAddressDivPTagIDs: Set<TagID> = [.address, .div, .p]
+private let kBodyHtmlBrTagIDs: Set<TagID> = [.body, .html, .br]
+private let kBodyCaptionHtmlTagIDs: Set<TagID> = [.body, .caption, .col, .colgroup, .html]
+private let kBodyCaptionCellTagIDs: Set<TagID> = [.body, .caption, .col, .colgroup, .html, .td, .th]
+private let kBodyCaptionRowTagIDs: Set<TagID> = [.body, .caption, .col, .colgroup, .html, .td, .th, .tr]
+
 // MARK: - TreeBuilder
 
 /// Tree builder that constructs DOM from tokens
@@ -603,7 +673,7 @@ public final class TreeBuilder: TokenSink {
 				}
 				else {
 					// Non-whitespace: pop colgroup and reprocess in inTable
-					if self.currentNode?.name == "colgroup" {
+					if self.currentNode?.tagId == .colgroup {
 						self.popCurrentElement()
 						self.insertionMode = .inTable
 						self.processCharacter(ch)
@@ -734,7 +804,7 @@ public final class TreeBuilder: TokenSink {
 			let isTableMode = [
 				InsertionMode.inTable, .inTableBody, .inRow, .inCell, .inCaption, .inColumnGroup,
 			].contains(self.insertionMode)
-			if isTableMode, !self.hasElementInTableScope("table") {
+			if isTableMode, !self.hasElementInTableScope(.table) {
 				// Temporarily use IN_BODY mode for this tag
 				let savedMode = self.insertionMode
 				self.insertionMode = .inBody
@@ -875,10 +945,7 @@ public final class TreeBuilder: TokenSink {
 					_ = self.insertElement(name: name, attrs: attrs)
 					self.insertionMode = .inFrameset
 				}
-				else if [
-					"base", "basefont", "bgsound", "link", "meta", "noframes", "script", "style", "template",
-					"title",
-				].contains(name) {
+				else if kHeadProcessingTags.contains(name) {
 					self.emitError("unexpected-start-tag")
 					if let head = headElement {
 						self.openElements.append(head)
@@ -977,7 +1044,7 @@ public final class TreeBuilder: TokenSink {
 				}
 				else if name == "table" {
 					self.emitError("unexpected-start-tag-implies-end-tag")
-					if self.hasElementInTableScope("table") {
+					if self.hasElementInTableScope(.table) {
 						self.popUntil("table")
 						self.resetInsertionMode()
 						self.processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
@@ -1012,7 +1079,7 @@ public final class TreeBuilder: TokenSink {
 				}
 				else if name == "form" {
 					self.emitError("unexpected-start-tag-in-table")
-					if self.formElement == nil, !self.hasElementInScope("template") {
+					if self.formElement == nil, !self.hasElementInScope(.template) {
 						let element = self.insertElement(name: name, attrs: attrs)
 						self.formElement = element
 						self.popCurrentElement()
@@ -1040,8 +1107,8 @@ public final class TreeBuilder: TokenSink {
 					self.processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
 				}
 				else if kTableCaptionTags.contains(name) {
-					if !self.hasElementInTableScope("tbody"), !self.hasElementInTableScope("thead"),
-					   !self.hasElementInTableScope("tfoot")
+					if !self.hasElementInTableScope(.tbody), !self.hasElementInTableScope(.thead),
+					   !self.hasElementInTableScope(.tfoot)
 					{
 						self.emitError("unexpected-start-tag")
 						return
@@ -1055,7 +1122,7 @@ public final class TreeBuilder: TokenSink {
 					// Nested table - close current table and insert new one
 					// Don't restore mode since we're creating a completely new table context
 					self.emitError("unexpected-start-tag-implies-end-tag")
-					if self.hasElementInTableScope("table") {
+					if self.hasElementInTableScope(.table) {
 						self.popUntil("table")
 						self.resetInsertionMode()
 						self.processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
@@ -1079,7 +1146,7 @@ public final class TreeBuilder: TokenSink {
 					self.insertMarker()
 				}
 				else if kTableCaptionRowTags.contains(name) {
-					if !self.hasElementInTableScope("tr") {
+					if !self.hasElementInTableScope(.tr) {
 						self.emitError("unexpected-start-tag")
 						return
 					}
@@ -1092,7 +1159,7 @@ public final class TreeBuilder: TokenSink {
 					// Nested table - close current table and insert new one
 					// Don't restore mode since we're creating a completely new table context
 					self.emitError("unexpected-start-tag-implies-end-tag")
-					if self.hasElementInTableScope("table") {
+					if self.hasElementInTableScope(.table) {
 						self.popUntil("table")
 						self.resetInsertionMode()
 						self.processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
@@ -1111,7 +1178,7 @@ public final class TreeBuilder: TokenSink {
 			case .inCell:
 				if kTableAllCellTags.contains(name)
 				{
-					if !self.hasElementInTableScope("td"), !self.hasElementInTableScope("th") {
+					if !self.hasElementInTableScope(.td), !self.hasElementInTableScope(.th) {
 						self.emitError("unexpected-start-tag")
 						return
 					}
@@ -1144,7 +1211,7 @@ public final class TreeBuilder: TokenSink {
 				}
 				else {
 					// Close colgroup and reprocess
-					if self.currentNode?.name == "colgroup" {
+					if self.currentNode?.tagId == .colgroup {
 						self.popCurrentElement()
 						self.insertionMode = .inTable
 						self.processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
@@ -1160,7 +1227,7 @@ public final class TreeBuilder: TokenSink {
 					.contains(name)
 				{
 					self.emitError("unexpected-start-tag-implies-end-tag")
-					if !self.hasElementInTableScope("caption") {
+					if !self.hasElementInTableScope(.caption) {
 						// Fragment parsing - no caption on stack
 						if name == "table" {
 							// Handle in body mode for <table>
@@ -1170,7 +1237,7 @@ public final class TreeBuilder: TokenSink {
 						return
 					}
 					self.generateImpliedEndTags()
-					if self.currentNode?.name != "caption" {
+					if self.currentNode?.tagId != .caption {
 						self.emitError("end-tag-too-early")
 					}
 					self.popUntil("caption")
@@ -1230,10 +1297,7 @@ public final class TreeBuilder: TokenSink {
 
 			case .inTemplate:
 				// Handle start tags in "in template" insertion mode
-				if [
-					"base", "basefont", "bgsound", "link", "meta", "noframes", "script", "style", "template",
-					"title",
-				].contains(name) {
+				if kHeadProcessingTags.contains(name) {
 					// Process using "in head" rules
 					let savedMode = self.insertionMode
 					self.insertionMode = .inHead
@@ -1297,27 +1361,27 @@ public final class TreeBuilder: TokenSink {
 					self.processStartTagInBody(name: name, attrs: attrs, selfClosing: selfClosing)
 				}
 				else if name == "option" {
-					if let current = currentNode, current.name == "option" {
+					if let current = currentNode, current.tagId == .option {
 						self.popCurrentElement()
 					}
 					self.reconstructActiveFormattingElements()
 					_ = self.insertElement(name: name, attrs: attrs)
 				}
 				else if name == "optgroup" {
-					if let current = currentNode, current.name == "option" {
+					if let current = currentNode, current.tagId == .option {
 						self.popCurrentElement()
 					}
-					if let current = currentNode, current.name == "optgroup" {
+					if let current = currentNode, current.tagId == .optgroup {
 						self.popCurrentElement()
 					}
 					_ = self.insertElement(name: name, attrs: attrs)
 				}
 				else if name == "hr" || name == "keygen" {
 					// hr and keygen are inserted inside select as self-closing elements
-					if let current = currentNode, current.name == "option" {
+					if let current = currentNode, current.tagId == .option {
 						self.popCurrentElement()
 					}
-					if let current = currentNode, current.name == "optgroup" {
+					if let current = currentNode, current.tagId == .optgroup {
 						self.popCurrentElement()
 					}
 					_ = self.insertElement(name: name, attrs: attrs)
@@ -1325,10 +1389,10 @@ public final class TreeBuilder: TokenSink {
 				}
 				else if name == "plaintext" {
 					// plaintext is inserted and switches tokenizer to plaintext mode
-					if let current = currentNode, current.name == "option" {
+					if let current = currentNode, current.tagId == .option {
 						self.popCurrentElement()
 					}
-					if let current = currentNode, current.name == "optgroup" {
+					if let current = currentNode, current.tagId == .optgroup {
 						self.popCurrentElement()
 					}
 					_ = self.insertElement(name: name, attrs: attrs)
@@ -1337,7 +1401,7 @@ public final class TreeBuilder: TokenSink {
 				else if name == "select" {
 					self.emitError("unexpected-start-tag-in-select")
 					// Per browser behavior, check if select is anywhere on the stack, not using strict scope
-					if self.openElements.contains(where: { $0.name == "select" }) {
+					if self.openElements.contains(where: { $0.tagId == .select }) {
 						self.popUntil("select")
 						self.resetInsertionMode()
 					}
@@ -1351,8 +1415,8 @@ public final class TreeBuilder: TokenSink {
 					// In fragment parsing, if select is only the context element,
 					// we conceptually close it by clearing the context and going to inBody
 					let selectIsContextOnly =
-						self.contextElement?.name == "select"
-							&& !self.openElements.contains { $0.name == "select" }
+						self.contextElement?.tagId == .select
+							&& !self.openElements.contains { $0.tagId == .select }
 					if selectIsContextOnly {
 						self.contextElement = nil
 						// Go directly to inBody without creating implicit head/body
@@ -1426,8 +1490,8 @@ public final class TreeBuilder: TokenSink {
 					// In fragment parsing, if select is only the context element,
 					// we conceptually close it by clearing the context and going to inBody
 					let selectIsContextOnly =
-						self.contextElement?.name == "select"
-							&& !self.openElements.contains { $0.name == "select" }
+						self.contextElement?.tagId == .select
+							&& !self.openElements.contains { $0.tagId == .select }
 					if selectIsContextOnly {
 						self.contextElement = nil
 						self.insertionMode = .inBody
@@ -1451,8 +1515,8 @@ public final class TreeBuilder: TokenSink {
 					// In fragment parsing, if select is only the context element,
 					// we conceptually close it by clearing the context and going to inBody
 					let selectIsContextOnly =
-						self.contextElement?.name == "select"
-							&& !self.openElements.contains { $0.name == "select" }
+						self.contextElement?.tagId == .select
+							&& !self.openElements.contains { $0.tagId == .select }
 					if selectIsContextOnly {
 						self.contextElement = nil
 						self.insertionMode = .inBody
@@ -1488,10 +1552,7 @@ public final class TreeBuilder: TokenSink {
 				}
 			}
 		}
-		else if [
-			"base", "basefont", "bgsound", "link", "meta", "noframes", "script", "style", "template",
-			"title",
-		].contains(name) || (name == "noscript" && self.scripting) {
+		else if kHeadProcessingTags.contains(name) || (name == "noscript" && self.scripting) {
 			// Process using "in head" rules
 			let savedMode = self.insertionMode
 			self.insertionMode = .inHead
@@ -1509,7 +1570,7 @@ public final class TreeBuilder: TokenSink {
 			self.emitError("unexpected-start-tag")
 			// Don't merge attributes if inside a template
 			if self.templateInsertionModes.isEmpty,
-			   self.openElements.count >= 2, self.openElements[1].name == "body"
+			   self.openElements.count >= 2, self.openElements[1].tagId == .body
 			{
 				self.framesetOk = false
 				for (key, value) in attrs where self.openElements[1].attrs[key] == nil {
@@ -1520,7 +1581,7 @@ public final class TreeBuilder: TokenSink {
 		else if name == "frameset" {
 			self.emitError("unexpected-start-tag")
 			// Check conditions for allowing frameset
-			if self.openElements.count > 1, self.openElements[1].name == "body", self.framesetOk {
+			if self.openElements.count > 1, self.openElements[1].tagId == .body, self.framesetOk {
 				// Remove the body element from its parent
 				if let body = openElements.count > 1 ? openElements[1] : nil {
 					body.parent?.removeChild(body)
@@ -1535,28 +1596,24 @@ public final class TreeBuilder: TokenSink {
 			}
 			// Otherwise ignore
 		}
-		else if [
-			"address", "article", "aside", "blockquote", "center", "details", "dialog", "dir", "div",
-			"dl", "fieldset", "figcaption", "figure", "footer", "header", "hgroup", "main", "menu", "nav",
-			"ol", "p", "search", "section", "summary", "ul",
-		].contains(name) {
-			if self.hasElementInButtonScope("p") {
+		else if kBlockStructureTags.contains(name) {
+			if self.hasElementInButtonScope(.p) {
 				self.closePElement()
 			}
 			_ = self.insertElement(name: name, attrs: attrs)
 		}
 		else if kHeadingTags.contains(name) {
-			if self.hasElementInButtonScope("p") {
+			if self.hasElementInButtonScope(.p) {
 				self.closePElement()
 			}
-			if let current = currentNode, kHeadingTags.contains(current.name) {
+			if let current = currentNode, kHeadingTagIDs.contains(current.tagId) {
 				self.emitError("unexpected-start-tag")
 				self.popCurrentElement()
 			}
 			_ = self.insertElement(name: name, attrs: attrs)
 		}
 		else if kPreListingTags.contains(name) {
-			if self.hasElementInButtonScope("p") {
+			if self.hasElementInButtonScope(.p) {
 				self.closePElement()
 			}
 			_ = self.insertElement(name: name, attrs: attrs)
@@ -1568,7 +1625,7 @@ public final class TreeBuilder: TokenSink {
 				self.emitError("unexpected-start-tag")
 			}
 			else {
-				if self.hasElementInButtonScope("p") {
+				if self.hasElementInButtonScope(.p) {
 					self.closePElement()
 				}
 				let element = self.insertElement(name: name, attrs: attrs)
@@ -1579,20 +1636,20 @@ public final class TreeBuilder: TokenSink {
 			self.framesetOk = false
 			// Close any open li elements in list item scope
 			for node in self.openElements.reversed() {
-				if node.name == "li" {
+				if node.tagId == .li {
 					self.generateImpliedEndTags(except: "li")
-					if self.currentNode?.name != "li" {
+					if self.currentNode?.tagId != .li {
 						self.emitError("end-tag-too-early")
 					}
 					self.popUntil("li")
 					break
 				}
 				// Stop at list item scope boundary elements
-				if LIST_ITEM_SCOPE_ELEMENTS.contains(node.name) {
+				if LIST_ITEM_SCOPE_ELEMENTS_ID.contains(node.tagId) {
 					break
 				}
 			}
-			if self.hasElementInButtonScope("p") {
+			if self.hasElementInButtonScope(.p) {
 				self.closePElement()
 			}
 			_ = self.insertElement(name: name, attrs: attrs)
@@ -1602,9 +1659,9 @@ public final class TreeBuilder: TokenSink {
 			// Close any open dd or dt elements in scope
 			// Per spec: stop at special elements EXCEPT address, div, and p
 			for node in self.openElements.reversed() {
-				if node.name == "dd" || node.name == "dt" {
+				if node.tagId == .dd || node.tagId == .dt {
 					self.generateImpliedEndTags(except: node.name)
-					if self.currentNode?.name != node.name {
+					if self.currentNode?.tagId != node.tagId {
 						self.emitError("end-tag-too-early")
 					}
 					self.popUntil(node.name)
@@ -1612,25 +1669,25 @@ public final class TreeBuilder: TokenSink {
 				}
 				// Stop at special elements, but NOT address, div, or p
 				if SPECIAL_ELEMENTS.contains(node.name),
-				   !kAddressDivPTags.contains(node.name)
+				   !kAddressDivPTagIDs.contains(node.tagId)
 				{
 					break
 				}
 			}
-			if self.hasElementInButtonScope("p") {
+			if self.hasElementInButtonScope(.p) {
 				self.closePElement()
 			}
 			_ = self.insertElement(name: name, attrs: attrs)
 		}
 		else if name == "plaintext" {
-			if self.hasElementInButtonScope("p") {
+			if self.hasElementInButtonScope(.p) {
 				self.closePElement()
 			}
 			_ = self.insertElement(name: name, attrs: attrs)
 			// Switch tokenizer to PLAINTEXT state
 		}
 		else if name == "button" {
-			if self.hasElementInScope("button") {
+			if self.hasElementInScope(.button) {
 				self.emitError("unexpected-start-tag")
 				self.generateImpliedEndTags()
 				self.popUntil("button")
@@ -1660,7 +1717,7 @@ public final class TreeBuilder: TokenSink {
 		}
 		else if name == "nobr" {
 			// Special handling for nobr - must check scope BEFORE other formatting elements logic
-			if self.hasElementInScope("nobr") {
+			if self.hasElementInScope(.nobr) {
 				self.emitError("unexpected-start-tag-implies-end-tag")
 				// Run adoption agency to close the existing nobr
 				self.adoptionAgency(name: "nobr")
@@ -1690,7 +1747,7 @@ public final class TreeBuilder: TokenSink {
 		}
 		else if name == "table" {
 			// Only close p element if NOT in quirks mode
-			if !self.quirksMode, self.hasElementInButtonScope("p") {
+			if !self.quirksMode, self.hasElementInButtonScope(.p) {
 				self.closePElement()
 			}
 			_ = self.insertElement(name: name, attrs: attrs)
@@ -1716,7 +1773,7 @@ public final class TreeBuilder: TokenSink {
 			self.popCurrentElement()
 		}
 		else if name == "hr" {
-			if self.hasElementInButtonScope("p") {
+			if self.hasElementInButtonScope(.p) {
 				self.closePElement()
 			}
 			_ = self.insertElement(name: name, attrs: attrs)
@@ -1736,7 +1793,7 @@ public final class TreeBuilder: TokenSink {
 			self.insertionMode = .text
 		}
 		else if name == "xmp" {
-			if self.hasElementInButtonScope("p") {
+			if self.hasElementInButtonScope(.p) {
 				self.closePElement()
 			}
 			self.reconstructActiveFormattingElements()
@@ -1768,20 +1825,20 @@ public final class TreeBuilder: TokenSink {
 			}
 		}
 		else if kOptionTags.contains(name) {
-			if self.currentNode?.name == "option" {
+			if self.currentNode?.tagId == .option {
 				self.popCurrentElement()
 			}
 			self.reconstructActiveFormattingElements()
 			_ = self.insertElement(name: name, attrs: attrs)
 		}
 		else if kRubyBaseTags.contains(name) {
-			if self.hasElementInScope("ruby") {
+			if self.hasElementInScope(.ruby) {
 				self.generateImpliedEndTags()
 			}
 			_ = self.insertElement(name: name, attrs: attrs)
 		}
 		else if kRubyTextTags.contains(name) {
-			if self.hasElementInScope("ruby") {
+			if self.hasElementInScope(.ruby) {
 				self.generateImpliedEndTags(except: "rtc")
 			}
 			_ = self.insertElement(name: name, attrs: attrs)
@@ -1802,9 +1859,7 @@ public final class TreeBuilder: TokenSink {
 				self.popCurrentElement()
 			}
 		}
-		else if [
-			"caption", "col", "colgroup", "frame", "head", "tbody", "td", "tfoot", "th", "thead", "tr",
-		].contains(name) {
+		else if kIgnoredTableStartTags.contains(name) {
 			self.emitError("unexpected-start-tag")
 			// Ignore
 		}
@@ -1964,7 +2019,7 @@ public final class TreeBuilder: TokenSink {
 
 			case .inRow:
 				if name == "tr" {
-					if !self.hasElementInTableScope("tr") {
+					if !self.hasElementInTableScope(.tr) {
 						self.emitError("unexpected-end-tag")
 						return
 					}
@@ -1973,7 +2028,7 @@ public final class TreeBuilder: TokenSink {
 					self.insertionMode = .inTableBody
 				}
 				else if name == "table" {
-					if !self.hasElementInTableScope("tr") {
+					if !self.hasElementInTableScope(.tr) {
 						self.emitError("unexpected-end-tag")
 						return
 					}
@@ -1987,7 +2042,7 @@ public final class TreeBuilder: TokenSink {
 						self.emitError("unexpected-end-tag")
 						return
 					}
-					if !self.hasElementInTableScope("tr") {
+					if !self.hasElementInTableScope(.tr) {
 						return
 					}
 					self.clearStackBackToTableRowContext()
@@ -2024,8 +2079,8 @@ public final class TreeBuilder: TokenSink {
 					self.insertionMode = .inTable
 				}
 				else if name == "table" {
-					if !self.hasElementInTableScope("tbody"), !self.hasElementInTableScope("thead"),
-					   !self.hasElementInTableScope("tfoot")
+					if !self.hasElementInTableScope(.tbody), !self.hasElementInTableScope(.thead),
+					   !self.hasElementInTableScope(.tfoot)
 					{
 						self.emitError("unexpected-end-tag")
 						return
@@ -2055,7 +2110,7 @@ public final class TreeBuilder: TokenSink {
 
 			case .inColumnGroup:
 				if name == "colgroup" {
-					if self.currentNode?.name == "colgroup" {
+					if self.currentNode?.tagId == .colgroup {
 						self.popCurrentElement()
 						self.insertionMode = .inTable
 					}
@@ -2072,7 +2127,7 @@ public final class TreeBuilder: TokenSink {
 				}
 				else {
 					// Close colgroup and reprocess
-					if self.currentNode?.name == "colgroup" {
+					if self.currentNode?.tagId == .colgroup {
 						self.popCurrentElement()
 						self.insertionMode = .inTable
 						self.processEndTag(name: name)
@@ -2084,16 +2139,14 @@ public final class TreeBuilder: TokenSink {
 
 			case .inTable:
 				if name == "table" {
-					if !self.hasElementInTableScope("table") {
+					if !self.hasElementInTableScope(.table) {
 						self.emitError("unexpected-end-tag")
 						return
 					}
 					self.popUntil("table")
 					self.resetInsertionMode()
 				}
-				else if [
-					"body", "caption", "col", "colgroup", "html", "tbody", "td", "tfoot", "th", "thead", "tr",
-				].contains(name) {
+				else if kIgnoredTableEndTags.contains(name) {
 					self.emitError("unexpected-end-tag")
 					// Ignore
 				}
@@ -2110,12 +2163,12 @@ public final class TreeBuilder: TokenSink {
 
 			case .inCaption:
 				if name == "caption" {
-					if !self.hasElementInTableScope("caption") {
+					if !self.hasElementInTableScope(.caption) {
 						self.emitError("unexpected-end-tag")
 						return
 					}
 					self.generateImpliedEndTags()
-					if self.currentNode?.name != "caption" {
+					if self.currentNode?.tagId != .caption {
 						self.emitError("end-tag-too-early")
 					}
 					self.popUntil("caption")
@@ -2123,12 +2176,12 @@ public final class TreeBuilder: TokenSink {
 					self.insertionMode = .inTable
 				}
 				else if name == "table" {
-					if !self.hasElementInTableScope("caption") {
+					if !self.hasElementInTableScope(.caption) {
 						self.emitError("unexpected-end-tag")
 						return
 					}
 					self.generateImpliedEndTags()
-					if self.currentNode?.name != "caption" {
+					if self.currentNode?.tagId != .caption {
 						self.emitError("end-tag-too-early")
 					}
 					self.popUntil("caption")
@@ -2148,12 +2201,12 @@ public final class TreeBuilder: TokenSink {
 
 			case .inFrameset:
 				if name == "frameset" {
-					if self.currentNode?.name == "html" {
+					if self.currentNode?.tagId == .html {
 						self.emitError("unexpected-end-tag")
 						return
 					}
 					self.popCurrentElement()
-					if self.currentNode?.name != "frameset" {
+					if self.currentNode?.tagId != .frameset {
 						self.insertionMode = .afterFrameset
 					}
 				}
@@ -2291,25 +2344,21 @@ public final class TreeBuilder: TokenSink {
 
 	private func processEndTagInBody(name: String) {
 		if name == "body" {
-			if !self.hasElementInScope("body") {
+			if !self.hasElementInScope(.body) {
 				self.emitError("unexpected-end-tag")
 				return
 			}
 			self.insertionMode = .afterBody
 		}
 		else if name == "html" {
-			if !self.hasElementInScope("body") {
+			if !self.hasElementInScope(.body) {
 				self.emitError("unexpected-end-tag")
 				return
 			}
 			self.insertionMode = .afterBody
 			self.processEndTag(name: name)
 		}
-		else if [
-			"address", "article", "aside", "blockquote", "button", "center", "details", "dialog", "dir",
-			"div", "dl", "fieldset", "figcaption", "figure", "footer", "header", "hgroup", "listing",
-			"main", "menu", "nav", "ol", "pre", "search", "section", "summary", "ul",
-		].contains(name) {
+		else if kBlockStructureEndTags.contains(name) {
 			if !self.hasElementInScope(name) {
 				self.emitError("unexpected-end-tag")
 				return
@@ -2323,7 +2372,7 @@ public final class TreeBuilder: TokenSink {
 		else if name == "form" {
 			let node = self.formElement
 			self.formElement = nil
-			if node == nil || !self.hasElementInScope("form") {
+			if node == nil || !self.hasElementInScope(.form) {
 				self.emitError("unexpected-end-tag")
 				return
 			}
@@ -2336,19 +2385,19 @@ public final class TreeBuilder: TokenSink {
 			}
 		}
 		else if name == "p" {
-			if !self.hasElementInButtonScope("p") {
+			if !self.hasElementInButtonScope(.p) {
 				self.emitError("unexpected-end-tag")
 				_ = self.insertElement(name: "p", attrs: [:])
 			}
 			self.closePElement()
 		}
 		else if name == "li" {
-			if !self.hasElementInListItemScope("li") {
+			if !self.hasElementInListItemScope(.li) {
 				self.emitError("unexpected-end-tag")
 				return
 			}
 			self.generateImpliedEndTags(except: "li")
-			if self.currentNode?.name != "li" {
+			if self.currentNode?.tagId != .li {
 				self.emitError("end-tag-too-early")
 			}
 			self.popUntil("li")
@@ -2365,9 +2414,9 @@ public final class TreeBuilder: TokenSink {
 			self.popUntil(name)
 		}
 		else if kHeadingTags.contains(name) {
-			if !self.hasElementInScope("h1"), !self.hasElementInScope("h2"),
-			   !self.hasElementInScope("h3"),
-			   !self.hasElementInScope("h4"), !self.hasElementInScope("h5"), !self.hasElementInScope("h6")
+			if !self.hasElementInScope(.h1), !self.hasElementInScope(.h2),
+			   !self.hasElementInScope(.h3),
+			   !self.hasElementInScope(.h4), !self.hasElementInScope(.h5), !self.hasElementInScope(.h6)
 			{
 				self.emitError("unexpected-end-tag")
 				return
@@ -2379,7 +2428,7 @@ public final class TreeBuilder: TokenSink {
 			// Pop until h1-h6
 			while let current = currentNode {
 				self.popCurrentElement()
-				if kHeadingTags.contains(current.name) {
+				if kHeadingTagIDs.contains(current.tagId) {
 					break
 				}
 			}
@@ -2420,7 +2469,7 @@ public final class TreeBuilder: TokenSink {
 				return
 			}
 			self.generateImpliedEndTags()
-			if self.currentNode?.name != "template" {
+			if self.currentNode?.tagId != .template {
 				self.emitError("end-tag-too-early")
 			}
 			// Pop elements until HTML template
@@ -2615,7 +2664,7 @@ public final class TreeBuilder: TokenSink {
 			case .inTemplate:
 				// EOF in template - pop template and close
 				// Check if template is in the stack (not in scope - table breaks scope but template is still there)
-				let hasTemplate = self.openElements.contains { $0.name == "template" }
+				let hasTemplate = self.openElements.contains { $0.tagId == .template }
 				if !hasTemplate {
 					// No template in stack - stop processing
 					break
@@ -2724,7 +2773,7 @@ public final class TreeBuilder: TokenSink {
 		// insert normally into that element.
 		if self.fosterParentingEnabled {
 			let target = self.adjustedInsertionTarget
-			if kTableRelatedTags.contains(target.name) {
+			if kTableRelatedTagIDs.contains(target.tagId) {
 				self.fosterParentNode(node)
 			}
 			else {
@@ -2798,14 +2847,14 @@ public final class TreeBuilder: TokenSink {
 
 		// Per spec: foster parenting for text only applies when the target is a table element
 		if self.fosterParentingEnabled,
-		   kTableRelatedTags.contains(target.name)
+		   kTableRelatedTagIDs.contains(target.tagId)
 		{
 			self.insertCharacterWithFosterParenting(ch)
 			return
 		}
 
 		// Merge with previous text node if possible
-		if let lastChild = target.children.last, lastChild.name == "#text" {
+		if let lastChild = target.children.last, lastChild.tagId == .text {
 			if case var .text(existing) = lastChild.data {
 				existing.append(ch)
 				lastChild.data = .text(existing)
@@ -2826,7 +2875,7 @@ public final class TreeBuilder: TokenSink {
 
 		// Per spec: foster parenting for text only applies when the target is a table element
 		if self.fosterParentingEnabled,
-		   kTableRelatedTags.contains(target.name)
+		   kTableRelatedTagIDs.contains(target.tagId)
 		{
 			// Fall back to character-by-character for foster parenting
 			for ch in text {
@@ -2836,7 +2885,7 @@ public final class TreeBuilder: TokenSink {
 		}
 
 		// Merge with previous text node if possible
-		if let lastChild = target.children.last, lastChild.name == "#text" {
+		if let lastChild = target.children.last, lastChild.tagId == .text {
 			if case var .text(existing) = lastChild.data {
 				existing.append(text)
 				lastChild.data = .text(existing)
@@ -2868,7 +2917,7 @@ public final class TreeBuilder: TokenSink {
 			if lastTableIndex == nil || templateIndex > lastTableIndex! {
 				if let content = openElements[templateIndex].templateContent {
 					// Merge with previous text node if possible
-					if let lastChild = content.children.last, lastChild.name == "#text" {
+					if let lastChild = content.children.last, lastChild.tagId == .text {
 						if case let .text(existing) = lastChild.data {
 							lastChild.data = .text(existing + String(ch))
 							return
@@ -2884,7 +2933,7 @@ public final class TreeBuilder: TokenSink {
 		// If no table found
 		guard let tableIndex = lastTableIndex else {
 			let target = self.adjustedInsertionTarget
-			if let lastChild = target.children.last, lastChild.name == "#text" {
+			if let lastChild = target.children.last, lastChild.tagId == .text {
 				if case let .text(existing) = lastChild.data {
 					lastChild.data = .text(existing + String(ch))
 					return
@@ -2918,7 +2967,7 @@ public final class TreeBuilder: TokenSink {
 			// Table has no parent - use the element before table in stack
 			if tableIndex > 0 {
 				let target = self.openElements[tableIndex - 1]
-				if let lastChild = target.children.last, lastChild.name == "#text" {
+				if let lastChild = target.children.last, lastChild.tagId == .text {
 					if case let .text(existing) = lastChild.data {
 						lastChild.data = .text(existing + String(ch))
 						return
@@ -2963,7 +3012,7 @@ public final class TreeBuilder: TokenSink {
 	/// Clear the stack back to a table context (table, template, or html)
 	private func clearStackBackToTableContext() {
 		while let current = currentNode {
-			if kTableContextTags.contains(current.name) {
+			if kTableContextTagIDs.contains(current.tagId) {
 				break
 			}
 			self.popCurrentElement()
@@ -2973,7 +3022,7 @@ public final class TreeBuilder: TokenSink {
 	/// Clear the stack back to a table body context (tbody, tfoot, thead, template, or html)
 	private func clearStackBackToTableBodyContext() {
 		while let current = currentNode {
-			if kTableBodyContextTags.contains(current.name) {
+			if kTableBodyContextTagIDs.contains(current.tagId) {
 				break
 			}
 			self.popCurrentElement()
@@ -2985,7 +3034,7 @@ public final class TreeBuilder: TokenSink {
 		// Per Python justhtml: requires both name match AND HTML namespace
 		while let current = currentNode {
 			let isHTML = current.namespace == nil || current.namespace == .html
-			if kRowContextTags.contains(current.name), isHTML {
+			if kRowContextTagIDs.contains(current.tagId), isHTML {
 				break
 			}
 			self.popCurrentElement()
@@ -2995,7 +3044,7 @@ public final class TreeBuilder: TokenSink {
 	/// Close the current cell (td or th)
 	private func closeCell() {
 		self.generateImpliedEndTags()
-		if let current = currentNode, current.name != "td", current.name != "th" {
+		if let current = currentNode, current.tagId != .td, current.tagId != .th {
 			self.emitError("end-tag-too-early")
 		}
 		// Pop until td or th in HTML namespace
@@ -3046,7 +3095,7 @@ public final class TreeBuilder: TokenSink {
 			if node.name == name {
 				return true
 			}
-			if node.name != "optgroup", node.name != "option" {
+			if node.tagId != .optgroup, node.tagId != .option {
 				// Per spec: In fragment parsing, if context element matches, consider it in scope
 				if let ctx = contextElement, ctx.name == name {
 					return true
@@ -3105,12 +3154,12 @@ public final class TreeBuilder: TokenSink {
 			if scopeElements.contains(node.name) {
 				// For MathML/SVG scope boundaries, check namespace
 				// Use module-level kMathMLIntegrationTags and kSVGIntegrationTags
-				if kMathMLIntegrationTags.contains(node.name) {
+				if kMathMLIntegrationTagIDs.contains(node.tagId) {
 					if node.namespace == .math {
 						return false
 					}
 				}
-				else if kSVGIntegrationTags.contains(node.name) {
+				else if kSVGIntegrationTagIDs.contains(node.tagId) {
 					if node.namespace == .svg {
 						return false
 					}
@@ -3123,6 +3172,71 @@ public final class TreeBuilder: TokenSink {
 		}
 		// Check context element for fragment parsing
 		if let ctx = contextElement, ctx.name == name, ctx.namespace == nil || ctx.namespace == .html {
+			return true
+		}
+		return false
+	}
+
+	// MARK: - TagID-based Scope Checking (fast integer comparisons)
+
+	@inline(__always)
+	private func hasElementInScope(_ tagId: TagID) -> Bool {
+		return self.hasElementInScope(tagId, scopeElements: SCOPE_ELEMENTS_ID)
+	}
+
+	@inline(__always)
+	private func hasElementInButtonScope(_ tagId: TagID) -> Bool {
+		return self.hasElementInScope(tagId, scopeElements: BUTTON_SCOPE_ELEMENTS_ID)
+	}
+
+	@inline(__always)
+	private func hasElementInListItemScope(_ tagId: TagID) -> Bool {
+		return self.hasElementInScope(tagId, scopeElements: LIST_ITEM_SCOPE_ELEMENTS_ID)
+	}
+
+	@inline(__always)
+	private func hasElementInTableScope(_ tagId: TagID) -> Bool {
+		for node in self.openElements.reversed() {
+			let isHTML = node.namespace == nil || node.namespace == .html
+			if node.tagId == tagId, isHTML || tagId == .td || tagId == .th || tagId == .tr {
+				return true
+			}
+			if isHTML, TABLE_SCOPE_ELEMENTS_ID.contains(node.tagId) {
+				return false
+			}
+		}
+		if let ctx = contextElement, ctx.tagId == tagId {
+			let isHTML = ctx.namespace == nil || ctx.namespace == .html
+			if isHTML || tagId == .td || tagId == .th || tagId == .tr {
+				return true
+			}
+		}
+		return false
+	}
+
+	@inline(__always)
+	private func hasElementInScope(_ tagId: TagID, scopeElements: Set<TagID>) -> Bool {
+		for node in self.openElements.reversed() {
+			if node.tagId == tagId, node.namespace == nil || node.namespace == .html {
+				return true
+			}
+			if scopeElements.contains(node.tagId) {
+				if kMathMLIntegrationTagIDs.contains(node.tagId) {
+					if node.namespace == .math {
+						return false
+					}
+				}
+				else if kSVGIntegrationTagIDs.contains(node.tagId) {
+					if node.namespace == .svg {
+						return false
+					}
+				}
+				else {
+					return false
+				}
+			}
+		}
+		if let ctx = contextElement, ctx.tagId == tagId, ctx.namespace == nil || ctx.namespace == .html {
 			return true
 		}
 		return false
@@ -3143,7 +3257,7 @@ public final class TreeBuilder: TokenSink {
 
 	private func closePElement() {
 		self.generateImpliedEndTags(except: "p")
-		if self.currentNode?.name != "p" {
+		if self.currentNode?.tagId != .p {
 			self.emitError("expected-p-end-tag")
 		}
 		self.popUntil("p")
@@ -3305,10 +3419,10 @@ public final class TreeBuilder: TokenSink {
 					isSpecial = SPECIAL_ELEMENTS.contains(node.name)
 				}
 				else if node.namespace == .svg {
-					isSpecial = kSVGIntegrationTags.contains(node.name)
+					isSpecial = kSVGIntegrationTagIDs.contains(node.tagId)
 				}
 				else if node.namespace == .math {
-					isSpecial = kMathMLIntegrationTags.contains(node.name)
+					isSpecial = kMathMLIntegrationTagIDs.contains(node.tagId)
 				}
 				else {
 					isSpecial = false
