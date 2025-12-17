@@ -553,7 +553,8 @@ func runTreeConstructionTests(files: [String]? = nil, showFailures: Bool = false
     let passRate = Double(totalPassed) / Double(max(1, totalPassed + totalFailed)) * 100
     print("\nALL TESTS: \(totalPassed)/\(totalPassed + totalFailed) passed, \(totalFailed) failed, \(totalSkipped) skipped")
     print("Pass rate: \(String(format: "%.1f", passRate))%")
-    #expect(totalPassed + totalFailed + totalSkipped > 0)
+    #expect(totalPassed + totalFailed + totalSkipped > 0, "No tests were run")
+    #expect(totalFailed == 0, "Expected 0 failures but got \(totalFailed)")
 }
 
 @Test func debugFailures() async throws {
