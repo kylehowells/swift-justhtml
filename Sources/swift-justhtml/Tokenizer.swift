@@ -240,6 +240,9 @@ public final class Tokenizer {
 	/// Character buffer (bytes - converted to String only when flushing)
 	private var charBuffer: ContiguousArray<UInt8> = []
 
+	/// Reusable buffer for tag/attribute name scanning (avoids allocation per tag)
+	private var nameBuffer: ContiguousArray<UInt8> = []
+
 	// Temporary buffer for rawtext/rcdata end tag matching
 	private var tempBuffer: String = ""
 	private var lastStartTagName: String = ""
@@ -1065,7 +1068,8 @@ public final class Tokenizer {
 
 	private func tagNameState() {
 		// Batch scan: collect tag name bytes until delimiter
-		var nameBytes: ContiguousArray<UInt8> = []
+		// Use reusable buffer to avoid allocation per tag
+		self.nameBuffer.removeAll(keepingCapacity: true)
 
 		while self.pos < self.inputLength {
 			let byte = self.inputBytes[self.pos]
@@ -1075,8 +1079,8 @@ public final class Tokenizer {
 				case 0x09, 0x0A, 0x0C, 0x20: // \t \n \f space
 					self.pos += 1
 					self.column += 1
-					if !nameBytes.isEmpty {
-						self.currentTagName.append(String(decoding: nameBytes, as: UTF8.self))
+					if !self.nameBuffer.isEmpty {
+						self.currentTagName.append(String(decoding: self.nameBuffer, as: UTF8.self))
 					}
 					self.state = .beforeAttributeName
 					return
@@ -1084,8 +1088,8 @@ public final class Tokenizer {
 				case 0x2F: // /
 					self.pos += 1
 					self.column += 1
-					if !nameBytes.isEmpty {
-						self.currentTagName.append(String(decoding: nameBytes, as: UTF8.self))
+					if !self.nameBuffer.isEmpty {
+						self.currentTagName.append(String(decoding: self.nameBuffer, as: UTF8.self))
 					}
 					self.state = .selfClosingStartTag
 					return
@@ -1093,8 +1097,8 @@ public final class Tokenizer {
 				case 0x3E: // >
 					self.pos += 1
 					self.column += 1
-					if !nameBytes.isEmpty {
-						self.currentTagName.append(String(decoding: nameBytes, as: UTF8.self))
+					if !self.nameBuffer.isEmpty {
+						self.currentTagName.append(String(decoding: self.nameBuffer, as: UTF8.self))
 					}
 					self.state = .data
 					self.emitCurrentTag()
@@ -1103,9 +1107,9 @@ public final class Tokenizer {
 				case 0x00: // null
 					self.pos += 1
 					self.column += 1
-					if !nameBytes.isEmpty {
-						self.currentTagName.append(String(decoding: nameBytes, as: UTF8.self))
-						nameBytes.removeAll(keepingCapacity: true)
+					if !self.nameBuffer.isEmpty {
+						self.currentTagName.append(String(decoding: self.nameBuffer, as: UTF8.self))
+						self.nameBuffer.removeAll(keepingCapacity: true)
 					}
 					self.emitError("unexpected-null-character")
 					self.currentTagName.append("\u{FFFD}")
@@ -1114,10 +1118,10 @@ public final class Tokenizer {
 				default:
 					// Lowercase ASCII A-Z (0x41-0x5A) -> a-z (0x61-0x7A)
 					if byte >= 0x41, byte <= 0x5A {
-						nameBytes.append(byte + 32)
+						self.nameBuffer.append(byte + 32)
 					}
 					else {
-						nameBytes.append(byte)
+						self.nameBuffer.append(byte)
 					}
 
 					// Track position
@@ -1134,7 +1138,7 @@ public final class Tokenizer {
 					if byte >= 0x80 {
 						// Skip continuation bytes (10xxxxxx pattern)
 						while self.pos < self.inputLength, (self.inputBytes[self.pos] & 0xC0) == 0x80 {
-							nameBytes.append(self.inputBytes[self.pos])
+							self.nameBuffer.append(self.inputBytes[self.pos])
 							self.pos += 1
 						}
 					}
@@ -1142,8 +1146,8 @@ public final class Tokenizer {
 		}
 
 		// EOF
-		if !nameBytes.isEmpty {
-			self.currentTagName.append(String(decoding: nameBytes, as: UTF8.self))
+		if !self.nameBuffer.isEmpty {
+			self.currentTagName.append(String(decoding: self.nameBuffer, as: UTF8.self))
 		}
 		self.emitError("eof-in-tag")
 		self.state = .data
@@ -1866,7 +1870,8 @@ public final class Tokenizer {
 
 	private func attributeNameState() {
 		// Batch scan: collect attribute name bytes until delimiter
-		var nameBytes: ContiguousArray<UInt8> = []
+		// Use reusable buffer to avoid allocation per attribute
+		self.nameBuffer.removeAll(keepingCapacity: true)
 
 		while self.pos < self.inputLength {
 			let byte = self.inputBytes[self.pos]
@@ -1875,8 +1880,8 @@ public final class Tokenizer {
 				case 0x09, 0x0A, 0x0C, 0x20: // \t \n \f space
 					self.pos += 1
 					self.column += 1
-					if !nameBytes.isEmpty {
-						self.currentAttrName.append(String(decoding: nameBytes, as: UTF8.self))
+					if !self.nameBuffer.isEmpty {
+						self.currentAttrName.append(String(decoding: self.nameBuffer, as: UTF8.self))
 					}
 					self.storeCurrentAttr()
 					self.state = .afterAttributeName
@@ -1885,8 +1890,8 @@ public final class Tokenizer {
 				case 0x2F: // /
 					self.pos += 1
 					self.column += 1
-					if !nameBytes.isEmpty {
-						self.currentAttrName.append(String(decoding: nameBytes, as: UTF8.self))
+					if !self.nameBuffer.isEmpty {
+						self.currentAttrName.append(String(decoding: self.nameBuffer, as: UTF8.self))
 					}
 					self.storeCurrentAttr()
 					self.state = .selfClosingStartTag
@@ -1895,8 +1900,8 @@ public final class Tokenizer {
 				case 0x3E: // >
 					self.pos += 1
 					self.column += 1
-					if !nameBytes.isEmpty {
-						self.currentAttrName.append(String(decoding: nameBytes, as: UTF8.self))
+					if !self.nameBuffer.isEmpty {
+						self.currentAttrName.append(String(decoding: self.nameBuffer, as: UTF8.self))
 					}
 					self.storeCurrentAttr()
 					self.state = .data
@@ -1906,8 +1911,8 @@ public final class Tokenizer {
 				case 0x3D: // =
 					self.pos += 1
 					self.column += 1
-					if !nameBytes.isEmpty {
-						self.currentAttrName.append(String(decoding: nameBytes, as: UTF8.self))
+					if !self.nameBuffer.isEmpty {
+						self.currentAttrName.append(String(decoding: self.nameBuffer, as: UTF8.self))
 					}
 					self.state = .beforeAttributeValue
 					return
@@ -1915,9 +1920,9 @@ public final class Tokenizer {
 				case 0x00: // null
 					self.pos += 1
 					self.column += 1
-					if !nameBytes.isEmpty {
-						self.currentAttrName.append(String(decoding: nameBytes, as: UTF8.self))
-						nameBytes.removeAll(keepingCapacity: true)
+					if !self.nameBuffer.isEmpty {
+						self.currentAttrName.append(String(decoding: self.nameBuffer, as: UTF8.self))
+						self.nameBuffer.removeAll(keepingCapacity: true)
 					}
 					self.emitError("unexpected-null-character")
 					self.currentAttrName.append("\u{FFFD}")
@@ -1925,9 +1930,9 @@ public final class Tokenizer {
 				case 0x22, 0x27, 0x3C: // " ' <
 					self.pos += 1
 					self.column += 1
-					if !nameBytes.isEmpty {
-						self.currentAttrName.append(String(decoding: nameBytes, as: UTF8.self))
-						nameBytes.removeAll(keepingCapacity: true)
+					if !self.nameBuffer.isEmpty {
+						self.currentAttrName.append(String(decoding: self.nameBuffer, as: UTF8.self))
+						self.nameBuffer.removeAll(keepingCapacity: true)
 					}
 					self.emitError("unexpected-character-in-attribute-name")
 					self.currentAttrName.append(Character(UnicodeScalar(byte)))
@@ -1935,10 +1940,10 @@ public final class Tokenizer {
 				default:
 					// Lowercase ASCII A-Z
 					if byte >= 0x41, byte <= 0x5A {
-						nameBytes.append(byte + 32)
+						self.nameBuffer.append(byte + 32)
 					}
 					else {
-						nameBytes.append(byte)
+						self.nameBuffer.append(byte)
 					}
 					self.column += 1
 					self.pos += 1
@@ -1946,7 +1951,7 @@ public final class Tokenizer {
 					// Handle multi-byte UTF-8
 					if byte >= 0x80 {
 						while self.pos < self.inputLength, (self.inputBytes[self.pos] & 0xC0) == 0x80 {
-							nameBytes.append(self.inputBytes[self.pos])
+							self.nameBuffer.append(self.inputBytes[self.pos])
 							self.pos += 1
 						}
 					}
@@ -1954,8 +1959,8 @@ public final class Tokenizer {
 		}
 
 		// EOF
-		if !nameBytes.isEmpty {
-			self.currentAttrName.append(String(decoding: nameBytes, as: UTF8.self))
+		if !self.nameBuffer.isEmpty {
+			self.currentAttrName.append(String(decoding: self.nameBuffer, as: UTF8.self))
 		}
 		self.emitError("eof-in-tag")
 		self.state = .data
