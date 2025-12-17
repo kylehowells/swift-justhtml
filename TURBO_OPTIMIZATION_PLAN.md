@@ -145,8 +145,15 @@ swiftformat .
 
 | Iteration | Time (ms) | Speedup | Notes |
 |-----------|-----------|---------|-------|
-| Baseline | 308 | 1.0x | Original |
-| Target | 108 | 2.9x | Match JS |
+| Baseline | 302 | 1.0x | Original |
+| UTF-8 Tokenizer | 261 | 1.16x | ContiguousArray<UInt8> input |
+| Batch Text Insert | 182 | 1.66x | insertText() method |
+| Set Lookups | 172 | 1.76x | Static Sets for tag names |
+| ASCII Optimizations | 173 | 1.75x | UTF-8 case-insensitive compare |
+| **Current** | **173** | **1.75x** | Module-level Set constants |
+| Target | 106 | 2.85x | Match JS |
+
+**Summary:** Achieved 43% speedup (302ms → 173ms). Still ~63% slower than JavaScript (173ms vs 106ms).
 
 ---
 
