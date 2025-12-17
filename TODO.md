@@ -36,7 +36,7 @@
   - Add the large synthetic HTML file to the benchmark suite
   - Ensure all three implementations (Swift, JS, Python) can parse it
 
-- [ ] **Memory Usage Comparison**
+- [x] **Memory Usage Comparison**
   - Create a memory comparison script similar to compare.py
   - Measure peak RSS/heap usage during parsing for each implementation
   - Parse the same test files as compare.py for consistency
