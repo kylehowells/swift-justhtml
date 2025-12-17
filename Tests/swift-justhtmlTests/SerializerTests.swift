@@ -20,7 +20,6 @@ func serializeSerializerTokenStream(_ tokens: [[Any]], options: [String: Any] = 
 	let useTrailingSolidus = options["use_trailing_solidus"] as? Bool ?? (options["use_trailing_solidus"] as? Int == 1)
 	var openElements: [String] = []
 	var preserveWhitespace = false // Track if we're in pre/textarea/script/style
-	var inHead = false
 	var foundCharsetMeta = false // Track if we found existing charset meta in head
 	var headStartIndex = -1 // Track where head content starts for possible injection
 
@@ -51,7 +50,6 @@ func serializeSerializerTokenStream(_ tokens: [[Any]], options: [String: Any] = 
 
 				// Track head element for inject_meta_charset
 				if name == "head" {
-					inHead = true
 					headStartIndex = parts.count
 				}
 
@@ -91,7 +89,6 @@ func serializeSerializerTokenStream(_ tokens: [[Any]], options: [String: Any] = 
 							parts.append("<meta charset=\(enc)>")
 						}
 					}
-					inHead = false
 					foundCharsetMeta = false
 					headStartIndex = -1
 				}
