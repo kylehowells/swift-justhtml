@@ -610,6 +610,30 @@ public final class TreeBuilder: TokenSink {
       // Fall through to normal processing if breakout element or integration point
     }
 
+    // Special handling for integration points in table modes without actual table in scope
+    // Per Python justhtml: when at MathML text integration point or HTML integration point,
+    // in a table mode but without a table in scope, use IN_BODY mode to process tags
+    // This ensures table-related tags are ignored when there's no real table structure
+    let atIntegrationPoint =
+      self.isInMathMLTextIntegrationPoint() || self.isInSVGHtmlIntegrationPoint()
+      || self.isInMathMLAnnotationXmlIntegrationPoint()
+    if self.insertionMode != .inBody, atIntegrationPoint {
+      let isTableMode = [
+        InsertionMode.inTable, .inTableBody, .inRow, .inCell, .inCaption, .inColumnGroup,
+      ].contains(self.insertionMode)
+      if isTableMode, !self.hasElementInTableScope("table") {
+        // Temporarily use IN_BODY mode for this tag
+        let savedMode = self.insertionMode
+        self.insertionMode = .inBody
+        self.processStartTagInBody(name: name, attrs: attrs, selfClosing: selfClosing)
+        // Restore mode if no mode change was requested
+        if self.insertionMode == .inBody {
+          self.insertionMode = savedMode
+        }
+        return
+      }
+    }
+
     switch self.insertionMode {
     case .initial:
       // Parse error - start tag in initial mode sets quirks mode
@@ -2306,14 +2330,25 @@ public final class TreeBuilder: TokenSink {
   }
 
   /// Returns the adjusted insertion target, redirecting to templateContent for template elements
+  /// When stack is empty, finds html element per Python justhtml _current_node_or_html behavior
   private var adjustedInsertionTarget: Node {
-    guard let current = currentNode else { return self.document }
-
-    // If current node is a template, insert into its content document fragment
-    if current.name == "template", let content = current.templateContent {
-      return content
+    if let current = currentNode {
+      // If current node is a template, insert into its content document fragment
+      if current.name == "template", let content = current.templateContent {
+        return content
+      }
+      return current
     }
-    return current
+
+    // Stack is empty - find html element in document children
+    // (matches Python's _current_node_or_html behavior)
+    for child in self.document.children {
+      if child.name == "html" {
+        return child
+      }
+    }
+    // Fallback to document if no html element found
+    return self.document
   }
 
   private func createElement(name: String, namespace: Namespace = .html, attrs: [String: String])
@@ -2591,8 +2626,10 @@ public final class TreeBuilder: TokenSink {
 
   /// Clear the stack back to a table row context (tr, template, or html)
   private func clearStackBackToTableRowContext() {
+    // Per Python justhtml: requires both name match AND HTML namespace
     while let current = currentNode {
-      if ["tr", "template", "html"].contains(current.name) {
+      let isHTML = current.namespace == nil || current.namespace == .html
+      if ["tr", "template", "html"].contains(current.name) && isHTML {
         break
       }
       self.popCurrentElement()
@@ -2605,11 +2642,13 @@ public final class TreeBuilder: TokenSink {
     if let current = currentNode, current.name != "td", current.name != "th" {
       self.emitError("end-tag-too-early")
     }
-    // Pop until td or th
+    // Pop until td or th in HTML namespace
+    // Per Python justhtml: if no HTML td/th exists, may pop to empty stack
     while let current = currentNode {
       let name = current.name
+      let isHTML = current.namespace == nil || current.namespace == .html
       self.popCurrentElement()
-      if name == "td" || name == "th" {
+      if (name == "td" || name == "th") && isHTML {
         break
       }
     }
@@ -2671,7 +2710,32 @@ public final class TreeBuilder: TokenSink {
   }
 
   private func hasElementInTableScope(_ name: String) -> Bool {
-    return self.hasElementInScope(name, scopeElements: TABLE_SCOPE_ELEMENTS)
+    // Special case: td/th/tr match by name only per Python justhtml behavior
+    // This allows closing SVG/MathML cells/rows when HTML table handling is triggered
+    let matchByNameOnly = (name == "td" || name == "th" || name == "tr")
+
+    for node in self.openElements.reversed() {
+      let isHTML = node.namespace == nil || node.namespace == .html
+
+      if node.name == name {
+        // For td/th, match by name regardless of namespace
+        // For other elements, require HTML namespace
+        if matchByNameOnly || isHTML {
+          return true
+        }
+      }
+      // Scope terminators require HTML namespace
+      if isHTML && TABLE_SCOPE_ELEMENTS.contains(node.name) {
+        return false
+      }
+    }
+    // Check context element for fragment parsing
+    if let ctx = contextElement, ctx.name == name {
+      if matchByNameOnly || (ctx.namespace == nil || ctx.namespace == .html) {
+        return true
+      }
+    }
+    return false
   }
 
   private func hasElementInScope(_ name: String, scopeElements: Set<String>) -> Bool {
@@ -3239,6 +3303,9 @@ public final class TreeBuilder: TokenSink {
       {
         self.popCurrentElement()
       }
+      // Reset insertion mode after breaking out of foreign content
+      // This is critical for finding table elements (tr/td/th) from SVG/MathML on the stack
+      self.resetInsertionMode()
       // Process as normal HTML
       return false
     }
@@ -3325,16 +3392,18 @@ public final class TreeBuilder: TokenSink {
         return
 
       case "td", "th":
-        if !last, isHTML {
+        // Note: Per Python justhtml behavior, td/th match regardless of namespace
+        // This allows IN_CELL mode when SVG elements with these names are on stack
+        if !last {
           self.insertionMode = .inCell
           return
         }
 
       case "tr":
-        if isHTML {
-          self.insertionMode = .inRow
-          return
-        }
+        // Note: Per Python justhtml behavior, tr matches regardless of namespace
+        // This allows IN_ROW mode when SVG elements with tr name are on stack
+        self.insertionMode = .inRow
+        return
 
       case "tbody", "thead", "tfoot":
         if isHTML {
