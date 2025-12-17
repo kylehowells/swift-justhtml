@@ -5,6 +5,17 @@ on:
   pull_request:
 
 jobs:
+  lint:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install swiftformat
+        run: brew install swiftformat
+
+      - name: Lint
+        run: swiftformat --lint . --reporter github-actions-log
+
   smoke:
     runs-on: ubuntu-latest
     steps:
