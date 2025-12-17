@@ -2562,12 +2562,14 @@ public final class TreeBuilder: TokenSink {
 
 	// MARK: - Element Insertion
 
+	@inline(__always)
 	private var currentNode: Node? {
 		self.openElements.last
 	}
 
 	/// Returns the adjusted insertion target, redirecting to templateContent for template elements
 	/// When stack is empty, finds html element per Python justhtml _current_node_or_html behavior
+	@inline(__always)
 	private var adjustedInsertionTarget: Node {
 		if let current = currentNode {
 			// If current node is a template, insert into its content document fragment
@@ -3732,6 +3734,7 @@ public final class TreeBuilder: TokenSink {
 
 	// MARK: - Utilities
 
+	@inline(__always)
 	private func isWhitespace(_ ch: Character) -> Bool {
 		return ch == " " || ch == "\t" || ch == "\n" || ch == "\r" || ch == "\u{0C}"
 	}

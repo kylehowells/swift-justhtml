@@ -533,6 +533,7 @@ public final class Tokenizer {
 
 	// MARK: - Character Consumption
 
+	@inline(__always)
 	private func consume() -> Character? {
 		guard self.pos < self.input.endIndex else { return nil }
 
@@ -551,12 +552,14 @@ public final class Tokenizer {
 		return ch
 	}
 
+	@inline(__always)
 	private func peek() -> Character? {
 		guard self.pos < self.input.endIndex else { return nil }
 
 		return self.input[self.pos]
 	}
 
+	@inline(__always)
 	private func reconsume() {
 		if self.pos > self.input.startIndex {
 			self.pos = self.input.index(before: self.pos)
@@ -593,15 +596,18 @@ public final class Tokenizer {
 
 	// MARK: - Token Emission
 
+	@inline(__always)
 	private func emit(_ token: Token) {
 		self.flushCharBuffer()
 		self.sink?.processToken(token)
 	}
 
+	@inline(__always)
 	private func emitChar(_ ch: Character) {
 		self.charBuffer.append(ch)
 	}
 
+	@inline(__always)
 	private func emitString(_ s: String) {
 		self.charBuffer.append(s)
 	}
@@ -2910,18 +2916,26 @@ public final class Tokenizer {
 // MARK: - Character Extensions
 
 extension Character {
+	/// Check if character is ASCII letter (A-Z or a-z)
+	@inline(__always)
 	var isASCIILetter: Bool {
 		return ("a" ... "z").contains(self) || ("A" ... "Z").contains(self)
 	}
 
+	/// Check if character is ASCII digit (0-9)
+	@inline(__always)
 	var isASCIIDigit: Bool {
 		return ("0" ... "9").contains(self)
 	}
 
+	/// Check if character is hex digit (0-9, a-f, A-F)
+	@inline(__always)
 	var isHexDigit: Bool {
 		return self.isASCIIDigit || ("a" ... "f").contains(self) || ("A" ... "F").contains(self)
 	}
 
+	/// Convert to lowercase character
+	@inline(__always)
 	var asLowercaseCharacter: Character {
 		return Character(String(self).lowercased())
 	}
