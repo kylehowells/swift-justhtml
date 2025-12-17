@@ -215,8 +215,10 @@ public final class Tokenizer {
 
 	private var state: State
 	private var returnState: State = .data
-	private var input: String = ""
-	private var pos: String.Index
+	// UTF-8 byte-based input for performance
+	private var inputBytes: ContiguousArray<UInt8> = []
+	private var pos: Int = 0
+	private var inputLength: Int = 0
 	private var line: Int = 1
 	private var column: Int = 0
 
@@ -256,7 +258,7 @@ public final class Tokenizer {
 		self.opts = opts
 		self.state = opts.initialState
 		self.collectErrors = collectErrors
-		self.pos = "".startIndex
+		self.pos = 0
 		if let rawtextTag = opts.initialRawtextTag {
 			self.lastStartTagName = rawtextTag
 		}
@@ -269,16 +271,20 @@ public final class Tokenizer {
 		// Note: Always process, don't rely on contains() which may have platform differences
 		let preprocessed = preprocessLineEndings(html)
 
-		self.input = preprocessed
-		self.pos = preprocessed.startIndex
+		// Convert to UTF-8 bytes for fast processing
+		self.inputBytes = ContiguousArray(preprocessed.utf8)
+		self.inputLength = self.inputBytes.count
+		self.pos = 0
 
-		// Optionally discard BOM
-		if self.opts.discardBom, !preprocessed.isEmpty, preprocessed.first == "\u{FEFF}" {
-			self.pos = preprocessed.index(after: self.pos)
+		// Optionally discard BOM (EF BB BF in UTF-8)
+		if self.opts.discardBom, self.inputLength >= 3,
+		   self.inputBytes[0] == 0xEF, self.inputBytes[1] == 0xBB, self.inputBytes[2] == 0xBF
+		{
+			self.pos = 3
 		}
 
 		// Process all input
-		while self.pos < self.input.endIndex {
+		while self.pos < self.inputLength {
 			self.processState()
 		}
 
@@ -533,64 +539,155 @@ public final class Tokenizer {
 
 	// MARK: - Character Consumption
 
+	/// Consume the next character from the input
+	/// Returns nil at EOF
 	@inline(__always)
 	private func consume() -> Character? {
-		guard self.pos < self.input.endIndex else { return nil }
+		guard self.pos < self.inputLength else { return nil }
 
-		let ch = self.input[self.pos]
-		self.pos = self.input.index(after: self.pos)
+		let byte = self.inputBytes[self.pos]
+		self.pos += 1
 
-		// Track line/column
-		if ch == "\n" {
-			self.line += 1
-			self.column = 0
+		// Fast path for ASCII (most common in HTML)
+		if byte < 0x80 {
+			// Track line/column
+			if byte == 0x0A { // '\n'
+				self.line += 1
+				self.column = 0
+			}
+			else {
+				self.column += 1
+			}
+			return Character(UnicodeScalar(byte))
 		}
-		else {
-			self.column += 1
+
+		// Multi-byte UTF-8 sequence
+		self.column += 1
+		return self.decodeUTF8(startingWith: byte)
+	}
+
+	/// Decode a multi-byte UTF-8 sequence starting with the given byte
+	@inline(__always)
+	private func decodeUTF8(startingWith firstByte: UInt8) -> Character {
+		// 2-byte sequence: 110xxxxx 10xxxxxx
+		if firstByte & 0xE0 == 0xC0 {
+			guard self.pos < self.inputLength else { return "\u{FFFD}" }
+
+			let b2 = self.inputBytes[self.pos]
+			self.pos += 1
+			let codepoint = UInt32(firstByte & 0x1F) << 6 | UInt32(b2 & 0x3F)
+			if let scalar = Unicode.Scalar(codepoint) {
+				return Character(scalar)
+			}
+			return "\u{FFFD}"
 		}
 
+		// 3-byte sequence: 1110xxxx 10xxxxxx 10xxxxxx
+		if firstByte & 0xF0 == 0xE0 {
+			guard self.pos + 1 < self.inputLength else { return "\u{FFFD}" }
+
+			let b2 = self.inputBytes[self.pos]
+			let b3 = self.inputBytes[self.pos + 1]
+			self.pos += 2
+			let codepoint = UInt32(firstByte & 0x0F) << 12 | UInt32(b2 & 0x3F) << 6 | UInt32(b3 & 0x3F)
+			if let scalar = Unicode.Scalar(codepoint) {
+				return Character(scalar)
+			}
+			return "\u{FFFD}"
+		}
+
+		// 4-byte sequence: 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+		if firstByte & 0xF8 == 0xF0 {
+			guard self.pos + 2 < self.inputLength else { return "\u{FFFD}" }
+
+			let b2 = self.inputBytes[self.pos]
+			let b3 = self.inputBytes[self.pos + 1]
+			let b4 = self.inputBytes[self.pos + 2]
+			self.pos += 3
+			let codepoint = UInt32(firstByte & 0x07) << 18 | UInt32(b2 & 0x3F) << 12
+				| UInt32(b3 & 0x3F) << 6 | UInt32(b4 & 0x3F)
+			if let scalar = Unicode.Scalar(codepoint) {
+				return Character(scalar)
+			}
+			return "\u{FFFD}"
+		}
+
+		// Invalid UTF-8
+		return "\u{FFFD}"
+	}
+
+	/// Peek at the next character without consuming it
+	@inline(__always)
+	private func peek() -> Character? {
+		guard self.pos < self.inputLength else { return nil }
+
+		let byte = self.inputBytes[self.pos]
+
+		// Fast path for ASCII
+		if byte < 0x80 {
+			return Character(UnicodeScalar(byte))
+		}
+
+		// For multi-byte, decode without advancing position
+		let savedPos = self.pos
+		self.pos += 1
+		let ch = self.decodeUTF8(startingWith: byte)
+		self.pos = savedPos
 		return ch
 	}
 
-	@inline(__always)
-	private func peek() -> Character? {
-		guard self.pos < self.input.endIndex else { return nil }
-
-		return self.input[self.pos]
-	}
-
+	/// Put the last consumed character back
 	@inline(__always)
 	private func reconsume() {
-		if self.pos > self.input.startIndex {
-			self.pos = self.input.index(before: self.pos)
-			// Adjust line/column tracking
-			if self.input[self.pos] == "\n" {
-				self.line -= 1
-				// column tracking becomes inaccurate here but that's OK for now
-			}
-			else {
-				self.column -= 1
-			}
+		guard self.pos > 0 else { return }
+
+		// Move back one byte first
+		self.pos -= 1
+
+		// Check if we need to move back more for multi-byte sequences
+		// Walk back to find the start of the UTF-8 character
+		while self.pos > 0, self.inputBytes[self.pos] & 0xC0 == 0x80 {
+			self.pos -= 1
+		}
+
+		// Adjust line/column tracking
+		if self.inputBytes[self.pos] == 0x0A { // '\n'
+			self.line -= 1
+			// column tracking becomes inaccurate here but that's OK
+		}
+		else {
+			self.column -= 1
 		}
 	}
 
 	private func consumeIf(_ expected: String, caseInsensitive: Bool = true) -> Bool {
+		let expectedBytes = Array(expected.utf8)
 		var tempPos = self.pos
-		for ch in expected {
-			guard tempPos < self.input.endIndex else { return false }
 
-			let inputCh = self.input[tempPos]
-			let match =
-				caseInsensitive
-					? inputCh.asLowercaseCharacter == ch.asLowercaseCharacter
-					: inputCh == ch
+		for expectedByte in expectedBytes {
+			guard tempPos < self.inputLength else { return false }
+
+			let inputByte = self.inputBytes[tempPos]
+
+			let match: Bool
+			if caseInsensitive {
+				// ASCII case-insensitive comparison
+				let inputLower = (inputByte >= 0x41 && inputByte <= 0x5A) ? inputByte + 32 : inputByte
+				let expectedLower =
+					(expectedByte >= 0x41 && expectedByte <= 0x5A) ? expectedByte + 32 : expectedByte
+				match = inputLower == expectedLower
+			}
+			else {
+				match = inputByte == expectedByte
+			}
+
 			if !match { return false }
-			tempPos = self.input.index(after: tempPos)
+			tempPos += 1
 		}
+
 		// Consume the matched characters
-		for _ in expected {
-			_ = self.consume()
-		}
+		self.pos = tempPos
+		self.column += expectedBytes.count
 		return true
 	}
 
