@@ -4,184 +4,192 @@ import Foundation
 
 /// JustHTML - A dependency-free HTML5 parser for Swift
 public struct JustHTML {
-    /// The parsed document root (#document or #document-fragment)
-    public let root: Node
+	/// The parsed document root (#document or #document-fragment)
+	public let root: Node
 
-    /// Parse errors encountered (empty unless collectErrors or strict mode)
-    public let errors: [ParseError]
+	/// Parse errors encountered (empty unless collectErrors or strict mode)
+	public let errors: [ParseError]
 
-    /// Detected encoding when parsing from Data (nil for String input)
-    public let encoding: String?
+	/// Detected encoding when parsing from Data (nil for String input)
+	public let encoding: String?
 
-    /// Fragment context if parsing a fragment
-    public let fragmentContext: FragmentContext?
+	/// Fragment context if parsing a fragment
+	public let fragmentContext: FragmentContext?
 
-    /// Initialize with an HTML string
-    /// - Parameters:
-    ///   - html: The HTML string to parse
-    ///   - fragmentContext: Optional fragment context for parsing fragments
-    ///   - collectErrors: Whether to collect parse errors
-    ///   - strict: Whether to throw on first parse error
-    ///   - scripting: Whether scripting is enabled
-    ///   - iframeSrcdoc: Whether parsing iframe srcdoc content
-    /// - Throws: StrictModeError if strict mode is enabled and a parse error occurs
-    public init(
-        _ html: String,
-        fragmentContext: FragmentContext? = nil,
-        collectErrors: Bool = false,
-        strict: Bool = false,
-        scripting: Bool = false,
-        iframeSrcdoc: Bool = false
-    ) throws {
-        self.fragmentContext = fragmentContext
-        self.encoding = nil
+	/// Initialize with an HTML string
+	/// - Parameters:
+	///   - html: The HTML string to parse
+	///   - fragmentContext: Optional fragment context for parsing fragments
+	///   - collectErrors: Whether to collect parse errors
+	///   - strict: Whether to throw on first parse error
+	///   - scripting: Whether scripting is enabled
+	///   - iframeSrcdoc: Whether parsing iframe srcdoc content
+	/// - Throws: StrictModeError if strict mode is enabled and a parse error occurs
+	public init(
+		_ html: String,
+		fragmentContext: FragmentContext? = nil,
+		collectErrors: Bool = false,
+		strict: Bool = false,
+		scripting: Bool = false,
+		iframeSrcdoc: Bool = false
+	) throws {
+		self.fragmentContext = fragmentContext
+		self.encoding = nil
 
-        let shouldCollect = collectErrors || strict
+		let shouldCollect = collectErrors || strict
 
-        let treeBuilder = TreeBuilder(
-            fragmentContext: fragmentContext,
-            iframeSrcdoc: iframeSrcdoc,
-            collectErrors: shouldCollect,
-            scripting: scripting
-        )
+		let treeBuilder = TreeBuilder(
+			fragmentContext: fragmentContext,
+			iframeSrcdoc: iframeSrcdoc,
+			collectErrors: shouldCollect,
+			scripting: scripting
+		)
 
-        var opts = TokenizerOpts()
+		var opts = TokenizerOpts()
 
-        // Handle special fragment contexts that affect tokenizer initial state
-        // Note: We DON'T set initialRawtextTag for fragments because no start tag was emitted,
-        // so no end tag should be considered "appropriate" per WHATWG spec
-        if let ctx = fragmentContext, ctx.namespace == nil || ctx.namespace == .html {
-            let tagName = ctx.tagName.lowercased()
-            switch tagName {
-            case "title", "textarea":
-                opts.initialState = .rcdata
-            case "style", "xmp", "iframe", "noembed", "noframes":
-                opts.initialState = .rawtext
-            case "script":
-                opts.initialState = .scriptData
-            case "plaintext":
-                opts.initialState = .plaintext
-            default:
-                break
-            }
-        }
+		// Handle special fragment contexts that affect tokenizer initial state
+		// Note: We DON'T set initialRawtextTag for fragments because no start tag was emitted,
+		// so no end tag should be considered "appropriate" per WHATWG spec
+		if let ctx = fragmentContext, ctx.namespace == nil || ctx.namespace == .html {
+			let tagName = ctx.tagName.lowercased()
+			switch tagName {
+				case "title", "textarea":
+					opts.initialState = .rcdata
 
-        let tokenizer = Tokenizer(treeBuilder, opts: opts, collectErrors: shouldCollect)
-        treeBuilder.tokenizer = tokenizer
+				case "style", "xmp", "iframe", "noembed", "noframes":
+					opts.initialState = .rawtext
 
-        tokenizer.run(html)
+				case "script":
+					opts.initialState = .scriptData
 
-        self.root = treeBuilder.finish()
-        self.errors = tokenizer.errors + treeBuilder.errors
+				case "plaintext":
+					opts.initialState = .plaintext
 
-        if strict, !self.errors.isEmpty {
-            throw StrictModeError(self.errors[0])
-        }
-    }
+				default:
+					break
+			}
+		}
 
-    /// Initialize with raw bytes (auto-detects encoding)
-    /// - Parameters:
-    ///   - data: The raw bytes to parse
-    ///   - transportEncoding: Optional transport-layer encoding override (e.g., from HTTP headers)
-    ///   - fragmentContext: Optional fragment context for parsing fragments
-    ///   - collectErrors: Whether to collect parse errors
-    ///   - strict: Whether to throw on first parse error
-    ///   - scripting: Whether scripting is enabled
-    ///   - iframeSrcdoc: Whether parsing iframe srcdoc content
-    /// - Throws: StrictModeError if strict mode is enabled and a parse error occurs
-    public init(
-        data: Data,
-        transportEncoding: String? = nil,
-        fragmentContext: FragmentContext? = nil,
-        collectErrors: Bool = false,
-        strict: Bool = false,
-        scripting: Bool = false,
-        iframeSrcdoc: Bool = false
-    ) throws {
-        let (html, detectedEncoding) = decodeHTML(data, transportEncoding: transportEncoding)
+		let tokenizer = Tokenizer(treeBuilder, opts: opts, collectErrors: shouldCollect)
+		treeBuilder.tokenizer = tokenizer
 
-        self.fragmentContext = fragmentContext
-        self.encoding = detectedEncoding
+		tokenizer.run(html)
 
-        let shouldCollect = collectErrors || strict
+		self.root = treeBuilder.finish()
+		self.errors = tokenizer.errors + treeBuilder.errors
 
-        let treeBuilder = TreeBuilder(
-            fragmentContext: fragmentContext,
-            iframeSrcdoc: iframeSrcdoc,
-            collectErrors: shouldCollect,
-            scripting: scripting
-        )
+		if strict, !self.errors.isEmpty {
+			throw StrictModeError(self.errors[0])
+		}
+	}
 
-        var opts = TokenizerOpts()
+	/// Initialize with raw bytes (auto-detects encoding)
+	/// - Parameters:
+	///   - data: The raw bytes to parse
+	///   - transportEncoding: Optional transport-layer encoding override (e.g., from HTTP headers)
+	///   - fragmentContext: Optional fragment context for parsing fragments
+	///   - collectErrors: Whether to collect parse errors
+	///   - strict: Whether to throw on first parse error
+	///   - scripting: Whether scripting is enabled
+	///   - iframeSrcdoc: Whether parsing iframe srcdoc content
+	/// - Throws: StrictModeError if strict mode is enabled and a parse error occurs
+	public init(
+		data: Data,
+		transportEncoding: String? = nil,
+		fragmentContext: FragmentContext? = nil,
+		collectErrors: Bool = false,
+		strict: Bool = false,
+		scripting: Bool = false,
+		iframeSrcdoc: Bool = false
+	) throws {
+		let (html, detectedEncoding) = decodeHTML(data, transportEncoding: transportEncoding)
 
-        // Handle special fragment contexts that affect tokenizer initial state
-        // Note: We DON'T set initialRawtextTag for fragments because no start tag was emitted,
-        // so no end tag should be considered "appropriate" per WHATWG spec
-        if let ctx = fragmentContext, ctx.namespace == nil || ctx.namespace == .html {
-            let tagName = ctx.tagName.lowercased()
-            switch tagName {
-            case "title", "textarea":
-                opts.initialState = .rcdata
-            case "style", "xmp", "iframe", "noembed", "noframes":
-                opts.initialState = .rawtext
-            case "script":
-                opts.initialState = .scriptData
-            case "plaintext":
-                opts.initialState = .plaintext
-            default:
-                break
-            }
-        }
+		self.fragmentContext = fragmentContext
+		self.encoding = detectedEncoding
 
-        let tokenizer = Tokenizer(treeBuilder, opts: opts, collectErrors: shouldCollect)
-        treeBuilder.tokenizer = tokenizer
+		let shouldCollect = collectErrors || strict
 
-        tokenizer.run(html)
+		let treeBuilder = TreeBuilder(
+			fragmentContext: fragmentContext,
+			iframeSrcdoc: iframeSrcdoc,
+			collectErrors: shouldCollect,
+			scripting: scripting
+		)
 
-        self.root = treeBuilder.finish()
-        self.errors = tokenizer.errors + treeBuilder.errors
+		var opts = TokenizerOpts()
 
-        if strict, !self.errors.isEmpty {
-            throw StrictModeError(self.errors[0])
-        }
-    }
+		// Handle special fragment contexts that affect tokenizer initial state
+		// Note: We DON'T set initialRawtextTag for fragments because no start tag was emitted,
+		// so no end tag should be considered "appropriate" per WHATWG spec
+		if let ctx = fragmentContext, ctx.namespace == nil || ctx.namespace == .html {
+			let tagName = ctx.tagName.lowercased()
+			switch tagName {
+				case "title", "textarea":
+					opts.initialState = .rcdata
 
-    // MARK: - Convenience Methods
+				case "style", "xmp", "iframe", "noembed", "noframes":
+					opts.initialState = .rawtext
 
-    /// Query the document using a CSS selector
-    /// - Parameter selector: The CSS selector
-    /// - Returns: Array of matching nodes
-    public func query(_ selector: String) throws -> [Node] {
-        return try swift_justhtml.query(self.root, selector: selector)
-    }
+				case "script":
+					opts.initialState = .scriptData
 
-    /// Serialize the document to HTML
-    /// - Parameters:
-    ///   - pretty: Whether to format with indentation
-    ///   - indentSize: Number of spaces per indent level
-    /// - Returns: HTML string
-    public func toHTML(pretty: Bool = true, indentSize: Int = 2) -> String {
-        return self.root.toHTML(pretty: pretty, indentSize: indentSize)
-    }
+				case "plaintext":
+					opts.initialState = .plaintext
 
-    /// Extract all text content from the document
-    /// - Parameters:
-    ///   - separator: String to join text nodes
-    ///   - strip: Whether to strip whitespace from text nodes
-    /// - Returns: Concatenated text content
-    public func toText(separator: String = " ", strip: Bool = true) -> String {
-        return self.root.toText(separator: separator, strip: strip)
-    }
+				default:
+					break
+			}
+		}
 
-    /// Convert to html5lib test format
-    /// - Returns: Test format string
-    public func toTestFormat() -> String {
-        return self.root.toTestFormat()
-    }
+		let tokenizer = Tokenizer(treeBuilder, opts: opts, collectErrors: shouldCollect)
+		treeBuilder.tokenizer = tokenizer
 
-    /// Convert to Markdown (GitHub-Flavored Markdown subset)
-    /// - Returns: Markdown string
-    public func toMarkdown() -> String {
-        return self.root.toMarkdown()
-    }
+		tokenizer.run(html)
+
+		self.root = treeBuilder.finish()
+		self.errors = tokenizer.errors + treeBuilder.errors
+
+		if strict, !self.errors.isEmpty {
+			throw StrictModeError(self.errors[0])
+		}
+	}
+
+	// MARK: - Convenience Methods
+
+	/// Query the document using a CSS selector
+	/// - Parameter selector: The CSS selector
+	/// - Returns: Array of matching nodes
+	public func query(_ selector: String) throws -> [Node] {
+		return try swift_justhtml.query(self.root, selector: selector)
+	}
+
+	/// Serialize the document to HTML
+	/// - Parameters:
+	///   - pretty: Whether to format with indentation
+	///   - indentSize: Number of spaces per indent level
+	/// - Returns: HTML string
+	public func toHTML(pretty: Bool = true, indentSize: Int = 2) -> String {
+		return self.root.toHTML(pretty: pretty, indentSize: indentSize)
+	}
+
+	/// Extract all text content from the document
+	/// - Parameters:
+	///   - separator: String to join text nodes
+	///   - strip: Whether to strip whitespace from text nodes
+	/// - Returns: Concatenated text content
+	public func toText(separator: String = " ", strip: Bool = true) -> String {
+		return self.root.toText(separator: separator, strip: strip)
+	}
+
+	/// Convert to html5lib test format
+	/// - Returns: Test format string
+	public func toTestFormat() -> String {
+		return self.root.toTestFormat()
+	}
+
+	/// Convert to Markdown (GitHub-Flavored Markdown subset)
+	/// - Returns: Markdown string
+	public func toMarkdown() -> String {
+		return self.root.toMarkdown()
+	}
 }
