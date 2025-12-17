@@ -5,15 +5,15 @@ import Foundation
 // MARK: - NodeHandle
 
 /// Handle to a node in the arena (replaces pointers with indices)
-public struct NodeHandle: Hashable, Sendable, Equatable {
-	public let index: UInt32
+struct NodeHandle: Hashable, Sendable, Equatable {
+	let index: UInt32
 
-	public static let invalid = NodeHandle(index: UInt32.max)
+	static let invalid = NodeHandle(index: UInt32.max)
 
 	@inline(__always)
-	public var isValid: Bool { self.index != UInt32.max }
+	var isValid: Bool { self.index != UInt32.max }
 
-	public init(index: UInt32) {
+	init(index: UInt32) {
 		self.index = index
 	}
 }
@@ -21,29 +21,29 @@ public struct NodeHandle: Hashable, Sendable, Equatable {
 // MARK: - ArenaNodeData
 
 /// Struct-based node data (no ARC overhead for relationships)
-public struct ArenaNodeData {
+struct ArenaNodeData {
 	// Identity
-	public var name: String
-	public var tagId: TagID
-	public var namespace: Namespace? = nil
+	var name: String
+	var tagId: TagID
+	var namespace: Namespace? = nil
 
 	/// Attributes
-	public var attrs: [String: String]
+	var attrs: [String: String]
 
 	// Content for text/comment/doctype nodes
-	public var textContent: String? = nil
-	public var doctypeData: Doctype? = nil
+	var textContent: String? = nil
+	var doctypeData: Doctype? = nil
 
 	// Tree structure (indices, not pointers - no ARC!)
-	public var parent: NodeHandle = .invalid
-	public var firstChild: NodeHandle = .invalid
-	public var lastChild: NodeHandle = .invalid // Track last child for O(1) append
-	public var nextSibling: NodeHandle = .invalid
+	var parent: NodeHandle = .invalid
+	var firstChild: NodeHandle = .invalid
+	var lastChild: NodeHandle = .invalid // Track last child for O(1) append
+	var nextSibling: NodeHandle = .invalid
 
 	/// For template elements
-	public var templateContent: NodeHandle = .invalid
+	var templateContent: NodeHandle = .invalid
 
-	public init(
+	init(
 		name: String,
 		tagId: TagID,
 		namespace: Namespace?,
@@ -63,12 +63,12 @@ public struct ArenaNodeData {
 // MARK: - NodeArena
 
 /// Arena that owns all nodes - eliminates per-node ARC overhead
-public final class NodeArena {
+final class NodeArena {
 	/// All nodes stored contiguously
-	public private(set) var nodes: ContiguousArray<ArenaNodeData> = []
+	private(set) var nodes: ContiguousArray<ArenaNodeData> = []
 
 	/// Pre-allocate capacity
-	public init(estimatedNodeCount: Int = 1000) {
+	init(estimatedNodeCount: Int = 1000) {
 		self.nodes.reserveCapacity(estimatedNodeCount)
 	}
 
@@ -76,7 +76,7 @@ public final class NodeArena {
 
 	/// Create a new node and return its handle
 	@inline(__always)
-	public func createNode(
+	func createNode(
 		name: String,
 		namespace: Namespace? = nil,
 		attrs: [String: String] = [:]
@@ -103,7 +103,7 @@ public final class NodeArena {
 
 	/// Create a text node
 	@inline(__always)
-	public func createTextNode(_ text: String) -> NodeHandle {
+	func createTextNode(_ text: String) -> NodeHandle {
 		let handle = NodeHandle(index: UInt32(nodes.count))
 		let node = ArenaNodeData(
 			name: "#text",
@@ -117,7 +117,7 @@ public final class NodeArena {
 
 	/// Create a comment node
 	@inline(__always)
-	public func createCommentNode(_ text: String) -> NodeHandle {
+	func createCommentNode(_ text: String) -> NodeHandle {
 		let handle = NodeHandle(index: UInt32(nodes.count))
 		let node = ArenaNodeData(
 			name: "#comment",
@@ -131,7 +131,7 @@ public final class NodeArena {
 
 	/// Create a doctype node
 	@inline(__always)
-	public func createDoctypeNode(_ doctype: Doctype) -> NodeHandle {
+	func createDoctypeNode(_ doctype: Doctype) -> NodeHandle {
 		let handle = NodeHandle(index: UInt32(nodes.count))
 		let node = ArenaNodeData(
 			name: "!doctype",
@@ -147,7 +147,7 @@ public final class NodeArena {
 
 	/// Get node data by handle
 	@inline(__always)
-	public subscript(_ handle: NodeHandle) -> ArenaNodeData {
+	subscript(_ handle: NodeHandle) -> ArenaNodeData {
 		get { self.nodes[Int(handle.index)] }
 		set { self.nodes[Int(handle.index)] = newValue }
 	}
@@ -156,7 +156,7 @@ public final class NodeArena {
 
 	/// Append a child to a parent node - O(1) operation
 	@inline(__always)
-	public func appendChild(parent: NodeHandle, child: NodeHandle) {
+	func appendChild(parent: NodeHandle, child: NodeHandle) {
 		self.nodes[Int(child.index)].parent = parent
 
 		let lastChild = self.nodes[Int(parent.index)].lastChild
@@ -172,7 +172,7 @@ public final class NodeArena {
 	}
 
 	/// Insert child before reference node
-	public func insertBefore(parent: NodeHandle, child: NodeHandle, reference: NodeHandle?) {
+	func insertBefore(parent: NodeHandle, child: NodeHandle, reference: NodeHandle?) {
 		guard let ref = reference, ref.isValid else {
 			self.appendChild(parent: parent, child: child)
 			return
@@ -202,7 +202,7 @@ public final class NodeArena {
 	}
 
 	/// Remove child from parent
-	public func removeChild(parent: NodeHandle, child: NodeHandle) {
+	func removeChild(parent: NodeHandle, child: NodeHandle) {
 		let firstChild = self.nodes[Int(parent.index)].firstChild
 
 		if firstChild == child {
@@ -229,7 +229,7 @@ public final class NodeArena {
 	// MARK: - Tree Queries
 
 	/// Get children of a node
-	public func children(of handle: NodeHandle) -> [NodeHandle] {
+	func children(of handle: NodeHandle) -> [NodeHandle] {
 		var result: [NodeHandle] = []
 		var current = self.nodes[Int(handle.index)].firstChild
 		while current.isValid {
@@ -241,13 +241,13 @@ public final class NodeArena {
 
 	/// Check if node has children
 	@inline(__always)
-	public func hasChildren(_ handle: NodeHandle) -> Bool {
+	func hasChildren(_ handle: NodeHandle) -> Bool {
 		self.nodes[Int(handle.index)].firstChild.isValid
 	}
 
 	/// Get last child - O(1) operation
 	@inline(__always)
-	public func lastChild(of handle: NodeHandle) -> NodeHandle {
+	func lastChild(of handle: NodeHandle) -> NodeHandle {
 		return self.nodes[Int(handle.index)].lastChild
 	}
 
@@ -255,7 +255,7 @@ public final class NodeArena {
 
 	/// Append text to a text node
 	@inline(__always)
-	public func appendText(to handle: NodeHandle, text: String) {
+	func appendText(to handle: NodeHandle, text: String) {
 		if var existing = nodes[Int(handle.index)].textContent {
 			existing.append(text)
 			self.nodes[Int(handle.index)].textContent = existing
@@ -268,7 +268,7 @@ public final class NodeArena {
 	// MARK: - Conversion to Node tree
 
 	/// Convert arena to traditional Node tree (for API compatibility)
-	public func toNodeTree(root: NodeHandle) -> Node {
+	func toNodeTree(root: NodeHandle) -> Node {
 		return self.convertToNode(handle: root)
 	}
 
