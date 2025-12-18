@@ -22,8 +22,9 @@ swift run htmltool query "a[href]" page.html
 A minimal HTML to Markdown converter demonstrating the `toMarkdown()` API.
 
 ```bash
-swift run html2md page.html
-echo '<p>Hello <strong>World</strong></p>' | swift run html2md
+swift build --target HTML2MD
+.build/debug/HTML2MD page.html
+echo '<p>Hello <strong>World</strong></p>' | .build/debug/HTML2MD
 ```
 
 ### extractlinks
@@ -31,8 +32,19 @@ echo '<p>Hello <strong>World</strong></p>' | swift run html2md
 Extract all links from an HTML file, demonstrating CSS selector queries.
 
 ```bash
-swift run extractlinks page.html
-curl -s https://example.com | swift run extractlinks
+swift build --target ExtractLinks
+.build/debug/ExtractLinks page.html
+curl -s https://example.com | .build/debug/ExtractLinks
+```
+
+### fetchpage
+
+Fetch and query HTML from URLs using CSS selectors. A jsoup-style CLI demonstrating network fetch combined with queries.
+
+```bash
+swift build --target FetchPage
+.build/debug/FetchPage https://en.wikipedia.org/
+.build/debug/FetchPage https://example.com "a[href]" --attr href
 ```
 
 ## Interactive
@@ -53,16 +65,17 @@ Open in Xcode after building the swift-justhtml package.
 ## Building Examples
 
 ```bash
-# Build all examples
-swift build
+# Build specific example by target name
+swift build --target HTMLTool
+swift build --target HTML2MD
+swift build --target ExtractLinks
+swift build --target FetchPage
 
-# Build specific example
-swift build --product htmltool
-swift build --product html2md
-swift build --product extractlinks
-
-# Run directly
+# Run htmltool directly (it's a package product)
 swift run htmltool --help
-swift run html2md --help
-swift run extractlinks --help
+
+# Run other examples from build directory
+.build/debug/HTML2MD --help
+.build/debug/ExtractLinks --help
+.build/debug/FetchPage --help
 ```
