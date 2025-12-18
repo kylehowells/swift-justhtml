@@ -351,4 +351,3 @@ func generateMalformedHTML(elements: Int) -> String {
 	html += "</body></html>"
 	return html
 }
-

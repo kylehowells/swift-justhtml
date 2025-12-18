@@ -518,7 +518,8 @@ public final class Node {
 				of: "\\s+",
 				with: " ",
 				options: .regularExpression
-			).trimmingCharacters(in: .whitespacesAndNewlines)
+			)
+			.trimmingCharacters(in: .whitespacesAndNewlines)
 		}
 		return result
 	}

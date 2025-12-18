@@ -701,19 +701,22 @@ private let fuzzUnicodeSpecial = [
 
 /// Generate emoji-heavy text content
 private func fuzzEmojiText() -> String {
-	let count = Int.random(in: 1...10)
+	let count = Int.random(in: 1 ... 10)
 	var result = ""
-	for _ in 0..<count {
-		let choice = Int.random(in: 0..<4)
+	for _ in 0 ..< count {
+		let choice = Int.random(in: 0 ..< 4)
 		switch choice {
-		case 0:
-			result += fuzzEmoji.randomElement()!
-		case 1:
-			result += fuzzUnicodeScripts.randomElement()!
-		case 2:
-			result += fuzzUnicodeSpecial.randomElement()!
-		default:
-			result += fuzzRandomString(minLen: 1, maxLen: 5)
+			case 0:
+				result += fuzzEmoji.randomElement()!
+
+			case 1:
+				result += fuzzUnicodeScripts.randomElement()!
+
+			case 2:
+				result += fuzzUnicodeSpecial.randomElement()!
+
+			default:
+				result += fuzzRandomString(minLen: 1, maxLen: 5)
 		}
 	}
 	return result
@@ -838,24 +841,28 @@ private func fuzzEmojiAtBoundaries() -> String {
 /// Generate completely random Unicode strings
 private func fuzzRandomUnicode(length: Int) -> String {
 	var result = ""
-	for _ in 0..<length {
-		let choice = Int.random(in: 0..<5)
+	for _ in 0 ..< length {
+		let choice = Int.random(in: 0 ..< 5)
 		switch choice {
-		case 0:
-			result += fuzzEmoji.randomElement()!
-		case 1:
-			result += fuzzUnicodeScripts.randomElement()!
-		case 2:
-			result += fuzzUnicodeSpecial.randomElement()!
-		case 3:
-			// Random valid Unicode scalar
-			if let scalar = UnicodeScalar(UInt32.random(in: 0x20...0x10FFFF)) {
-				if scalar.isASCII || !scalar.properties.isNoncharacterCodePoint {
-					result.append(Character(scalar))
+			case 0:
+				result += fuzzEmoji.randomElement()!
+
+			case 1:
+				result += fuzzUnicodeScripts.randomElement()!
+
+			case 2:
+				result += fuzzUnicodeSpecial.randomElement()!
+
+			case 3:
+				// Random valid Unicode scalar
+				if let scalar = UnicodeScalar(UInt32.random(in: 0x20 ... 0x10FFFF)) {
+					if scalar.isASCII || !scalar.properties.isNoncharacterCodePoint {
+						result.append(Character(scalar))
+					}
 				}
-			}
-		default:
-			result += String((0..<Int.random(in: 1...3)).map { _ in "abcdef".randomElement()! })
+
+			default:
+				result += String((0 ..< Int.random(in: 1 ... 3)).map { _ in "abcdef".randomElement()! })
 		}
 	}
 	return result
@@ -875,21 +882,21 @@ private func fuzzRandomUnicode(length: Int) -> String {
 
 	// Test emoji in tag names
 	print("  Testing emoji in tag names...")
-	for _ in 0..<testsPerCategory {
+	for _ in 0 ..< testsPerCategory {
 		let html = fuzzEmojiInTagName()
 		let doc = try JustHTML(html)
 		let output = doc.toHTML()
 		// Verify emoji survives round-trip
 		for emoji in fuzzEmoji where html.contains(emoji) {
 			#expect(output.contains(emoji) || doc.toText().contains(emoji),
-					"Emoji should survive parsing: \(emoji)")
+			        "Emoji should survive parsing: \(emoji)")
 		}
 		completed += 1
 	}
 
 	// Test emoji in attributes
 	print("  Testing emoji in attributes...")
-	for _ in 0..<testsPerCategory {
+	for _ in 0 ..< testsPerCategory {
 		let html = fuzzEmojiInAttributes()
 		let doc = try JustHTML(html)
 		_ = doc.toHTML()
@@ -898,7 +905,7 @@ private func fuzzRandomUnicode(length: Int) -> String {
 
 	// Test emoji mid-tag
 	print("  Testing emoji mid-tag...")
-	for _ in 0..<testsPerCategory {
+	for _ in 0 ..< testsPerCategory {
 		let html = fuzzEmojiMidTag()
 		let doc = try JustHTML(html)
 		_ = doc.toHTML()
@@ -907,7 +914,7 @@ private func fuzzRandomUnicode(length: Int) -> String {
 
 	// Test emoji in comments
 	print("  Testing emoji in comments...")
-	for _ in 0..<testsPerCategory {
+	for _ in 0 ..< testsPerCategory {
 		let html = fuzzEmojiInComments()
 		let doc = try JustHTML(html)
 		_ = doc.toHTML()
@@ -916,7 +923,7 @@ private func fuzzRandomUnicode(length: Int) -> String {
 
 	// Test emoji with entities
 	print("  Testing emoji with entities...")
-	for _ in 0..<testsPerCategory {
+	for _ in 0 ..< testsPerCategory {
 		let html = fuzzEmojiWithEntities()
 		let doc = try JustHTML(html)
 		_ = doc.toHTML()
@@ -925,7 +932,7 @@ private func fuzzRandomUnicode(length: Int) -> String {
 
 	// Test emoji in raw text elements
 	print("  Testing emoji in script/style/title...")
-	for _ in 0..<testsPerCategory {
+	for _ in 0 ..< testsPerCategory {
 		let html = fuzzEmojiInRawText()
 		let doc = try JustHTML(html)
 		_ = doc.toHTML()
@@ -934,7 +941,7 @@ private func fuzzRandomUnicode(length: Int) -> String {
 
 	// Test emoji at byte boundaries
 	print("  Testing emoji at byte boundaries...")
-	for _ in 0..<testsPerCategory {
+	for _ in 0 ..< testsPerCategory {
 		let html = fuzzEmojiAtBoundaries()
 		let doc = try JustHTML(html)
 		_ = doc.toHTML()
@@ -943,8 +950,8 @@ private func fuzzRandomUnicode(length: Int) -> String {
 
 	// Test random Unicode soup
 	print("  Testing random Unicode strings...")
-	for _ in 0..<testsPerCategory {
-		let unicode = fuzzRandomUnicode(length: Int.random(in: 10...100))
+	for _ in 0 ..< testsPerCategory {
+		let unicode = fuzzRandomUnicode(length: Int.random(in: 10 ... 100))
 		let html = "<div>\(unicode)</div>"
 		let doc = try JustHTML(html)
 		_ = doc.toHTML()
@@ -953,7 +960,7 @@ private func fuzzRandomUnicode(length: Int) -> String {
 
 	// Test combined chaos
 	print("  Testing combined Unicode chaos...")
-	for _ in 0..<testsPerCategory {
+	for _ in 0 ..< testsPerCategory {
 		var parts: [String] = []
 		parts.append(fuzzEmojiInTagName())
 		parts.append(fuzzEmojiInAttributes())

@@ -11,7 +11,7 @@
 
 import Foundation
 #if canImport(FoundationNetworking)
-import FoundationNetworking
+	import FoundationNetworking
 #endif
 import justhtml
 
@@ -19,24 +19,24 @@ func printUsage() {
 	let name = (CommandLine.arguments.first as NSString?)?.lastPathComponent ?? "fetchpage"
 	FileHandle.standardError.write(Data("""
 	Usage: \(name) <url> [selector]
-
+	
 	Fetch HTML from a URL and query elements using CSS selectors.
-
+	
 	Arguments:
 	  url       URL to fetch HTML from
 	  selector  CSS selector to query (default: prints page title)
-
+	
 	Options:
 	  -t, --title      Also print page title before results
 	  -a, --attr NAME  Print attribute value instead of text
 	  -h, --help       Show this help message
-
+	
 	Examples:
 	  \(name) https://en.wikipedia.org/
 	  \(name) https://en.wikipedia.org/ "#mp-itn b a"
 	  \(name) https://en.wikipedia.org/ "#mp-itn b a" --attr title
 	  \(name) https://example.com "a[href]" --attr href
-
+	
 	""".utf8))
 }
 
@@ -58,11 +58,13 @@ func resolveURL(_ href: String, base: URL) -> String {
 	return href
 }
 
+// MARK: - FetchResult
+
 /// Container for URL session result to avoid concurrency issues
 final class FetchResult: @unchecked Sendable {
-	var data: Data?
-	var response: URLResponse?
-	var error: Error?
+	var data: Data? = nil
+	var response: URLResponse? = nil
+	var error: Error? = nil
 }
 
 /// Fetch HTML content from a URL synchronously
@@ -107,7 +109,7 @@ func fetchHTML(from urlString: String) throws -> (String, URL) {
 	// Determine encoding from Content-Type header, default to UTF-8
 	var encoding = String.Encoding.utf8
 	if let contentType = httpResponse.value(forHTTPHeaderField: "Content-Type"),
-		contentType.lowercased().contains("charset=iso-8859-1")
+	   contentType.lowercased().contains("charset=iso-8859-1")
 	{
 		encoding = .isoLatin1
 	}
@@ -126,6 +128,7 @@ func getTitle(_ doc: JustHTML) -> String? {
 	guard let titleElement = try? doc.query("title").first else {
 		return nil
 	}
+
 	return titleElement.toText().trimmingCharacters(in: .whitespacesAndNewlines)
 }
 
