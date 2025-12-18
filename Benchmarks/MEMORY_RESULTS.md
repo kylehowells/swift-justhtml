@@ -1,35 +1,38 @@
 # Memory Usage Comparison
 
-**Generated:** 2025-12-17 19:54:09
+**Generated:** 2025-12-18 10:02:36
 
 ## Repository Versions
 
 | Project | Commit |
 |---------|--------|
-| swift-justhtml | `2e01d93a6cd5` |
+| swift-justhtml | `c1eb87378893` |
 | justhtml (Python) | `63c29b26be64` |
 | justjshtml (JavaScript) | `e29dbd3166e9` |
+| html5ever (Rust) | `795caf4166a8` |
 
 ## Peak Memory Usage (RSS)
 
-| File | Size | Swift | Python | JavaScript | Swift vs Python | Swift vs JS |
-|------|------|-------|--------|------------|-----------------|-------------|
-| hackernews.html | 33.67 KB | 19.77 MB | 14.73 MB | 58.80 MB | 1.34x more | 2.98x less |
-| synthetic.html | 20.02 MB | 475.09 MB | 505.55 MB | 866.20 MB | 1.06x less | 1.82x less |
-| wikipedia_countries.html | 360.45 KB | 26.35 MB | 22.86 MB | 90.63 MB | 1.15x more | 3.44x less |
-| wikipedia_html.html | 472.45 KB | 27.95 MB | 24.87 MB | 91.56 MB | 1.12x more | 3.28x less |
-| wikipedia_swift.html | 410.54 KB | 26.93 MB | 24.44 MB | 90.68 MB | 1.10x more | 3.37x less |
-| wikipedia_ww2.html | 1.18 MB | 40.15 MB | 42.68 MB | 155.99 MB | 1.06x less | 3.89x less |
+| File | Size | Rust | Swift | JavaScript | Python | Rust vs Swift |
+|------|------|------|-------|------------|--------|---------------|
+| hackernews.html | 33.67 KB | 3.18 MB | 19.79 MB | 59.10 MB | 14.68 MB | 6.22x less |
+| synthetic.html | 20.02 MB | 216.40 MB | 475.22 MB | 863.95 MB | 505.52 MB | 2.20x less |
+| wikipedia_countries.html | 360.45 KB | 6.07 MB | 26.45 MB | 90.53 MB | 22.87 MB | 4.36x less |
+| wikipedia_html.html | 472.45 KB | 7.13 MB | 28.32 MB | 94.62 MB | 25.00 MB | 3.97x less |
+| wikipedia_swift.html | 410.54 KB | 6.69 MB | 26.80 MB | 90.43 MB | 24.52 MB | 4.01x less |
+| wikipedia_ww2.html | 1.18 MB | 12.52 MB | 40.18 MB | 155.27 MB | 42.46 MB | 3.21x less |
 
 ## Summary
 
 Average peak memory usage across 6 files:
 
-- **Swift**: 102.71 MB
-- **Python**: 105.85 MB
-- **JavaScript**: 225.64 MB
+- **Rust (html5ever)**: 42.00 MB
+- **Swift**: 102.79 MB
+- **JavaScript**: 225.65 MB
+- **Python**: 105.84 MB
 
-Swift uses **1.03x less memory** than Python on average.
-Swift uses **2.20x less memory** than JavaScript on average.
+Rust uses **2.45x less memory** than Swift on average.
+Rust uses **5.37x less memory** than JavaScript on average.
+Rust uses **2.52x less memory** than Python on average.
 
 *Note: Memory measurements are peak RSS (Resident Set Size) which includes shared libraries and may vary between runs.*

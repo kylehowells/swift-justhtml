@@ -198,7 +198,7 @@ def measure_swift_memory_simple(filepath):
     main_swift = sources_dir / "main.swift"
     main_swift.write_text(f'''
 import Foundation
-import JustHTML
+import justhtml
 
 let url = URL(fileURLWithPath: "{filepath}")
 let html = try! String(contentsOf: url, encoding: .utf8)
@@ -220,7 +220,7 @@ let package = Package(
         .executableTarget(
             name: "MemTest",
             dependencies: [
-                .product(name: "swift-justhtml", package: "swift-justhtml"),
+                .product(name: "justhtml", package: "swift-justhtml"),
             ]
         ),
     ]
