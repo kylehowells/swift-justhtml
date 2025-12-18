@@ -645,6 +645,405 @@ private func generateRandomHTMLish(length: Int) -> String {
 	#expect(completed == contexts.count * testsPerContext)
 }
 
+// MARK: - UTF-8 / Emoji Fuzzer
+
+/// Collection of emoji and Unicode characters to stress test byte-based tokenizer
+private let fuzzEmoji = [
+	// Simple emoji (various byte lengths)
+	"😀", "🎉", "🚀", "❤️", "✨", "🔥", "💯", "🎸", "🌍", "🏠",
+	// Multi-codepoint emoji (ZWJ sequences)
+	"👨‍👩‍👧‍👦", "👩‍💻", "🏳️‍🌈", "👨‍🔬", "🧑‍🚀",
+	// Regional indicators (flag emoji)
+	"🇺🇸", "🇬🇧", "🇯🇵", "🇩🇪", "🇫🇷",
+	// Skin tone modifiers
+	"👋🏻", "👋🏿", "🤝🏼", "💪🏽",
+	// Keycap sequences
+	"1️⃣", "2️⃣", "#️⃣", "*️⃣",
+	// Misc multi-byte
+	"☀️", "☁️", "⚡", "🌈", "🎵",
+]
+
+/// CJK and other scripts
+private let fuzzUnicodeScripts = [
+	// Chinese
+	"中文", "测试", "你好世界",
+	// Japanese
+	"日本語", "テスト", "こんにちは",
+	// Korean
+	"한국어", "테스트",
+	// Arabic (RTL)
+	"العربية", "اختبار",
+	// Hebrew (RTL)
+	"עברית", "בדיקה",
+	// Thai
+	"ภาษาไทย", "ทดสอบ",
+	// Devanagari
+	"हिन्दी", "परीक्षण",
+	// Cyrillic
+	"Русский", "тест",
+	// Greek
+	"Ελληνικά", "δοκιμή",
+]
+
+/// Special Unicode characters that might confuse byte-based parsing
+private let fuzzUnicodeSpecial = [
+	"\u{200B}", // Zero-width space
+	"\u{200C}", // Zero-width non-joiner
+	"\u{200D}", // Zero-width joiner
+	"\u{FEFF}", // BOM / zero-width no-break space
+	"\u{00A0}", // Non-breaking space
+	"\u{2028}", // Line separator
+	"\u{2029}", // Paragraph separator
+	"\u{FFFD}", // Replacement character
+	"\u{FE0F}", // Variation selector-16 (emoji presentation)
+	"\u{FE0E}", // Variation selector-15 (text presentation)
+]
+
+/// Generate emoji-heavy text content
+private func fuzzEmojiText() -> String {
+	let count = Int.random(in: 1...10)
+	var result = ""
+	for _ in 0..<count {
+		let choice = Int.random(in: 0..<4)
+		switch choice {
+		case 0:
+			result += fuzzEmoji.randomElement()!
+		case 1:
+			result += fuzzUnicodeScripts.randomElement()!
+		case 2:
+			result += fuzzUnicodeSpecial.randomElement()!
+		default:
+			result += fuzzRandomString(minLen: 1, maxLen: 5)
+		}
+	}
+	return result
+}
+
+/// Generate HTML with emoji in tag names (invalid but should not crash)
+private func fuzzEmojiInTagName() -> String {
+	let emoji = fuzzEmoji.randomElement()!
+	let text = fuzzEmojiText()
+	let variants = [
+		"<\(emoji)>\(text)</\(emoji)>",
+		"<div\(emoji)>\(text)</div>",
+		"<\(emoji)div>\(text)</\(emoji)div>",
+		"<d\(emoji)iv>\(text)</d\(emoji)iv>",
+		"<DIV\(emoji)>\(text)</DIV>",
+	]
+	return variants.randomElement()!
+}
+
+/// Generate HTML with emoji in attribute names/values
+private func fuzzEmojiInAttributes() -> String {
+	let emoji = fuzzEmoji.randomElement()!
+	let text = fuzzEmojiText()
+	let variants = [
+		"<div \(emoji)=\"value\">\(text)</div>",
+		"<div class=\"\(emoji)\">\(text)</div>",
+		"<div data-\(emoji)=\"test\">\(text)</div>",
+		"<div class=\"foo \(emoji) bar\">\(text)</div>",
+		"<a href=\"https://example.com/\(emoji)\">\(text)</a>",
+		"<div id=\"\(emoji)\" class=\"\(emoji)\">\(text)</div>",
+		"<input value=\"\(text)\" placeholder=\"\(emoji)\">",
+	]
+	return variants.randomElement()!
+}
+
+/// Generate HTML with emoji interrupting tags mid-parse
+private func fuzzEmojiMidTag() -> String {
+	let emoji = fuzzEmoji.randomElement()!
+	let text = fuzzEmojiText()
+	let variants = [
+		"<di\(emoji)v>\(text)</div>",
+		"<div cla\(emoji)ss=\"test\">\(text)</div>",
+		"<div class=\(emoji)\"test\">\(text)</div>",
+		"<div class=\"te\(emoji)st\">\(text)</div>",
+		"</di\(emoji)v>",
+		"<div\(emoji)class=\"test\">\(text)</div>",
+		"<div class\(emoji)=\"test\">\(text)</div>",
+		"<\(emoji)>\(text)</>",
+	]
+	return variants.randomElement()!
+}
+
+/// Generate HTML with emoji in comments
+private func fuzzEmojiInComments() -> String {
+	let emoji = fuzzEmoji.randomElement()!
+	let text = fuzzEmojiText()
+	let variants = [
+		"<!--\(emoji)-->",
+		"<!-- \(text) \(emoji) \(text) -->",
+		"<!--\(emoji)\(emoji)\(emoji)-->",
+		"<!-\(emoji)->",
+		"<!--\(emoji)--\(emoji)-->",
+		"<div>\(text)<!--\(emoji)-->\(text)</div>",
+	]
+	return variants.randomElement()!
+}
+
+/// Generate HTML with emoji mixed with entities
+private func fuzzEmojiWithEntities() -> String {
+	let emoji = fuzzEmoji.randomElement()!
+	let text = fuzzEmojiText()
+	let variants = [
+		"\(emoji)&amp;\(emoji)",
+		"&lt;\(emoji)&gt;",
+		"\(emoji)&#x1F600;\(emoji)",
+		"&\(emoji);",
+		"&#\(emoji);",
+		"<div>\(text)&nbsp;\(emoji)&nbsp;\(text)</div>",
+		"\(emoji)&unknown;\(emoji)",
+	]
+	return variants.randomElement()!
+}
+
+/// Generate HTML with emoji in script/style content
+private func fuzzEmojiInRawText() -> String {
+	let emoji = fuzzEmoji.randomElement()!
+	let text = fuzzEmojiText()
+	let variants = [
+		"<script>var x = \"\(emoji)\";</script>",
+		"<script>\(emoji)</script>",
+		"<style>.class { content: \"\(emoji)\"; }</style>",
+		"<title>\(emoji) \(text) \(emoji)</title>",
+		"<textarea>\(emoji)\(text)\(emoji)</textarea>",
+		"<script>// \(text)\n\(emoji)</script>",
+	]
+	return variants.randomElement()!
+}
+
+/// Generate HTML with emoji at UTF-8 byte boundaries
+private func fuzzEmojiAtBoundaries() -> String {
+	let emoji = fuzzEmoji.randomElement()!
+	let zwj = "\u{200D}"
+	let vs16 = "\u{FE0F}"
+	let text = fuzzEmojiText()
+	let variants = [
+		// Emoji right at tag boundaries
+		"\(emoji)<div>\(text)</div>\(emoji)",
+		"<\(emoji)div>\(text)</div>",
+		"<div>\(emoji)</div>",
+		// ZWJ in problematic places
+		"<div\(zwj)>\(text)</div>",
+		"<div class\(zwj)=\"test\">\(text)</div>",
+		// Variation selectors
+		"<div>\(emoji)\(vs16)\(text)</div>",
+		"<\(vs16)div>\(text)</div>",
+		// Multiple combining marks
+		"<div>\(emoji)\(zwj)\(emoji)\(zwj)\(emoji)</div>",
+	]
+	return variants.randomElement()!
+}
+
+/// Generate completely random Unicode strings
+private func fuzzRandomUnicode(length: Int) -> String {
+	var result = ""
+	for _ in 0..<length {
+		let choice = Int.random(in: 0..<5)
+		switch choice {
+		case 0:
+			result += fuzzEmoji.randomElement()!
+		case 1:
+			result += fuzzUnicodeScripts.randomElement()!
+		case 2:
+			result += fuzzUnicodeSpecial.randomElement()!
+		case 3:
+			// Random valid Unicode scalar
+			if let scalar = UnicodeScalar(UInt32.random(in: 0x20...0x10FFFF)) {
+				if scalar.isASCII || !scalar.properties.isNoncharacterCodePoint {
+					result.append(Character(scalar))
+				}
+			}
+		default:
+			result += String((0..<Int.random(in: 1...3)).map { _ in "abcdef".randomElement()! })
+		}
+	}
+	return result
+}
+
+/// UTF-8 / Emoji fuzzer test
+/// Tests that byte-based tokenizer correctly handles all Unicode including:
+/// - Multi-byte UTF-8 sequences (emoji, CJK, etc.)
+/// - ZWJ sequences (family emoji, profession emoji)
+/// - Combining characters and variation selectors
+/// - Unicode in invalid positions (tag names, mid-attribute, etc.)
+@Test func testUTF8EmojiFuzzer() throws {
+	var completed = 0
+	let testsPerCategory = 200
+
+	print("UTF-8/Emoji fuzzer: testing byte-based tokenizer with Unicode edge cases...")
+
+	// Test emoji in tag names
+	print("  Testing emoji in tag names...")
+	for _ in 0..<testsPerCategory {
+		let html = fuzzEmojiInTagName()
+		let doc = try JustHTML(html)
+		let output = doc.toHTML()
+		// Verify emoji survives round-trip
+		for emoji in fuzzEmoji where html.contains(emoji) {
+			#expect(output.contains(emoji) || doc.toText().contains(emoji),
+					"Emoji should survive parsing: \(emoji)")
+		}
+		completed += 1
+	}
+
+	// Test emoji in attributes
+	print("  Testing emoji in attributes...")
+	for _ in 0..<testsPerCategory {
+		let html = fuzzEmojiInAttributes()
+		let doc = try JustHTML(html)
+		_ = doc.toHTML()
+		completed += 1
+	}
+
+	// Test emoji mid-tag
+	print("  Testing emoji mid-tag...")
+	for _ in 0..<testsPerCategory {
+		let html = fuzzEmojiMidTag()
+		let doc = try JustHTML(html)
+		_ = doc.toHTML()
+		completed += 1
+	}
+
+	// Test emoji in comments
+	print("  Testing emoji in comments...")
+	for _ in 0..<testsPerCategory {
+		let html = fuzzEmojiInComments()
+		let doc = try JustHTML(html)
+		_ = doc.toHTML()
+		completed += 1
+	}
+
+	// Test emoji with entities
+	print("  Testing emoji with entities...")
+	for _ in 0..<testsPerCategory {
+		let html = fuzzEmojiWithEntities()
+		let doc = try JustHTML(html)
+		_ = doc.toHTML()
+		completed += 1
+	}
+
+	// Test emoji in raw text elements
+	print("  Testing emoji in script/style/title...")
+	for _ in 0..<testsPerCategory {
+		let html = fuzzEmojiInRawText()
+		let doc = try JustHTML(html)
+		_ = doc.toHTML()
+		completed += 1
+	}
+
+	// Test emoji at byte boundaries
+	print("  Testing emoji at byte boundaries...")
+	for _ in 0..<testsPerCategory {
+		let html = fuzzEmojiAtBoundaries()
+		let doc = try JustHTML(html)
+		_ = doc.toHTML()
+		completed += 1
+	}
+
+	// Test random Unicode soup
+	print("  Testing random Unicode strings...")
+	for _ in 0..<testsPerCategory {
+		let unicode = fuzzRandomUnicode(length: Int.random(in: 10...100))
+		let html = "<div>\(unicode)</div>"
+		let doc = try JustHTML(html)
+		_ = doc.toHTML()
+		completed += 1
+	}
+
+	// Test combined chaos
+	print("  Testing combined Unicode chaos...")
+	for _ in 0..<testsPerCategory {
+		var parts: [String] = []
+		parts.append(fuzzEmojiInTagName())
+		parts.append(fuzzEmojiInAttributes())
+		parts.append(fuzzEmojiInComments())
+		parts.append(fuzzEmojiWithEntities())
+		let html = parts.shuffled().joined()
+		let doc = try JustHTML(html)
+		_ = doc.toHTML()
+		_ = doc.toText()
+		completed += 1
+	}
+
+	print("UTF-8/Emoji fuzzer completed \(completed) tests without crashes")
+	#expect(completed == testsPerCategory * 9, "All UTF-8/emoji tests should complete")
+}
+
+/// Specific test for emoji preservation in valid HTML
+@Test func testEmojiPreservation() throws {
+	// Test that emoji in valid positions are preserved exactly
+	// Each case has the HTML and a list of strings that must appear in output
+	let testCases: [(html: String, mustContain: [String])] = [
+		("<p>Hello 😀 World</p>", ["Hello", "😀", "World"]),
+		("<div class=\"emoji-👍\">test</div>", ["test"]),
+		("<span data-emoji=\"🎉\">party</span>", ["party"]),
+		("<p>Flags: 🇺🇸🇬🇧🇯🇵</p>", ["🇺🇸", "🇬🇧", "🇯🇵"]),
+		("<p>Family: 👨‍👩‍👧‍👦</p>", ["👨‍👩‍👧‍👦"]),
+		("<p>ZWJ: 👩‍💻👨‍🔬🧑‍🚀</p>", ["👩‍💻", "👨‍🔬", "🧑‍🚀"]),
+		("<p>Skin tones: 👋🏻👋🏽👋🏿</p>", ["👋🏻", "👋🏽", "👋🏿"]),
+		("<p>中文日本語한국어</p>", ["中文", "日本語", "한국어"]),
+		("<p>Mixed: Hello 你好 🌍 مرحبا</p>", ["Hello", "你好", "🌍", "مرحبا"]),
+		("<title>🚀 Rocket App</title>", ["🚀", "Rocket"]),
+	]
+
+	for (html, mustContain) in testCases {
+		let doc = try JustHTML(html)
+		let output = doc.toHTML()
+		let text = doc.toText()
+
+		// Check that required strings are preserved
+		for required in mustContain {
+			let found = output.contains(required) || text.contains(required)
+			#expect(found, "'\(required)' should be preserved in: \(html)")
+		}
+
+		// Verify text extraction produces non-empty output
+		#expect(!text.isEmpty, "Text extraction should work for: \(html)")
+	}
+}
+
+/// Test that invalid UTF-8 sequences don't crash the parser
+@Test func testInvalidUTF8Handling() throws {
+	// These strings contain replacement characters from invalid UTF-8
+	let invalidSequences: [String] = [
+		// Overlong encodings (would be handled by Swift's String)
+		String(decoding: [0xC0, 0x80] as [UInt8], as: UTF8.self), // Overlong NUL
+		String(decoding: [0xE0, 0x80, 0x80] as [UInt8], as: UTF8.self), // Overlong NUL
+		// Truncated sequences
+		String(decoding: [0xC2] as [UInt8], as: UTF8.self), // Truncated 2-byte
+		String(decoding: [0xE2, 0x82] as [UInt8], as: UTF8.self), // Truncated 3-byte
+		String(decoding: [0xF0, 0x9F, 0x98] as [UInt8], as: UTF8.self), // Truncated 4-byte
+		// Invalid continuation bytes
+		String(decoding: [0x80, 0x81, 0x82] as [UInt8], as: UTF8.self),
+		// Surrogate halves (invalid in UTF-8)
+		String(decoding: [0xED, 0xA0, 0x80] as [UInt8], as: UTF8.self), // High surrogate
+		String(decoding: [0xED, 0xB0, 0x80] as [UInt8], as: UTF8.self), // Low surrogate
+	]
+
+	for invalid in invalidSequences {
+		let html = "<div>\(invalid)</div>"
+		// Should not crash
+		let doc = try JustHTML(html)
+		_ = doc.toHTML()
+		_ = doc.toText()
+	}
+
+	// Test invalid UTF-8 in various positions
+	let replacement = "\u{FFFD}"
+	let positions = [
+		"<div\(replacement)>text</div>",
+		"<div class=\"\(replacement)\">text</div>",
+		"<!--\(replacement)-->",
+		"<script>\(replacement)</script>",
+	]
+
+	for html in positions {
+		let doc = try JustHTML(html)
+		_ = doc.toHTML()
+	}
+}
+
 // MARK: - Regression Tests
 
 /// Regression test for select fragment crash with table + li + table sequence
