@@ -168,5 +168,5 @@ Swift's remaining overhead is primarily:
 ## See Also
 
 - <doc:Benchmarking>
-- [OPTIMIZATION_HISTORY.md](https://github.com/kylehowells/swift-justhtml/blob/master/notes/OPTIMIZATION_HISTORY.md)
-- [PERFORMANCE_PROFILE.md](https://github.com/kylehowells/swift-justhtml/blob/master/notes/PERFORMANCE_PROFILE.md)
+- [Optimization History](https://github.com/kylehowells/swift-justhtml/blob/master/notes/05-OptimizationHistory.md)
+- [Performance Profile](https://github.com/kylehowells/swift-justhtml/blob/master/notes/06-PerformanceProfile.md)

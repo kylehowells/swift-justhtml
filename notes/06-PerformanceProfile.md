@@ -1,8 +1,8 @@
 # Swift JustHTML Performance Profile
 
-**Generated:** 2025-12-17
-**Version:** turbo branch (commit 195a0c4)
-**Total Benchmark Time:** 98ms (all test files)
+**Commit:** `e649e30`
+**Date:** 2025-12-17 14:58:17 UTC
+**Total Benchmark Time:** 98ms (final optimized version)
 **Primary Test File:** wikipedia_ww2.html (1,204 KB)
 
 ---

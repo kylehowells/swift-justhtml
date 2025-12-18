@@ -1,5 +1,9 @@
 # Performance Investigation Plan: Swift vs JavaScript
 
+**Commit:** `a471c13`
+**Date:** 2025-12-17 08:52:20 UTC
+**Baseline:** 308ms (2.9x slower than JavaScript)
+
 ## Executive Summary
 
 The swift-justhtml implementation is **2.9x slower** than the JavaScript implementation:

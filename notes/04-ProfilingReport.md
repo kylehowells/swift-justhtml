@@ -1,8 +1,8 @@
 # Swift JustHTML Performance Profiling Report
 
-**Generated:** 2025-12-17
-**Version:** turbo branch (with TagID optimizations)
-**Total Parse Time:** 171 ms (2.54 MB of HTML)
+**Commit:** `a6296ac`
+**Date:** 2025-12-17 12:38:51 UTC
+**Total Parse Time:** 171ms (mid-optimization snapshot)
 
 ---
 

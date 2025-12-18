@@ -1,8 +1,8 @@
 # Performance Investigation Report: swift-justhtml
 
-**Date:** December 17, 2025
-**Investigator:** Claude Code
-**Version:** swift-justhtml master branch
+**Commit:** `0c0ee00`
+**Date:** 2025-12-17 09:20:17 UTC
+**Result:** 307ms (Easy wins failed - only 1.2% improvement)
 
 ---
 

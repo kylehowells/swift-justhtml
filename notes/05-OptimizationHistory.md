@@ -1,5 +1,7 @@
 # Swift JustHTML Performance Optimization History
 
+**Commit:** `195a0c4`
+**Date:** 2025-12-17 14:48:19 UTC
 **Final Result:** 302ms → 97ms (**3.1x faster**, 68% reduction)
 
 This document details all performance optimizations made to the Swift JustHTML parser on the `turbo` branch, achieving performance parity with JavaScript (parse5).
