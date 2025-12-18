@@ -13,30 +13,13 @@ let package = Package(
 		.visionOS(.v1),
 	],
 	products: [
-		// Products define the executables and libraries a package produces, making them visible to other packages.
 		.library(
 			name: "justhtml",
 			targets: ["justhtml"]
 		),
 		.executable(
-			name: "benchmark",
-			targets: ["Benchmark"]
-		),
-		.executable(
 			name: "htmltool",
 			targets: ["HTMLTool"]
-		),
-		.executable(
-			name: "html2md",
-			targets: ["HTML2MD"]
-		),
-		.executable(
-			name: "extractlinks",
-			targets: ["ExtractLinks"]
-		),
-		.executable(
-			name: "fetchpage",
-			targets: ["FetchPage"]
 		),
 	],
 	dependencies: [
