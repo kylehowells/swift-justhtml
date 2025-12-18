@@ -2,22 +2,13 @@ name: test
 
 on:
   push:
+    branches: ['**']
+    tags: ['**']
   pull_request:
 
 jobs:
-  # Temporarily disabled - macOS runner
-  # lint:
-  #   runs-on: macos-latest
-  #   steps:
-  #     - uses: actions/checkout@v4
-
-  #     - name: Install swiftformat
-  #       run: brew install swiftformat
-
-  #     - name: Lint
-  #       run: swiftformat --lint . --reporter github-actions-log
-
-  smoke:
+  # Linux - runs on every push
+  linux:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -39,20 +30,34 @@ jobs:
       - name: Run tests
         run: swift test
 
-  # Temporarily disabled - macOS runner
-  # macos:
-  #   runs-on: macos-latest
-  #   steps:
-  #     - uses: actions/checkout@v4
+  # macOS - only runs on tag pushes (releases)
+  macos:
+    runs-on: macos-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/checkout@v4
 
-  #     - name: Checkout html5lib-tests
-  #       uses: actions/checkout@v4
-  #       with:
-  #         repository: html5lib/html5lib-tests
-  #         path: html5lib-tests
+      - name: Checkout html5lib-tests
+        uses: actions/checkout@v4
+        with:
+          repository: html5lib/html5lib-tests
+          path: html5lib-tests
 
-  #     - name: Build
-  #       run: swift build
+      - name: Build
+        run: swift build
 
-  #     - name: Run tests
-  #       run: swift test
+      - name: Run tests
+        run: swift test
+
+  # Lint - only runs on tag pushes (releases)
+  lint:
+    runs-on: macos-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install swiftformat
+        run: brew install swiftformat
+
+      - name: Lint
+        run: swiftformat --lint . --reporter github-actions-log
