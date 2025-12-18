@@ -47,10 +47,8 @@ public enum InsertionMode {
 // MARK: - Tag Name Sets (for fast O(1) lookups)
 
 private let kTableSectionTags: Set<String> = ["tbody", "tfoot", "thead"]
-private let kTableRowTags: Set<String> = ["tbody", "tfoot", "thead", "tr"]
 private let kTableCellTags: Set<String> = ["td", "th"]
 private let kTableRelatedTags: Set<String> = ["table", "tbody", "tfoot", "thead", "tr"]
-private let kTableAllTags: Set<String> = ["table", "tbody", "tfoot", "thead", "tr", "td", "th"]
 private let kTableBoundaryTags: Set<String> = ["caption", "table", "tbody", "tfoot", "thead", "tr", "td", "th"]
 private let kHeadingTags: Set<String> = ["h1", "h2", "h3", "h4", "h5", "h6"]
 private let kListItemTags: Set<String> = ["dd", "dt"]
@@ -113,47 +111,6 @@ private let kBlockStructureEndTags: Set<String> = [
 	"div", "dl", "fieldset", "figcaption", "figure", "footer", "header", "hgroup", "listing",
 	"main", "menu", "nav", "ol", "pre", "search", "section", "summary", "ul",
 ]
-
-// MARK: - TagID Sets (fast integer comparisons)
-
-private let kTableSectionTagIDs: Set<TagID> = [.tbody, .tfoot, .thead]
-private let kTableRowTagIDs: Set<TagID> = [.tbody, .tfoot, .thead, .tr]
-private let kTableCellTagIDs: Set<TagID> = [.td, .th]
-private let kTableRelatedTagIDs: Set<TagID> = [.table, .tbody, .tfoot, .thead, .tr]
-private let kTableAllTagIDs: Set<TagID> = [.table, .tbody, .tfoot, .thead, .tr, .td, .th]
-private let kTableBoundaryTagIDs: Set<TagID> = [.caption, .table, .tbody, .tfoot, .thead, .tr, .td, .th]
-private let kHeadingTagIDs: Set<TagID> = [.h1, .h2, .h3, .h4, .h5, .h6]
-private let kListItemTagIDs: Set<TagID> = [.dd, .dt]
-private let kHeadMetaTagIDs: Set<TagID> = [.base, .basefont, .bgsound, .link, .meta]
-private let kHeadStyleTagIDs: Set<TagID> = [.noframes, .style]
-private let kTemplateScriptTagIDs: Set<TagID> = [.script, .template]
-private let kVoidElementTagIDs: Set<TagID> = [.area, .br, .embed, .img, .keygen, .wbr]
-private let kFormattingScopeTagIDs: Set<TagID> = [.applet, .marquee, .object]
-private let kBreakoutTagIDs: Set<TagID> = [.head, .body, .html, .br]
-private let kTableContextTagIDs: Set<TagID> = [.table, .template, .html]
-private let kTableBodyContextTagIDs: Set<TagID> = [.tbody, .tfoot, .thead, .template, .html]
-private let kRowContextTagIDs: Set<TagID> = [.tr, .template, .html]
-private let kSelectContentTagIDs: Set<TagID> = [.input, .textarea]
-private let kOptionTagIDs: Set<TagID> = [.optgroup, .option]
-private let kRubyBaseTagIDs: Set<TagID> = [.rb, .rtc]
-private let kRubyTextTagIDs: Set<TagID> = [.rp, .rt]
-private let kSVGIntegrationTagIDs: Set<TagID> = [.foreignObject, .desc, .title]
-private let kMathMLIntegrationTagIDs: Set<TagID> = [.mi, .mo, .mn, .ms, .mtext, .annotationXml]
-private let kMediaTagIDs: Set<TagID> = [.param, .source, .track]
-private let kFormElementTagIDs: Set<TagID> = [.p, .div, .span, .button, .datalist, .selectedcontent, .menuitem]
-private let kHeadInBodyTagIDs: Set<TagID> = [.basefont, .bgsound, .link, .meta, .noframes, .style]
-private let kHeadNoscriptTagIDs: Set<TagID> = [.head, .noscript]
-private let kTableRowCellTagIDs: Set<TagID> = [.td, .th, .tr]
-private let kTableCaptionTagIDs: Set<TagID> = [.caption, .col, .colgroup, .tbody, .tfoot, .thead]
-private let kTableCaptionRowTagIDs: Set<TagID> = [.caption, .col, .colgroup, .tbody, .tfoot, .thead, .tr]
-private let kTableAllCellTagIDs: Set<TagID> = [.caption, .col, .colgroup, .tbody, .td, .tfoot, .th, .thead, .tr]
-private let kTableCaptionGroupTagIDs: Set<TagID> = [.caption, .colgroup, .tbody, .tfoot, .thead]
-private let kPreListingTagIDs: Set<TagID> = [.pre, .listing]
-private let kAddressDivPTagIDs: Set<TagID> = [.address, .div, .p]
-private let kBodyHtmlBrTagIDs: Set<TagID> = [.body, .html, .br]
-private let kBodyCaptionHtmlTagIDs: Set<TagID> = [.body, .caption, .col, .colgroup, .html]
-private let kBodyCaptionCellTagIDs: Set<TagID> = [.body, .caption, .col, .colgroup, .html, .td, .th]
-private let kBodyCaptionRowTagIDs: Set<TagID> = [.body, .caption, .col, .colgroup, .html, .td, .th, .tr]
 
 // MARK: - TreeBuilder
 
@@ -1606,7 +1563,7 @@ public final class TreeBuilder: TokenSink {
 			if self.hasElementInButtonScope(.p) {
 				self.closePElement()
 			}
-			if let current = currentNode, kHeadingTagIDs.contains(current.tagId) {
+			if let current = currentNode, kHeadingTags.contains(current.name) {
 				self.emitError("unexpected-start-tag")
 				self.popCurrentElement()
 			}
@@ -1669,7 +1626,7 @@ public final class TreeBuilder: TokenSink {
 				}
 				// Stop at special elements, but NOT address, div, or p
 				if SPECIAL_ELEMENTS.contains(node.name),
-				   !kAddressDivPTagIDs.contains(node.tagId)
+				   !kAddressDivPTags.contains(node.name)
 				{
 					break
 				}
@@ -2428,7 +2385,7 @@ public final class TreeBuilder: TokenSink {
 			// Pop until h1-h6
 			while let current = currentNode {
 				self.popCurrentElement()
-				if kHeadingTagIDs.contains(current.tagId) {
+				if kHeadingTags.contains(current.name) {
 					break
 				}
 			}
@@ -2773,7 +2730,7 @@ public final class TreeBuilder: TokenSink {
 		// insert normally into that element.
 		if self.fosterParentingEnabled {
 			let target = self.adjustedInsertionTarget
-			if kTableRelatedTagIDs.contains(target.tagId) {
+			if kTableRelatedTags.contains(target.name) {
 				self.fosterParentNode(node)
 			}
 			else {
@@ -2847,7 +2804,7 @@ public final class TreeBuilder: TokenSink {
 
 		// Per spec: foster parenting for text only applies when the target is a table element
 		if self.fosterParentingEnabled,
-		   kTableRelatedTagIDs.contains(target.tagId)
+		   kTableRelatedTags.contains(target.name)
 		{
 			self.insertCharacterWithFosterParenting(ch)
 			return
@@ -2875,7 +2832,7 @@ public final class TreeBuilder: TokenSink {
 
 		// Per spec: foster parenting for text only applies when the target is a table element
 		if self.fosterParentingEnabled,
-		   kTableRelatedTagIDs.contains(target.tagId)
+		   kTableRelatedTags.contains(target.name)
 		{
 			// Fall back to character-by-character for foster parenting
 			for ch in text {
@@ -3012,7 +2969,7 @@ public final class TreeBuilder: TokenSink {
 	/// Clear the stack back to a table context (table, template, or html)
 	private func clearStackBackToTableContext() {
 		while let current = currentNode {
-			if kTableContextTagIDs.contains(current.tagId) {
+			if kTableContextTags.contains(current.name) {
 				break
 			}
 			self.popCurrentElement()
@@ -3022,7 +2979,7 @@ public final class TreeBuilder: TokenSink {
 	/// Clear the stack back to a table body context (tbody, tfoot, thead, template, or html)
 	private func clearStackBackToTableBodyContext() {
 		while let current = currentNode {
-			if kTableBodyContextTagIDs.contains(current.tagId) {
+			if kTableBodyContextTags.contains(current.name) {
 				break
 			}
 			self.popCurrentElement()
@@ -3034,7 +2991,7 @@ public final class TreeBuilder: TokenSink {
 		// Per Python justhtml: requires both name match AND HTML namespace
 		while let current = currentNode {
 			let isHTML = current.namespace == nil || current.namespace == .html
-			if kRowContextTagIDs.contains(current.tagId), isHTML {
+			if kRowContextTags.contains(current.name), isHTML {
 				break
 			}
 			self.popCurrentElement()
@@ -3154,12 +3111,12 @@ public final class TreeBuilder: TokenSink {
 			if scopeElements.contains(node.name) {
 				// For MathML/SVG scope boundaries, check namespace
 				// Use module-level kMathMLIntegrationTags and kSVGIntegrationTags
-				if kMathMLIntegrationTagIDs.contains(node.tagId) {
+				if kMathMLIntegrationTags.contains(node.name) {
 					if node.namespace == .math {
 						return false
 					}
 				}
-				else if kSVGIntegrationTagIDs.contains(node.tagId) {
+				else if kSVGIntegrationTags.contains(node.name) {
 					if node.namespace == .svg {
 						return false
 					}
@@ -3221,12 +3178,12 @@ public final class TreeBuilder: TokenSink {
 				return true
 			}
 			if scopeElements.contains(node.tagId) {
-				if kMathMLIntegrationTagIDs.contains(node.tagId) {
+				if kMathMLIntegrationTags.contains(node.name) {
 					if node.namespace == .math {
 						return false
 					}
 				}
-				else if kSVGIntegrationTagIDs.contains(node.tagId) {
+				else if kSVGIntegrationTags.contains(node.name) {
 					if node.namespace == .svg {
 						return false
 					}
@@ -3419,10 +3376,10 @@ public final class TreeBuilder: TokenSink {
 					isSpecial = SPECIAL_ELEMENTS.contains(node.name)
 				}
 				else if node.namespace == .svg {
-					isSpecial = kSVGIntegrationTagIDs.contains(node.tagId)
+					isSpecial = kSVGIntegrationTags.contains(node.name)
 				}
 				else if node.namespace == .math {
-					isSpecial = kMathMLIntegrationTagIDs.contains(node.tagId)
+					isSpecial = kMathMLIntegrationTags.contains(node.name)
 				}
 				else {
 					isSpecial = false
