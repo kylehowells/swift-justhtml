@@ -83,7 +83,7 @@ def run_swift_benchmark():
 
     # Build release version
     result = subprocess.run(
-        ["swift", "build", "-c", "release", "--product", "benchmark"],
+        ["swift", "build", "-c", "release", "--product", "Benchmark"],
         cwd=SWIFT_PROJECT_ROOT,
         capture_output=True,
         text=True
@@ -94,7 +94,7 @@ def run_swift_benchmark():
 
     # Run benchmark
     result = subprocess.run(
-        ["swift", "run", "-c", "release", "benchmark"],
+        ["swift", "run", "-c", "release", "Benchmark"],
         cwd=SWIFT_PROJECT_ROOT,
         capture_output=True,
         text=True
