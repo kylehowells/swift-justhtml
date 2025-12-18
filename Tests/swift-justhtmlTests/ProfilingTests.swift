@@ -274,57 +274,6 @@ func loadSampleFile(_ name: String) throws -> String {
 	print(String(format: "Speedup (UTF-8 vs char): %.1fx", charIterMs / utf8IterMs))
 }
 
-@Test func profileEntityDecoding() async throws {
-	print("\n" + String(repeating: "=", count: 70))
-	print("ENTITY DECODING ANALYSIS")
-	print(String(repeating: "=", count: 70))
-
-	// Generate entity-heavy HTML
-	var entityHtml = "<!DOCTYPE html><html><body>"
-	for i in 0 ..< 1000 {
-		entityHtml +=
-			"<p>Test \(i): &amp; &lt; &gt; &quot; &nbsp; &#60; &#x3E; &copy; &reg; &trade; &hearts;</p>"
-	}
-	entityHtml += "</body></html>"
-
-	let iterations = 10
-	var times: [Double] = []
-	var timer = PrecisionTimer()
-
-	// Warmup
-	for _ in 0 ..< 3 {
-		_ = try JustHTML(entityHtml)
-	}
-
-	// Measure
-	for _ in 0 ..< iterations {
-		timer.begin()
-		_ = try JustHTML(entityHtml)
-		timer.stop()
-		times.append(timer.elapsedMilliseconds)
-	}
-
-	let avgMs = times.reduce(0, +) / Double(times.count)
-	let minMs = times.min() ?? 0
-	let maxMs = times.max() ?? 0
-
-	print("\nEntity-heavy HTML: \(entityHtml.count) bytes")
-	print(String(format: "Parse time: %.2f ms avg (min: %.2f ms, max: %.2f ms)", avgMs, minMs, maxMs))
-	print(String(format: "Throughput: %.2f KB/ms", Double(entityHtml.count) / 1024 / avgMs))
-
-	// Count entities in sample Wikipedia file (skip if not available)
-	if sampleFilesAvailable() {
-		let wikiHtml = try loadSampleFile("wikipedia_ww2.html")
-		var ampCount = 0
-		for ch in wikiHtml {
-			if ch == "&" { ampCount += 1 }
-		}
-		print("\nwikipedia_ww2.html has \(ampCount) potential entity references")
-	}
-
-	// Note: No timing assertion - CI machines have variable performance
-}
-
 @Test func profileDictionaryLookup() async throws {
 	print("\n" + String(repeating: "=", count: 70))
 	print("DICTIONARY LOOKUP ANALYSIS")
