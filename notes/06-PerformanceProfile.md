@@ -276,9 +276,9 @@ The 18.36ms "other overhead" includes:
 
 ---
 
-## 7. Comparison to JavaScript (parse5)
+## 7. Comparison to JavaScript (justjshtml)
 
-Swift and JavaScript (parse5) are now tied at 98ms total. The remaining opportunities to beat JavaScript:
+Swift and JavaScript (justjshtml) are now tied at 98ms total. The remaining opportunities to beat JavaScript:
 
 | Area | Swift Status | JavaScript Advantage |
 |------|-------------|---------------------|

@@ -4,7 +4,7 @@
 **Date:** 2025-12-17 14:48:19 UTC
 **Final Result:** 302ms → 97ms (**3.1x faster**, 68% reduction)
 
-This document details all performance optimizations made to the Swift JustHTML parser on the `turbo` branch, achieving performance parity with JavaScript (parse5).
+This document details all performance optimizations made to the Swift JustHTML parser on the `turbo` branch, achieving performance parity with JavaScript (justjshtml).
 
 ---
 
@@ -25,7 +25,7 @@ This document details all performance optimizations made to the Swift JustHTML p
 | Implementation | Total Time | vs Swift |
 |----------------|-----------|----------|
 | **Swift** | **97ms** | — |
-| **JavaScript (parse5)** | **99ms** | 1.02x slower |
+| **JavaScript (justjshtml)** | **99ms** | 1.02x slower |
 | Python (html5lib) | 398ms | 4.1x slower |
 
 ---
@@ -446,7 +446,7 @@ The Swift JustHTML parser achieved a **3.1x speedup** through systematic profili
 4. **Buffer reuse** reduced allocation overhead in hot paths
 5. **Hot path optimization** focused effort where it mattered most
 
-The result is a Swift HTML5 parser that is **slightly faster than JavaScript (parse5)** and **4x faster than Python (html5lib)**.
+The result is a Swift HTML5 parser that is **slightly faster than JavaScript (justjshtml)** and **4x faster than Python (justhtml)**.
 
 ### Key Lessons Learned
 
