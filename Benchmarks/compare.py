@@ -142,8 +142,52 @@ def run_js_benchmark():
     print(result.stderr, file=sys.stderr)
     return json.loads(result.stdout)
 
-def compare_outputs(swift_results, python_results, js_results):
-    """Compare outputs from all three implementations."""
+def run_rust_benchmark():
+    """Build and run the Rust (html5ever) benchmark."""
+    print("\n" + "=" * 60, file=sys.stderr)
+    print("Building and running Rust benchmark...", file=sys.stderr)
+    print("=" * 60, file=sys.stderr)
+
+    rust_dir = SCRIPT_DIR / "rust_benchmark"
+    if not rust_dir.exists():
+        print("Rust benchmark not found, skipping...", file=sys.stderr)
+        return None
+
+    # Source cargo env and build
+    env = os.environ.copy()
+    cargo_bin = Path.home() / ".cargo" / "bin"
+    if cargo_bin.exists():
+        env["PATH"] = str(cargo_bin) + ":" + env.get("PATH", "")
+
+    # Build release version
+    result = subprocess.run(
+        ["cargo", "build", "--release"],
+        cwd=rust_dir,
+        capture_output=True,
+        text=True,
+        env=env
+    )
+    if result.returncode != 0:
+        print(f"Rust build failed:\n{result.stderr}", file=sys.stderr)
+        return None
+
+    # Run benchmark
+    result = subprocess.run(
+        ["cargo", "run", "--release"],
+        cwd=rust_dir,
+        capture_output=True,
+        text=True,
+        env=env
+    )
+    if result.returncode != 0:
+        print(f"Rust benchmark failed:\n{result.stderr}", file=sys.stderr)
+        return None
+
+    print(result.stderr, file=sys.stderr)
+    return json.loads(result.stdout)
+
+def compare_outputs(swift_results, python_results, js_results, rust_results=None):
+    """Compare outputs from all implementations."""
     print("\n" + "=" * 60, file=sys.stderr)
     print("Output Comparison", file=sys.stderr)
     print("=" * 60, file=sys.stderr)
@@ -152,6 +196,7 @@ def compare_outputs(swift_results, python_results, js_results):
     swift_by_file = {r['file']: r for r in swift_results} if swift_results else {}
     python_by_file = {r['file']: r for r in python_results} if python_results else {}
     js_by_file = {r['file']: r for r in js_results} if js_results else {}
+    rust_by_file = {r['file']: r for r in rust_results} if rust_results else {}
 
     all_files = set(swift_by_file.keys()) | set(python_by_file.keys()) | set(js_by_file.keys())
 
@@ -161,11 +206,15 @@ def compare_outputs(swift_results, python_results, js_results):
         swift_out = swift_by_file.get(filename, {}).get('output', '')
         python_out = python_by_file.get(filename, {}).get('output', '')
         js_out = js_by_file.get(filename, {}).get('output', '')
+        rust_out = rust_by_file.get(filename, {}).get('output', '')
 
         swift_python_match = swift_out == python_out if swift_out and python_out else None
         swift_js_match = swift_out == js_out if swift_out and js_out else None
         python_js_match = python_out == js_out if python_out and js_out else None
+        # Note: Rust (html5ever) may have slightly different output format
+        swift_rust_match = swift_out == rust_out if swift_out and rust_out else None
 
+        # Only compare Swift/Python/JS for consistency (Rust is reference impl with different conventions)
         status = "OK" if (swift_python_match and swift_js_match and python_js_match) else "MISMATCH"
         if status == "MISMATCH":
             all_match = False
@@ -179,7 +228,7 @@ def compare_outputs(swift_results, python_results, js_results):
 
     return all_match, file_results
 
-def generate_markdown_report(swift_results, python_results, js_results, all_match, file_results, git_info):
+def generate_markdown_report(swift_results, python_results, js_results, all_match, file_results, git_info, rust_results=None):
     """Generate a markdown report with benchmark results."""
     lines = []
 
@@ -220,20 +269,27 @@ def generate_markdown_report(swift_results, python_results, js_results, all_matc
     swift_by_file = {r['file']: r for r in swift_results} if swift_results else {}
     python_by_file = {r['file']: r for r in python_results} if python_results else {}
     js_by_file = {r['file']: r for r in js_results} if js_results else {}
+    rust_by_file = {r['file']: r for r in rust_results} if rust_results else {}
 
     all_files = set(swift_by_file.keys()) | set(python_by_file.keys()) | set(js_by_file.keys())
 
-    lines.append("| File | Size | Swift | Python | JavaScript | Swift vs Python | Swift vs JS |")
-    lines.append("|------|------|-------|--------|------------|-----------------|-------------|")
+    if rust_results:
+        lines.append("| File | Size | Rust | Swift | JavaScript | Python | Rust vs Swift |")
+        lines.append("|------|------|------|-------|------------|--------|---------------|")
+    else:
+        lines.append("| File | Size | Swift | Python | JavaScript | Swift vs Python | Swift vs JS |")
+        lines.append("|------|------|-------|--------|------------|-----------------|-------------|")
 
     total_swift = 0
     total_python = 0
     total_js = 0
+    total_rust = 0
 
     for filename in sorted(all_files):
         swift_r = swift_by_file.get(filename, {})
         python_r = python_by_file.get(filename, {})
         js_r = js_by_file.get(filename, {})
+        rust_r = rust_by_file.get(filename, {})
 
         size = swift_r.get('size_bytes') or python_r.get('size_bytes') or js_r.get('size_bytes', 0)
         size_str = f"{size/1024:.0f} KB"
@@ -241,53 +297,71 @@ def generate_markdown_report(swift_results, python_results, js_results, all_matc
         swift_ms = swift_r.get('avg_ms', 0)
         python_ms = python_r.get('avg_ms', 0)
         js_ms = js_r.get('avg_ms', 0)
+        rust_ms = rust_r.get('avg_ms', 0)
 
         total_swift += swift_ms
         total_python += python_ms
         total_js += js_ms
+        total_rust += rust_ms
 
         swift_str = f"{swift_ms:.2f} ms" if swift_ms else "N/A"
         python_str = f"{python_ms:.2f} ms" if python_ms else "N/A"
         js_str = f"{js_ms:.2f} ms" if js_ms else "N/A"
+        rust_str = f"{rust_ms:.2f} ms" if rust_ms else "N/A"
 
-        # Speed ratios
-        swift_py_ratio = python_ms / swift_ms if swift_ms and python_ms else 0
-        swift_js_ratio = js_ms / swift_ms if swift_ms and js_ms else 0
-
-        ratio_py_str = f"{swift_py_ratio:.2f}x faster" if swift_py_ratio > 1 else f"{1/swift_py_ratio:.2f}x slower" if swift_py_ratio else "N/A"
-        ratio_js_str = f"{swift_js_ratio:.2f}x faster" if swift_js_ratio > 1 else f"{1/swift_js_ratio:.2f}x slower" if swift_js_ratio else "N/A"
-
-        lines.append(f"| {filename} | {size_str} | {swift_str} | {python_str} | {js_str} | {ratio_py_str} | {ratio_js_str} |")
+        if rust_results:
+            # Rust vs Swift ratio
+            rust_swift_ratio = swift_ms / rust_ms if rust_ms and swift_ms else 0
+            ratio_str = f"{rust_swift_ratio:.2f}x faster" if rust_swift_ratio > 1 else f"{1/rust_swift_ratio:.2f}x slower" if rust_swift_ratio else "N/A"
+            lines.append(f"| {filename} | {size_str} | {rust_str} | {swift_str} | {js_str} | {python_str} | {ratio_str} |")
+        else:
+            # Speed ratios
+            swift_py_ratio = python_ms / swift_ms if swift_ms and python_ms else 0
+            swift_js_ratio = js_ms / swift_ms if swift_ms and js_ms else 0
+            ratio_py_str = f"{swift_py_ratio:.2f}x faster" if swift_py_ratio > 1 else f"{1/swift_py_ratio:.2f}x slower" if swift_py_ratio else "N/A"
+            ratio_js_str = f"{swift_js_ratio:.2f}x faster" if swift_js_ratio > 1 else f"{1/swift_js_ratio:.2f}x slower" if swift_js_ratio else "N/A"
+            lines.append(f"| {filename} | {size_str} | {swift_str} | {python_str} | {js_str} | {ratio_py_str} | {ratio_js_str} |")
 
     # Totals
-    swift_py_total = total_python / total_swift if total_swift else 0
-    swift_js_total = total_js / total_swift if total_swift else 0
-
-    ratio_py_total = f"{swift_py_total:.2f}x faster" if swift_py_total > 1 else f"{1/swift_py_total:.2f}x slower" if swift_py_total else "N/A"
-    ratio_js_total = f"{swift_js_total:.2f}x faster" if swift_js_total > 1 else f"{1/swift_js_total:.2f}x slower" if swift_js_total else "N/A"
-
-    lines.append(f"| **TOTAL** | | **{total_swift:.0f} ms** | **{total_python:.0f} ms** | **{total_js:.0f} ms** | **{ratio_py_total}** | **{ratio_js_total}** |")
+    if rust_results:
+        rust_swift_total = total_swift / total_rust if total_rust else 0
+        ratio_total = f"{rust_swift_total:.2f}x faster" if rust_swift_total > 1 else f"{1/rust_swift_total:.2f}x slower" if rust_swift_total else "N/A"
+        lines.append(f"| **TOTAL** | | **{total_rust:.0f} ms** | **{total_swift:.0f} ms** | **{total_js:.0f} ms** | **{total_python:.0f} ms** | **{ratio_total}** |")
+    else:
+        swift_py_total = total_python / total_swift if total_swift else 0
+        swift_js_total = total_js / total_swift if total_swift else 0
+        ratio_py_total = f"{swift_py_total:.2f}x faster" if swift_py_total > 1 else f"{1/swift_py_total:.2f}x slower" if swift_py_total else "N/A"
+        ratio_js_total = f"{swift_js_total:.2f}x faster" if swift_js_total > 1 else f"{1/swift_js_total:.2f}x slower" if swift_js_total else "N/A"
+        lines.append(f"| **TOTAL** | | **{total_swift:.0f} ms** | **{total_python:.0f} ms** | **{total_js:.0f} ms** | **{ratio_py_total}** | **{ratio_js_total}** |")
     lines.append("")
 
     # Summary
     lines.append("## Summary")
     lines.append("")
+    if rust_results:
+        lines.append(f"- **Rust (html5ever)** total parse time: {total_rust:.0f} ms")
     lines.append(f"- **Swift** total parse time: {total_swift:.0f} ms")
-    lines.append(f"- **Python** total parse time: {total_python:.0f} ms")
     lines.append(f"- **JavaScript** total parse time: {total_js:.0f} ms")
+    lines.append(f"- **Python** total parse time: {total_python:.0f} ms")
     lines.append("")
 
-    if total_swift and total_python and total_js:
-        fastest = min(total_swift, total_python, total_js)
-        if fastest == total_js:
-            lines.append("**JavaScript** is the fastest implementation (V8 JIT optimization).")
-        elif fastest == total_swift:
-            lines.append("**Swift** is the fastest implementation.")
-        else:
-            lines.append("**Python** is the fastest implementation.")
+    all_totals = [(total_swift, "Swift"), (total_python, "Python"), (total_js, "JavaScript")]
+    if rust_results:
+        all_totals.append((total_rust, "Rust (html5ever)"))
+    all_totals = [(t, n) for t, n in all_totals if t > 0]
+
+    if all_totals:
+        fastest_time, fastest_name = min(all_totals, key=lambda x: x[0])
+        lines.append(f"**{fastest_name}** is the fastest implementation.")
         lines.append("")
-        lines.append(f"Swift is **{total_python/total_swift:.1f}x faster** than Python.")
-        lines.append(f"JavaScript is **{total_swift/total_js:.1f}x faster** than Swift.")
+        if rust_results and total_rust:
+            lines.append(f"Rust is **{total_swift/total_rust:.1f}x faster** than Swift.")
+            lines.append(f"Rust is **{total_js/total_rust:.1f}x faster** than JavaScript.")
+            lines.append(f"Rust is **{total_python/total_rust:.1f}x faster** than Python.")
+        elif total_swift:
+            lines.append(f"Swift is **{total_python/total_swift:.1f}x faster** than Python.")
+            if total_js:
+                lines.append(f"JavaScript is **{total_swift/total_js:.1f}x faster** than Swift.")
     lines.append("")
 
     # Test files info
@@ -312,30 +386,37 @@ def generate_markdown_report(swift_results, python_results, js_results, all_matc
 
     return "\n".join(lines)
 
-def print_summary(swift_results, python_results, js_results):
+def print_summary(swift_results, python_results, js_results, rust_results=None):
     """Print performance summary table."""
     print("\n" + "=" * 60)
     print("PERFORMANCE COMPARISON")
     print("=" * 60)
 
-    # Header
-    print(f"\n{'File':<25} {'Size':>10} | {'Swift':>10} {'Python':>10} {'JS':>10} | {'Swift/Py':>8} {'Swift/JS':>8}")
-    print("-" * 100)
-
     swift_by_file = {r['file']: r for r in swift_results} if swift_results else {}
     python_by_file = {r['file']: r for r in python_results} if python_results else {}
     js_by_file = {r['file']: r for r in js_results} if js_results else {}
+    rust_by_file = {r['file']: r for r in rust_results} if rust_results else {}
 
     all_files = set(swift_by_file.keys()) | set(python_by_file.keys()) | set(js_by_file.keys())
+
+    # Header
+    if rust_results:
+        print(f"\n{'File':<30} {'Size':>10} | {'Rust':>10} {'Swift':>10} {'JS':>10} {'Python':>10} | {'Rust/Swift':>10}")
+        print("-" * 115)
+    else:
+        print(f"\n{'File':<25} {'Size':>10} | {'Swift':>10} {'Python':>10} {'JS':>10} | {'Swift/Py':>8} {'Swift/JS':>8}")
+        print("-" * 100)
 
     total_swift = 0
     total_python = 0
     total_js = 0
+    total_rust = 0
 
     for filename in sorted(all_files):
         swift_r = swift_by_file.get(filename, {})
         python_r = python_by_file.get(filename, {})
         js_r = js_by_file.get(filename, {})
+        rust_r = rust_by_file.get(filename, {})
 
         size = swift_r.get('size_bytes') or python_r.get('size_bytes') or js_r.get('size_bytes', 0)
         size_kb = f"{size/1024:.0f}KB"
@@ -343,41 +424,49 @@ def print_summary(swift_results, python_results, js_results):
         swift_ms = swift_r.get('avg_ms', 0)
         python_ms = python_r.get('avg_ms', 0)
         js_ms = js_r.get('avg_ms', 0)
+        rust_ms = rust_r.get('avg_ms', 0)
 
         total_swift += swift_ms
         total_python += python_ms
         total_js += js_ms
+        total_rust += rust_ms
 
         swift_str = f"{swift_ms:.2f}ms" if swift_ms else "N/A"
         python_str = f"{python_ms:.2f}ms" if python_ms else "N/A"
         js_str = f"{js_ms:.2f}ms" if js_ms else "N/A"
+        rust_str = f"{rust_ms:.2f}ms" if rust_ms else "N/A"
 
-        # Speed ratios (how many times faster Swift is)
-        swift_py_ratio = python_ms / swift_ms if swift_ms and python_ms else 0
-        swift_js_ratio = js_ms / swift_ms if swift_ms and js_ms else 0
+        if rust_results:
+            rust_swift_ratio = swift_ms / rust_ms if rust_ms and swift_ms else 0
+            ratio_str = f"{rust_swift_ratio:.1f}x" if rust_swift_ratio else "N/A"
+            print(f"{filename:<30} {size_kb:>10} | {rust_str:>10} {swift_str:>10} {js_str:>10} {python_str:>10} | {ratio_str:>10}")
+        else:
+            swift_py_ratio = python_ms / swift_ms if swift_ms and python_ms else 0
+            swift_js_ratio = js_ms / swift_ms if swift_ms and js_ms else 0
+            ratio_py_str = f"{swift_py_ratio:.1f}x" if swift_py_ratio else "N/A"
+            ratio_js_str = f"{swift_js_ratio:.1f}x" if swift_js_ratio else "N/A"
+            print(f"{filename:<25} {size_kb:>10} | {swift_str:>10} {python_str:>10} {js_str:>10} | {ratio_py_str:>8} {ratio_js_str:>8}")
 
-        ratio_py_str = f"{swift_py_ratio:.1f}x" if swift_py_ratio else "N/A"
-        ratio_js_str = f"{swift_js_ratio:.1f}x" if swift_js_ratio else "N/A"
-
-        print(f"{filename:<25} {size_kb:>10} | {swift_str:>10} {python_str:>10} {js_str:>10} | {ratio_py_str:>8} {ratio_js_str:>8}")
-
-    print("-" * 100)
-
-    # Totals
-    swift_py_total = total_python / total_swift if total_swift else 0
-    swift_js_total = total_js / total_swift if total_swift else 0
-
-    print(f"{'TOTAL':<25} {'':<10} | {total_swift:>9.0f}ms {total_python:>9.0f}ms {total_js:>9.0f}ms | {swift_py_total:>7.1f}x {swift_js_total:>7.1f}x")
-
-    print("\n(Higher ratio = Swift is faster by that factor)")
+    if rust_results:
+        print("-" * 115)
+        rust_swift_total = total_swift / total_rust if total_rust else 0
+        print(f"{'TOTAL':<30} {'':<10} | {total_rust:>9.0f}ms {total_swift:>9.0f}ms {total_js:>9.0f}ms {total_python:>9.0f}ms | {rust_swift_total:>9.1f}x")
+        print("\n(Higher ratio = Rust is faster by that factor)")
+    else:
+        print("-" * 100)
+        swift_py_total = total_python / total_swift if total_swift else 0
+        swift_js_total = total_js / total_swift if total_swift else 0
+        print(f"{'TOTAL':<25} {'':<10} | {total_swift:>9.0f}ms {total_python:>9.0f}ms {total_js:>9.0f}ms | {swift_py_total:>7.1f}x {swift_js_total:>7.1f}x")
+        print("\n(Higher ratio = Swift is faster by that factor)")
 
 def main():
-    # Get git info for all three projects
+    # Get git info for all projects
     print("Gathering git information...", file=sys.stderr)
     git_info = {
         'swift-justhtml': get_git_info(SWIFT_PROJECT_ROOT),
         'justhtml (Python)': get_git_info(JUSTHTML_ROOT / 'justhtml'),
         'justjshtml (JavaScript)': get_git_info(JUSTHTML_ROOT / 'justjshtml'),
+        'html5ever (Rust)': get_git_info(JUSTHTML_ROOT / 'html5ever'),
     }
 
     # Download samples if needed
@@ -387,17 +476,18 @@ def main():
     swift_results = run_swift_benchmark()
     python_results = run_python_benchmark()
     js_results = run_js_benchmark()
+    rust_results = run_rust_benchmark()
 
     # Compare outputs
-    all_match, file_results = compare_outputs(swift_results, python_results, js_results)
+    all_match, file_results = compare_outputs(swift_results, python_results, js_results, rust_results)
 
     # Print performance summary
-    print_summary(swift_results, python_results, js_results)
+    print_summary(swift_results, python_results, js_results, rust_results)
 
     # Generate markdown report
     markdown_report = generate_markdown_report(
         swift_results, python_results, js_results,
-        all_match, file_results, git_info
+        all_match, file_results, git_info, rust_results
     )
 
     # Save markdown report
@@ -413,6 +503,7 @@ def main():
         'swift': swift_results,
         'python': python_results,
         'javascript': js_results,
+        'rust': rust_results,
         'outputs_match': all_match
     }
 

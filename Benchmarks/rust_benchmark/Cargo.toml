@@ -1,0 +1,16 @@
+[package]
+name = "benchmark_rust"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+html5ever = { path = "../../../html5ever/html5ever" }
+markup5ever_rcdom = { path = "../../../html5ever/rcdom" }
+markup5ever = { path = "../../../html5ever/markup5ever" }
+tendril = { path = "../../../html5ever/tendril" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+[[bin]]
+name = "benchmark_rust"
+path = "src/main.rs"
