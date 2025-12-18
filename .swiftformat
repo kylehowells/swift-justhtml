@@ -12,7 +12,7 @@
 
 # Never use trailing closures
 --enable trailingClosures
---nevertrailing
+--never-trailing
 
 # Else on next line
 --enable elseOnSameLine
