@@ -3,6 +3,9 @@ name: Documentation
 on:
   push:
     branches: [master]
+    paths:
+      - 'Sources/**'
+      - 'Package.swift'
   workflow_dispatch:
 
 permissions:
@@ -23,7 +26,7 @@ jobs:
       - name: Build Documentation
         run: |
           swift package --allow-writing-to-directory ./docs \
-            generate-documentation --target swift-justhtml \
+            generate-documentation --target justhtml \
             --disable-indexing \
             --transform-for-static-hosting \
             --hosting-base-path swift-justhtml \
