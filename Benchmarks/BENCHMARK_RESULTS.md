@@ -1,14 +1,15 @@
 # Cross-Implementation Benchmark Results
 
-**Generated:** 2025-12-18 08:25:27
+**Generated:** 2025-12-18 09:45:09
 
 ## Repository Versions
 
 | Project | Branch | Commit | Date |
 |---------|--------|--------|------|
-| swift-justhtml | master | `0d8b61ecd58e` | 2025-12-18 |
+| swift-justhtml | master | `ed2401f881f9` | 2025-12-18 |
 | justhtml (Python) | main | `63c29b26be64` | 2025-12-16 |
 | justjshtml (JavaScript) | main | `e29dbd3166e9` | 2025-12-16 |
+| html5ever (Rust) | main | `795caf4166a8` | 2025-12-05 |
 
 ## Output Consistency
 
@@ -25,26 +26,28 @@ All implementations produce **identical output** for all test files.
 
 ## Performance Comparison
 
-| File | Size | Swift | Python | JavaScript | Swift vs Python | Swift vs JS |
-|------|------|-------|--------|------------|-----------------|-------------|
-| hackernews.html | 34 KB | 2.12 ms | 7.79 ms | 1.71 ms | 3.68x faster | 1.24x slower |
-| synthetic.html | 20498 KB | 1221.96 ms | 3595.00 ms | 933.79 ms | 2.94x faster | 1.31x slower |
-| wikipedia_countries.html | 360 KB | 14.27 ms | 90.08 ms | 14.99 ms | 6.31x faster | 1.05x faster |
-| wikipedia_html.html | 472 KB | 18.89 ms | 104.40 ms | 20.56 ms | 5.53x faster | 1.09x faster |
-| wikipedia_swift.html | 411 KB | 16.98 ms | 132.85 ms | 16.54 ms | 7.82x faster | 1.03x slower |
-| wikipedia_ww2.html | 1204 KB | 44.00 ms | 238.61 ms | 47.92 ms | 5.42x faster | 1.09x faster |
-| **TOTAL** | | **1318 ms** | **4169 ms** | **1036 ms** | **3.16x faster** | **1.27x slower** |
+| File | Size | Rust | Swift | JavaScript | Python | Rust vs Swift |
+|------|------|------|-------|------------|--------|---------------|
+| hackernews.html | 34 KB | 0.51 ms | 2.05 ms | 1.80 ms | 7.68 ms | 4.06x faster |
+| synthetic.html | 20498 KB | 275.14 ms | 1217.81 ms | 934.22 ms | 3612.26 ms | 4.43x faster |
+| wikipedia_countries.html | 360 KB | 4.09 ms | 14.23 ms | 15.37 ms | 90.21 ms | 3.48x faster |
+| wikipedia_html.html | 472 KB | 5.23 ms | 18.83 ms | 19.98 ms | 104.87 ms | 3.60x faster |
+| wikipedia_swift.html | 411 KB | 4.58 ms | 16.92 ms | 16.42 ms | 133.16 ms | 3.69x faster |
+| wikipedia_ww2.html | 1204 KB | 13.26 ms | 43.56 ms | 47.36 ms | 240.67 ms | 3.28x faster |
+| **TOTAL** | | **303 ms** | **1313 ms** | **1035 ms** | **4189 ms** | **4.34x faster** |
 
 ## Summary
 
-- **Swift** total parse time: 1318 ms
-- **Python** total parse time: 4169 ms
-- **JavaScript** total parse time: 1036 ms
+- **Rust (html5ever)** total parse time: 303 ms
+- **Swift** total parse time: 1313 ms
+- **JavaScript** total parse time: 1035 ms
+- **Python** total parse time: 4189 ms
 
-**JavaScript** is the fastest implementation (V8 JIT optimization).
+**Rust (html5ever)** is the fastest implementation.
 
-Swift is **3.2x faster** than Python.
-JavaScript is **1.3x faster** than Swift.
+Rust is **4.3x faster** than Swift.
+Rust is **3.4x faster** than JavaScript.
+Rust is **13.8x faster** than Python.
 
 ## Test Files
 
