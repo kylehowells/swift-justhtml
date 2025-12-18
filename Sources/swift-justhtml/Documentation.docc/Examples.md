@@ -26,7 +26,7 @@ swift run htmltool query "a[href]" page.html
 
 **APIs demonstrated:**
 - ``JustHTML`` - Parsing
-- ``Node/toText()`` - Text extraction
+- ``Node/toText(separator:strip:collapseWhitespace:)`` - Text extraction
 - ``Node/toHTML(pretty:indentSize:)`` - Serialization
 - ``Node/toMarkdown()`` - Markdown conversion
 - ``JustHTML/query(_:)`` - CSS selectors
