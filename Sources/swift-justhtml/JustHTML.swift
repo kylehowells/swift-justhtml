@@ -190,11 +190,12 @@ public struct JustHTML {
 
 	/// Extract all text content from the document
 	/// - Parameters:
-	///   - separator: String to join text nodes
-	///   - strip: Whether to strip whitespace from text nodes
-	/// - Returns: Concatenated text content
-	public func toText(separator: String = " ", strip: Bool = true) -> String {
-		return self.root.toText(separator: separator, strip: strip)
+	///   - separator: String to insert between text parts (default: "" to preserve original spacing)
+	///   - strip: If true, trim whitespace from each text node (default: false to preserve spacing)
+	///   - collapseWhitespace: If true, collapse runs of whitespace to single spaces (default: true)
+	/// - Returns: Plain text content of the document
+	public func toText(separator: String = "", strip: Bool = false, collapseWhitespace: Bool = true) -> String {
+		return self.root.toText(separator: separator, strip: strip, collapseWhitespace: collapseWhitespace)
 	}
 
 	/// Convert to html5lib test format

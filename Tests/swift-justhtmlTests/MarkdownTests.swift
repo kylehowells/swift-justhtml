@@ -26,6 +26,16 @@ import Testing
 	let doc = try JustHTML(html)
 	let md = doc.toMarkdown()
 	#expect(md.contains("**bold**"))
+	// Verify no newlines inside the bold markers
+	#expect(md.contains("This is **bold** text"))
+}
+
+@Test func markdownStrongAtStart() async throws {
+	let html = "<p><strong>Hello</strong>, World!</p>"
+	let doc = try JustHTML(html)
+	let md = doc.toMarkdown()
+	// The bold markers should wrap the text without newlines inside
+	#expect(md == "**Hello**, World!")
 }
 
 @Test func markdownEmphasis() async throws {

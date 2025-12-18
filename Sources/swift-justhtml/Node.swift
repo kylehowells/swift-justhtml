@@ -503,10 +503,24 @@ public final class Node {
 	// MARK: - Serialization
 
 	/// Extract all text content
-	public func toText(separator: String = " ", strip: Bool = true) -> String {
+	/// - Parameters:
+	///   - separator: String to insert between text parts (default: "" to preserve original spacing)
+	///   - strip: If true, trim whitespace from each text node (default: false to preserve spacing)
+	///   - collapseWhitespace: If true, collapse runs of whitespace to single spaces (default: true)
+	/// - Returns: Plain text content of the node
+	public func toText(separator: String = "", strip: Bool = false, collapseWhitespace: Bool = true) -> String {
 		var parts: [String] = []
 		self.collectText(into: &parts, strip: strip)
-		return parts.joined(separator: separator)
+		var result = parts.joined(separator: separator)
+		if collapseWhitespace {
+			// Collapse runs of whitespace to single spaces
+			result = result.replacingOccurrences(
+				of: "\\s+",
+				with: " ",
+				options: .regularExpression
+			).trimmingCharacters(in: .whitespacesAndNewlines)
+		}
+		return result
 	}
 
 	private func collectText(into parts: inout [String], strip: Bool) {

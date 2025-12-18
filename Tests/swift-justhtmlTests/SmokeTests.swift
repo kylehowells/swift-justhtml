@@ -55,3 +55,13 @@ import Testing
 	print(output)
 	#expect(doc.toText().isEmpty)
 }
+
+@Test func smokeTestTextWithInlineElements() async throws {
+	// Verify no extra spaces around inline elements
+	let doc = try JustHTML("<p><strong>Hello</strong>, World!</p>")
+	#expect(doc.toText() == "Hello, World!")
+
+	// Verify original spacing is preserved
+	let doc2 = try JustHTML("<p>Hello <strong>World</strong></p>")
+	#expect(doc2.toText() == "Hello World")
+}

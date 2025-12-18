@@ -355,6 +355,7 @@ public enum Serialize {
 
 			case "p":
 				context.addNewlines(2)
+				context.flushNewlines()
 				for child in node.children {
 					self.collectMarkdown(child, context: &context)
 				}
@@ -443,6 +444,7 @@ public enum Serialize {
 
 			case "ul":
 				context.addNewlines(2)
+				context.flushNewlines()
 				context.listStack.append(MarkdownContext.ListInfo(ordered: false))
 				for child in node.children {
 					self.collectMarkdown(child, context: &context)
@@ -452,6 +454,7 @@ public enum Serialize {
 
 			case "ol":
 				context.addNewlines(2)
+				context.flushNewlines()
 				context.listStack.append(MarkdownContext.ListInfo(ordered: true))
 				for child in node.children {
 					self.collectMarkdown(child, context: &context)
@@ -487,6 +490,7 @@ public enum Serialize {
 
 			case "div", "section", "article", "main", "header", "footer", "nav", "aside":
 				context.addNewlines(2)
+				context.flushNewlines()
 				for child in node.children {
 					self.collectMarkdown(child, context: &context)
 				}
@@ -517,7 +521,8 @@ public enum Serialize {
 		var lastWasWhitespace = false
 		for ch in text {
 			if ch.isWhitespace {
-				if !lastWasWhitespace, !result.isEmpty {
+				if !lastWasWhitespace {
+					// Preserve a single space (even at start, for inline elements)
 					result.append(" ")
 					lastWasWhitespace = true
 				}
