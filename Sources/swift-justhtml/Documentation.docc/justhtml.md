@@ -1,3 +1,5 @@
+@DisplayName("Swift-JustHTML")
+
 # ``justhtml``
 
 A dependency-free HTML5 parser for Swift, following the WHATWG HTML parsing specification.
