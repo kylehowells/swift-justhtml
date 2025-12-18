@@ -14,7 +14,7 @@ Add swift-justhtml to your `Package.swift` dependencies:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/kylehowells/swift-justhtml.git", from: "0.2.0")
+    .package(url: "https://github.com/kylehowells/swift-justhtml.git", from: "0.3.0")
 ]
 ```
 
@@ -33,7 +33,7 @@ targets: [
 
 1. File > Add Package Dependencies...
 2. Enter: `https://github.com/kylehowells/swift-justhtml.git`
-3. Select version: 0.2.0 or later
+3. Select version: 0.3.0 or later
 
 ## Parsing HTML
 
