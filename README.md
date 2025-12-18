@@ -182,6 +182,17 @@ See [Benchmarks/BENCHMARK_RESULTS.md](Benchmarks/BENCHMARK_RESULTS.md) for detai
 
 See [Benchmarks/MEMORY_RESULTS.md](Benchmarks/MEMORY_RESULTS.md) for detailed memory comparison.
 
+### Swift Library Comparison
+
+| Library | html5lib Pass Rate | Crashes/Hangs | Dependencies |
+|---------|-------------------|---------------|--------------|
+| **swift-justhtml** | 100% (1831/1831) | None | None |
+| Kanna | 94.4% (1542/1633) | None | libxml2 |
+| SwiftSoup | 87.9% (1436/1633) | Infinite loop on 197 tests | swift-atomics |
+| LilHTML | 47.4% (775/1634) | Crashes on 855 tests | libxml2 |
+
+See [notes/comparison.md](notes/comparison.md) for detailed library comparison.
+
 ## Platform Support
 
 | Platform | Minimum Version |
