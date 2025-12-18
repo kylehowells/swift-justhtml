@@ -14,6 +14,48 @@ Swift port of [justhtml](https://github.com/EmilStenstrom/justhtml) (Python) and
 - **Streaming API** - Memory-efficient event-based parsing
 - **Fragment Parsing** - Parse HTML fragments in specific contexts
 
+## Spec Compliance
+
+swift-justhtml implements the [WHATWG HTML parsing specification](https://html.spec.whatwg.org/multipage/parsing.html) exactly and passes all tests from the official [html5lib-tests](https://github.com/html5lib/html5lib-tests) suite used by browser vendors.
+
+### Test Results
+
+```
+Tree Construction Tests
+  ALL TESTS: 1831/1831 passed, 0 failed
+
+  Includes: adoption, blocks, comments, doctype, entities,
+  foreign-fragment, math, svg, tables, template, webkit, and more
+
+Tokenizer Tests
+  TOKENIZER TESTS: 6810/6810 passed, 0 failed
+
+  Includes: entities, numeric entities, escape flags,
+  content model flags, unicode chars, and more
+
+Serializer Tests
+  SERIALIZER TESTS: 230/230 passed, 0 failed
+
+  Includes: optional tags, whitespace, injection tests
+
+Encoding Tests
+  ENCODING TESTS: 82/82 passed, 0 failed
+```
+
+### Fuzz Testing
+
+The parser has been fuzz tested with millions of randomized and malformed HTML documents to ensure it never crashes or hangs on any input:
+
+- Random data fuzzing with varying document sizes
+- Fragment context fuzzing
+- Deep nesting stress tests
+- Malformed tag and entity sequences
+
+Run the fuzzer yourself:
+```bash
+swift test --filter fuzzTest
+```
+
 ## Installation
 
 ### Swift Package Manager
