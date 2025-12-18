@@ -34,6 +34,10 @@ let package = Package(
 			name: "extractlinks",
 			targets: ["ExtractLinks"]
 		),
+		.executable(
+			name: "fetchpage",
+			targets: ["FetchPage"]
+		),
 	],
 	dependencies: [
 		.package(url: "https://github.com/swiftlang/swift-docc-plugin", from: "1.4.3"),
@@ -64,6 +68,11 @@ let package = Package(
 			name: "ExtractLinks",
 			dependencies: ["justhtml"],
 			path: "Examples/extractlinks"
+		),
+		.executableTarget(
+			name: "FetchPage",
+			dependencies: ["justhtml"],
+			path: "Examples/fetchpage"
 		),
 		.testTarget(
 			name: "swift-justhtmlTests",
