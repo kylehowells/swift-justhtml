@@ -91,12 +91,12 @@ pub type Handle = Rc<Node>;
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    Input (String or Bytes)                       │
+│                    Input (String or Bytes)                      │
 └───────────────────────────────┬─────────────────────────────────┘
                                 │
                                 ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                      BufferQueue                                 │
+│                      BufferQueue                                │
 │  ┌─────────────────────────────────────────────────────────┐    │
 │  │  VecDeque<StrTendril> - Zero-copy input chunks          │    │
 │  │  pop_except_from() - Extract blocks between specials    │    │
@@ -105,7 +105,7 @@ pub type Handle = Rc<Node>;
                                 │
                                 ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                        Tokenizer                                 │
+│                        Tokenizer                                │
 │  ┌─────────────────────────────────────────────────────────┐    │
 │  │  48 states, SIMD scanning in Data state                 │    │
 │  │  Emits: StartTag, EndTag, Character, Comment, Doctype   │    │
@@ -114,7 +114,7 @@ pub type Handle = Rc<Node>;
                                 │ TokenSink trait
                                 ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                       TreeBuilder                                │
+│                       TreeBuilder                               │
 │  ┌─────────────────────────────────────────────────────────┐    │
 │  │  19 insertion modes, HTML5 spec rules                   │    │
 │  │  Maintains open elements stack                          │    │
@@ -123,7 +123,7 @@ pub type Handle = Rc<Node>;
                                 │ TreeSink trait
                                 ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                          RcDom                                   │
+│                          RcDom                                  │
 │  ┌─────────────────────────────────────────────────────────┐    │
 │  │  Reference-counted DOM nodes                            │    │
 │  │  Text node merging optimization                         │    │
@@ -152,29 +152,29 @@ The most significant optimization is the custom `Tendril` string type.
 **Standard String (24 bytes):**
 ```
 ┌──────────────────────────────────────────┐
-│ ptr (8 bytes) │ len (8 bytes) │ cap (8) │
+│ ptr (8 bytes) │ len (8 bytes) │ cap (8)  │
 └──────────────────────────────────────────┘
          ↓
-    ┌─────────────────┐
-    │ heap allocation │
-    └─────────────────┘
+┌─────────────────┐
+│ heap allocation │
+└─────────────────┘
 ```
 
 **Tendril (16 bytes with 8-byte inline storage):**
 ```
 Small string (≤ 8 bytes):
 ┌────────────────────────────────────────┐
-│ tag+len (8 bytes) │ inline data (8 B) │  ← NO HEAP ALLOCATION
+│ tag+len (8 bytes) │ inline data (8 B)  │  ← NO HEAP ALLOCATION
 └────────────────────────────────────────┘
 
 Large string:
 ┌────────────────────────────────────────┐
-│ ptr + tag (8 bytes) │ len + aux (8 B) │
+│ ptr + tag (8 bytes) │ len + aux (8 B)  │
 └────────────────────────────────────────┘
          ↓
-    ┌─────────────────────────────────────┐
-    │ shared heap buffer (refcounted)     │
-    └─────────────────────────────────────┘
+┌─────────────────────────────────────┐
+│ shared heap buffer (refcounted)     │
+└─────────────────────────────────────┘
 ```
 
 **Why this matters:**
