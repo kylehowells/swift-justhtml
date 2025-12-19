@@ -110,12 +110,12 @@ The parsing process flows through two main stages:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                         JustHTML.init()                          │
+│                         JustHTML.init()                         │
 └───────────────────────────────┬─────────────────────────────────┘
                                 │
                                 ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                     1. TOKENIZATION                              │
+│                     1. TOKENIZATION                             │
 │  ┌─────────────┐    ┌─────────────┐    ┌─────────────────────┐  │
 │  │ HTML String │ -> │  Tokenizer  │ -> │ Token Stream        │  │
 │  │             │    │ (60+ states)│    │ (startTag, endTag,  │  │
@@ -125,7 +125,7 @@ The parsing process flows through two main stages:
                                 │
                                 ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                   2. TREE CONSTRUCTION                           │
+│                   2. TREE CONSTRUCTION                          │
 │  ┌─────────────────┐    ┌─────────────┐    ┌────────────────┐   │
 │  │ Token Stream    │ -> │ TreeBuilder │ -> │ DOM Node Tree  │   │
 │  │                 │    │ (19 modes)  │    │                │   │
@@ -134,10 +134,10 @@ The parsing process flows through two main stages:
                                 │
                                 ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                      3. RESULT                                   │
-│                                                                  │
+│                      3. RESULT                                  │
+│                                                                 │
 │    JustHTML { root: Node, errors: [ParseError] }                │
-│                                                                  │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -203,15 +203,15 @@ enum Token {
 
 ```
 ┌──────────────────────────────────────────────────────┐
-│                  Tokenizer Loop                       │
-│                                                       │
+│                  Tokenizer Loop                      │
+│                                                      │
 │   for each byte in input:                            │
 │       1. Look at current state                       │
 │       2. Look at current character                   │
 │       3. Transition to new state                     │
 │       4. Maybe emit token(s)                         │
 │       5. Maybe emit error(s)                         │
-│                                                       │
+│                                                      │
 └──────────────────────────────────────────────────────┘
 ```
 
