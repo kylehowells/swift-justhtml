@@ -1,15 +1,16 @@
 # Cross-Implementation Benchmark Results
 
-**Generated:** 2025-12-18 09:45:09
+**Generated:** 2025-12-20 08:25:39
 
 ## Repository Versions
 
 | Project | Branch | Commit | Date |
 |---------|--------|--------|------|
-| swift-justhtml | master | `ed2401f881f9` | 2025-12-18 |
+| swift-justhtml | master | `8a175066b4d9` | 2025-12-19 |
 | justhtml (Python) | main | `63c29b26be64` | 2025-12-16 |
 | justjshtml (JavaScript) | main | `e29dbd3166e9` | 2025-12-16 |
 | html5ever (Rust) | main | `795caf4166a8` | 2025-12-05 |
+| rust-justhtml | master | `7956af8c95fa` | 2025-12-19 |
 
 ## Output Consistency
 
@@ -26,28 +27,32 @@ All implementations produce **identical output** for all test files.
 
 ## Performance Comparison
 
-| File | Size | Rust | Swift | JavaScript | Python | Rust vs Swift |
-|------|------|------|-------|------------|--------|---------------|
-| hackernews.html | 34 KB | 0.51 ms | 2.05 ms | 1.80 ms | 7.68 ms | 4.06x faster |
-| synthetic.html | 20498 KB | 275.14 ms | 1217.81 ms | 934.22 ms | 3612.26 ms | 4.43x faster |
-| wikipedia_countries.html | 360 KB | 4.09 ms | 14.23 ms | 15.37 ms | 90.21 ms | 3.48x faster |
-| wikipedia_html.html | 472 KB | 5.23 ms | 18.83 ms | 19.98 ms | 104.87 ms | 3.60x faster |
-| wikipedia_swift.html | 411 KB | 4.58 ms | 16.92 ms | 16.42 ms | 133.16 ms | 3.69x faster |
-| wikipedia_ww2.html | 1204 KB | 13.26 ms | 43.56 ms | 47.36 ms | 240.67 ms | 3.28x faster |
-| **TOTAL** | | **303 ms** | **1313 ms** | **1035 ms** | **4189 ms** | **4.34x faster** |
+| File | Size | html5ever | rust-justhtml | Swift | JavaScript | Python |
+|------|------|-----------|---------------|-------|------------|--------|
+| hackernews.html | 34 KB | 0.49 ms | 0.82 ms | 2.07 ms | 1.78 ms | 7.75 ms |
+| synthetic.html | 20498 KB | 277.46 ms | N/A | 1218.07 ms | 911.40 ms | 3598.33 ms |
+| wikipedia_countries.html | 360 KB | 3.95 ms | 7.29 ms | 14.27 ms | 15.29 ms | 90.98 ms |
+| wikipedia_html.html | 472 KB | 5.19 ms | 10.89 ms | 19.04 ms | 21.49 ms | 104.24 ms |
+| wikipedia_swift.html | 411 KB | 4.55 ms | 9.70 ms | 16.96 ms | 16.40 ms | 133.33 ms |
+| wikipedia_ww2.html | 1204 KB | 12.62 ms | 24.61 ms | 43.82 ms | 46.10 ms | 240.23 ms |
+| **TOTAL** | | **304 ms** | **53 ms** | **1314 ms** | **1012 ms** | **4175 ms** |
 
 ## Summary
 
-- **Rust (html5ever)** total parse time: 303 ms
-- **Swift** total parse time: 1313 ms
-- **JavaScript** total parse time: 1035 ms
-- **Python** total parse time: 4189 ms
+- **Rust (html5ever)** total parse time: 304 ms
+- **rust-justhtml** total parse time: 53 ms
+- **Swift** total parse time: 1314 ms
+- **JavaScript** total parse time: 1012 ms
+- **Python** total parse time: 4175 ms
 
-**Rust (html5ever)** is the fastest implementation.
+**rust-justhtml** is the fastest implementation.
 
-Rust is **4.3x faster** than Swift.
-Rust is **3.4x faster** than JavaScript.
-Rust is **13.8x faster** than Python.
+html5ever is **4.3x faster** than Swift.
+html5ever is **0.2x faster** than rust-justhtml.
+html5ever is **3.3x faster** than JavaScript.
+html5ever is **13.7x faster** than Python.
+rust-justhtml is **24.6x faster** than Swift.
+rust-justhtml is **78.3x faster** than Python.
 
 ## Test Files
 

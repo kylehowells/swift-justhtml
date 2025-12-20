@@ -376,6 +376,91 @@ opt-level = 3
         shutil.rmtree(temp_dir, ignore_errors=True)
 
 
+def create_rust_justhtml_memory_test(filepath):
+    """Create a Rust source file to parse a single file using rust-justhtml."""
+    script = f'''
+use std::fs;
+use justhtml::JustHTML;
+
+fn count_nodes(node: &justhtml::Node) -> usize {{
+    1 + node.children.iter().map(count_nodes).sum::<usize>()
+}}
+
+fn main() {{
+    let html = fs::read_to_string("{filepath}").expect("Failed to read file");
+    let doc = JustHTML::parse(&html);
+    // Access something to prevent optimization
+    let _ = count_nodes(&doc.root);
+}}
+'''
+    return script
+
+
+def measure_rust_justhtml_memory(filepath):
+    """Measure memory usage for rust-justhtml implementation."""
+    print(f"  Measuring rust-justhtml memory for {filepath.name}...", file=sys.stderr)
+
+    rust_justhtml_dir = JUSTHTML_ROOT / "rust-justhtml"
+    if not rust_justhtml_dir.exists():
+        print("    rust-justhtml not found, skipping...", file=sys.stderr)
+        return None
+
+    # Set up cargo environment
+    env = os.environ.copy()
+    cargo_bin = Path.home() / ".cargo" / "bin"
+    if cargo_bin.exists():
+        env["PATH"] = str(cargo_bin) + ":" + env.get("PATH", "")
+
+    # Create a temporary Rust project
+    temp_dir = Path(tempfile.mkdtemp())
+    src_dir = temp_dir / "src"
+    src_dir.mkdir(parents=True)
+
+    # Write main.rs
+    main_rs = src_dir / "main.rs"
+    main_rs.write_text(create_rust_justhtml_memory_test(str(filepath)))
+
+    # Write Cargo.toml
+    cargo_toml = temp_dir / "Cargo.toml"
+    cargo_toml.write_text(f'''
+[package]
+name = "memtest_justhtml"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+justhtml = {{ path = "{rust_justhtml_dir}" }}
+
+[profile.release]
+opt-level = 3
+''')
+
+    try:
+        # Build
+        result = subprocess.run(
+            ["cargo", "build", "--release"],
+            cwd=temp_dir,
+            capture_output=True,
+            text=True,
+            timeout=120,
+            env=env
+        )
+        if result.returncode != 0:
+            print(f"    rust-justhtml build failed: {result.stderr}", file=sys.stderr)
+            return None
+
+        # Run and measure memory
+        binary = temp_dir / "target" / "release" / "memtest_justhtml"
+        memory = measure_memory([str(binary)])
+        return memory
+    except Exception as e:
+        print(f"    Error: {e}", file=sys.stderr)
+        return None
+    finally:
+        import shutil
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+
 def format_bytes(n):
     """Format bytes as human-readable string."""
     if n is None:
@@ -409,11 +494,15 @@ def generate_markdown_report(results, git_info):
 
     # Check if we have Rust results
     has_rust = any(r.get('rust_memory') for r in results)
+    has_rust_justhtml = any(r.get('rust_justhtml_memory') for r in results)
 
     # Memory comparison table
     lines.append("## Peak Memory Usage (RSS)")
     lines.append("")
-    if has_rust:
+    if has_rust and has_rust_justhtml:
+        lines.append("| File | Size | html5ever | rust-justhtml | Swift | JavaScript | Python |")
+        lines.append("|------|------|-----------|---------------|-------|------------|--------|")
+    elif has_rust:
         lines.append("| File | Size | Rust | Swift | JavaScript | Python | Rust vs Swift |")
         lines.append("|------|------|------|-------|------------|--------|---------------|")
     else:
@@ -424,6 +513,7 @@ def generate_markdown_report(results, git_info):
     total_python = 0
     total_js = 0
     total_rust = 0
+    total_rust_justhtml = 0
     count = 0
 
     for r in results:
@@ -432,6 +522,7 @@ def generate_markdown_report(results, git_info):
         python_str = format_bytes(r['python_memory'])
         js_str = format_bytes(r['js_memory'])
         rust_str = format_bytes(r.get('rust_memory'))
+        rust_justhtml_str = format_bytes(r.get('rust_justhtml_memory'))
 
         if r['swift_memory']:
             total_swift += r['swift_memory']
@@ -442,8 +533,12 @@ def generate_markdown_report(results, git_info):
             total_js += r['js_memory']
         if r.get('rust_memory'):
             total_rust += r['rust_memory']
+        if r.get('rust_justhtml_memory'):
+            total_rust_justhtml += r['rust_justhtml_memory']
 
-        if has_rust:
+        if has_rust and has_rust_justhtml:
+            lines.append(f"| {r['file']} | {size_str} | {rust_str} | {rust_justhtml_str} | {swift_str} | {js_str} | {python_str} |")
+        elif has_rust:
             # Rust vs Swift ratio
             if r.get('rust_memory') and r['swift_memory']:
                 rust_swift_ratio = r['swift_memory'] / r['rust_memory']
@@ -476,16 +571,23 @@ def generate_markdown_report(results, git_info):
         lines.append(f"Average peak memory usage across {count} files:")
         lines.append("")
         if has_rust and total_rust > 0:
-            lines.append(f"- **Rust (html5ever)**: {format_bytes(total_rust // count)}")
+            lines.append(f"- **html5ever (Rust)**: {format_bytes(total_rust // count)}")
+        if has_rust_justhtml and total_rust_justhtml > 0:
+            lines.append(f"- **rust-justhtml**: {format_bytes(total_rust_justhtml // count)}")
         lines.append(f"- **Swift**: {format_bytes(total_swift // count)}")
         lines.append(f"- **JavaScript**: {format_bytes(total_js // count)}")
         lines.append(f"- **Python**: {format_bytes(total_python // count)}")
         lines.append("")
 
         if has_rust and total_rust > 0:
-            lines.append(f"Rust uses **{total_swift / total_rust:.2f}x less memory** than Swift on average.")
-            lines.append(f"Rust uses **{total_js / total_rust:.2f}x less memory** than JavaScript on average.")
-            lines.append(f"Rust uses **{total_python / total_rust:.2f}x less memory** than Python on average.")
+            if has_rust_justhtml and total_rust_justhtml > 0:
+                lines.append(f"html5ever uses **{total_rust_justhtml / total_rust:.2f}x less memory** than rust-justhtml on average.")
+            lines.append(f"html5ever uses **{total_swift / total_rust:.2f}x less memory** than Swift on average.")
+            lines.append(f"html5ever uses **{total_js / total_rust:.2f}x less memory** than JavaScript on average.")
+            lines.append(f"html5ever uses **{total_python / total_rust:.2f}x less memory** than Python on average.")
+        if has_rust_justhtml and total_rust_justhtml > 0 and total_swift > 0:
+            lines.append(f"rust-justhtml uses **{total_swift / total_rust_justhtml:.2f}x less memory** than Swift on average.")
+            lines.append(f"rust-justhtml uses **{total_python / total_rust_justhtml:.2f}x less memory** than Python on average.")
         elif total_swift > 0:
             lines.append(f"Swift uses **{total_python / total_swift:.2f}x less memory** than Python on average.")
             lines.append(f"Swift uses **{total_js / total_swift:.2f}x less memory** than JavaScript on average.")
@@ -508,6 +610,7 @@ def main():
         'justhtml (Python)': get_git_info(JUSTHTML_ROOT / 'justhtml'),
         'justjshtml (JavaScript)': get_git_info(JUSTHTML_ROOT / 'justjshtml'),
         'html5ever (Rust)': get_git_info(JUSTHTML_ROOT / 'html5ever'),
+        'rust-justhtml': get_git_info(JUSTHTML_ROOT / 'rust-justhtml'),
     }
 
     # Collect files
@@ -528,6 +631,7 @@ def main():
             'file': filepath.name,
             'size_bytes': file_size,
             'rust_memory': measure_rust_memory(filepath),
+            'rust_justhtml_memory': measure_rust_justhtml_memory(filepath),
             'swift_memory': measure_swift_memory_simple(filepath),
             'python_memory': measure_python_memory(filepath),
             'js_memory': measure_js_memory(filepath),
@@ -535,10 +639,11 @@ def main():
         results.append(result)
 
         # Print result
-        print(f"    Rust:   {format_bytes(result['rust_memory'])}", file=sys.stderr)
-        print(f"    Swift:  {format_bytes(result['swift_memory'])}", file=sys.stderr)
-        print(f"    Python: {format_bytes(result['python_memory'])}", file=sys.stderr)
-        print(f"    JS:     {format_bytes(result['js_memory'])}", file=sys.stderr)
+        print(f"    html5ever:      {format_bytes(result['rust_memory'])}", file=sys.stderr)
+        print(f"    rust-justhtml:  {format_bytes(result['rust_justhtml_memory'])}", file=sys.stderr)
+        print(f"    Swift:          {format_bytes(result['swift_memory'])}", file=sys.stderr)
+        print(f"    Python:         {format_bytes(result['python_memory'])}", file=sys.stderr)
+        print(f"    JS:             {format_bytes(result['js_memory'])}", file=sys.stderr)
 
     # Generate markdown report
     markdown_report = generate_markdown_report(results, git_info)

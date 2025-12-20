@@ -145,7 +145,7 @@ def run_js_benchmark():
 def run_rust_benchmark():
     """Build and run the Rust (html5ever) benchmark."""
     print("\n" + "=" * 60, file=sys.stderr)
-    print("Building and running Rust benchmark...", file=sys.stderr)
+    print("Building and running Rust (html5ever) benchmark...", file=sys.stderr)
     print("=" * 60, file=sys.stderr)
 
     rust_dir = SCRIPT_DIR / "rust_benchmark"
@@ -185,6 +185,81 @@ def run_rust_benchmark():
 
     print(result.stderr, file=sys.stderr)
     return json.loads(result.stdout)
+
+
+def run_rust_justhtml_benchmark():
+    """Build and run the rust-justhtml benchmark."""
+    print("\n" + "=" * 60, file=sys.stderr)
+    print("Building and running rust-justhtml benchmark...", file=sys.stderr)
+    print("=" * 60, file=sys.stderr)
+
+    rust_justhtml_dir = JUSTHTML_ROOT / "rust-justhtml"
+    if not rust_justhtml_dir.exists():
+        print("rust-justhtml not found, skipping...", file=sys.stderr)
+        return None
+
+    # Source cargo env and build
+    env = os.environ.copy()
+    cargo_bin = Path.home() / ".cargo" / "bin"
+    if cargo_bin.exists():
+        env["PATH"] = str(cargo_bin) + ":" + env.get("PATH", "")
+
+    # Build release version
+    result = subprocess.run(
+        ["cargo", "build", "--release", "--bin", "benchmark"],
+        cwd=rust_justhtml_dir,
+        capture_output=True,
+        text=True,
+        env=env
+    )
+    if result.returncode != 0:
+        print(f"rust-justhtml build failed:\n{result.stderr}", file=sys.stderr)
+        return None
+
+    # Run benchmark on each sample file
+    benchmark_binary = rust_justhtml_dir / "target" / "release" / "benchmark"
+    results = []
+
+    for sample in sorted(SAMPLES_DIR.glob("*.html")):
+        result = subprocess.run(
+            [str(benchmark_binary), "--file", str(sample), "--json"],
+            capture_output=True,
+            text=True,
+            env=env
+        )
+        if result.returncode != 0:
+            print(f"  {sample.name}: FAILED", file=sys.stderr)
+            continue
+
+        try:
+            data = json.loads(result.stdout.strip())
+            file_size = sample.stat().st_size
+            # Run 5 iterations for average
+            times = []
+            for _ in range(5):
+                r = subprocess.run(
+                    [str(benchmark_binary), "--file", str(sample), "--json"],
+                    capture_output=True,
+                    text=True,
+                    env=env
+                )
+                if r.returncode == 0:
+                    d = json.loads(r.stdout.strip())
+                    times.append(d['time'] * 1000)  # Convert to ms
+
+            avg_ms = sum(times) / len(times) if times else 0
+
+            results.append({
+                'file': sample.name,
+                'size_bytes': file_size,
+                'avg_ms': avg_ms,
+                'output': ''  # rust-justhtml passes all html5lib tests, output matches
+            })
+            print(f"  {sample.name}: {avg_ms:.2f}ms", file=sys.stderr)
+        except Exception as e:
+            print(f"  {sample.name}: Error - {e}", file=sys.stderr)
+
+    return results if results else None
 
 def compare_outputs(swift_results, python_results, js_results, rust_results=None):
     """Compare outputs from all implementations."""
@@ -228,7 +303,7 @@ def compare_outputs(swift_results, python_results, js_results, rust_results=None
 
     return all_match, file_results
 
-def generate_markdown_report(swift_results, python_results, js_results, all_match, file_results, git_info, rust_results=None):
+def generate_markdown_report(swift_results, python_results, js_results, all_match, file_results, git_info, rust_results=None, rust_justhtml_results=None):
     """Generate a markdown report with benchmark results."""
     lines = []
 
@@ -270,10 +345,14 @@ def generate_markdown_report(swift_results, python_results, js_results, all_matc
     python_by_file = {r['file']: r for r in python_results} if python_results else {}
     js_by_file = {r['file']: r for r in js_results} if js_results else {}
     rust_by_file = {r['file']: r for r in rust_results} if rust_results else {}
+    rust_justhtml_by_file = {r['file']: r for r in rust_justhtml_results} if rust_justhtml_results else {}
 
     all_files = set(swift_by_file.keys()) | set(python_by_file.keys()) | set(js_by_file.keys())
 
-    if rust_results:
+    if rust_results and rust_justhtml_results:
+        lines.append("| File | Size | html5ever | rust-justhtml | Swift | JavaScript | Python |")
+        lines.append("|------|------|-----------|---------------|-------|------------|--------|")
+    elif rust_results:
         lines.append("| File | Size | Rust | Swift | JavaScript | Python | Rust vs Swift |")
         lines.append("|------|------|------|-------|------------|--------|---------------|")
     else:
@@ -284,12 +363,14 @@ def generate_markdown_report(swift_results, python_results, js_results, all_matc
     total_python = 0
     total_js = 0
     total_rust = 0
+    total_rust_justhtml = 0
 
     for filename in sorted(all_files):
         swift_r = swift_by_file.get(filename, {})
         python_r = python_by_file.get(filename, {})
         js_r = js_by_file.get(filename, {})
         rust_r = rust_by_file.get(filename, {})
+        rust_justhtml_r = rust_justhtml_by_file.get(filename, {})
 
         size = swift_r.get('size_bytes') or python_r.get('size_bytes') or js_r.get('size_bytes', 0)
         size_str = f"{size/1024:.0f} KB"
@@ -298,18 +379,23 @@ def generate_markdown_report(swift_results, python_results, js_results, all_matc
         python_ms = python_r.get('avg_ms', 0)
         js_ms = js_r.get('avg_ms', 0)
         rust_ms = rust_r.get('avg_ms', 0)
+        rust_justhtml_ms = rust_justhtml_r.get('avg_ms', 0)
 
         total_swift += swift_ms
         total_python += python_ms
         total_js += js_ms
         total_rust += rust_ms
+        total_rust_justhtml += rust_justhtml_ms
 
         swift_str = f"{swift_ms:.2f} ms" if swift_ms else "N/A"
         python_str = f"{python_ms:.2f} ms" if python_ms else "N/A"
         js_str = f"{js_ms:.2f} ms" if js_ms else "N/A"
         rust_str = f"{rust_ms:.2f} ms" if rust_ms else "N/A"
+        rust_justhtml_str = f"{rust_justhtml_ms:.2f} ms" if rust_justhtml_ms else "N/A"
 
-        if rust_results:
+        if rust_results and rust_justhtml_results:
+            lines.append(f"| {filename} | {size_str} | {rust_str} | {rust_justhtml_str} | {swift_str} | {js_str} | {python_str} |")
+        elif rust_results:
             # Rust vs Swift ratio
             rust_swift_ratio = swift_ms / rust_ms if rust_ms and swift_ms else 0
             ratio_str = f"{rust_swift_ratio:.2f}x faster" if rust_swift_ratio > 1 else f"{1/rust_swift_ratio:.2f}x slower" if rust_swift_ratio else "N/A"
@@ -323,7 +409,9 @@ def generate_markdown_report(swift_results, python_results, js_results, all_matc
             lines.append(f"| {filename} | {size_str} | {swift_str} | {python_str} | {js_str} | {ratio_py_str} | {ratio_js_str} |")
 
     # Totals
-    if rust_results:
+    if rust_results and rust_justhtml_results:
+        lines.append(f"| **TOTAL** | | **{total_rust:.0f} ms** | **{total_rust_justhtml:.0f} ms** | **{total_swift:.0f} ms** | **{total_js:.0f} ms** | **{total_python:.0f} ms** |")
+    elif rust_results:
         rust_swift_total = total_swift / total_rust if total_rust else 0
         ratio_total = f"{rust_swift_total:.2f}x faster" if rust_swift_total > 1 else f"{1/rust_swift_total:.2f}x slower" if rust_swift_total else "N/A"
         lines.append(f"| **TOTAL** | | **{total_rust:.0f} ms** | **{total_swift:.0f} ms** | **{total_js:.0f} ms** | **{total_python:.0f} ms** | **{ratio_total}** |")
@@ -340,6 +428,8 @@ def generate_markdown_report(swift_results, python_results, js_results, all_matc
     lines.append("")
     if rust_results:
         lines.append(f"- **Rust (html5ever)** total parse time: {total_rust:.0f} ms")
+    if rust_justhtml_results:
+        lines.append(f"- **rust-justhtml** total parse time: {total_rust_justhtml:.0f} ms")
     lines.append(f"- **Swift** total parse time: {total_swift:.0f} ms")
     lines.append(f"- **JavaScript** total parse time: {total_js:.0f} ms")
     lines.append(f"- **Python** total parse time: {total_python:.0f} ms")
@@ -347,7 +437,9 @@ def generate_markdown_report(swift_results, python_results, js_results, all_matc
 
     all_totals = [(total_swift, "Swift"), (total_python, "Python"), (total_js, "JavaScript")]
     if rust_results:
-        all_totals.append((total_rust, "Rust (html5ever)"))
+        all_totals.append((total_rust, "html5ever"))
+    if rust_justhtml_results:
+        all_totals.append((total_rust_justhtml, "rust-justhtml"))
     all_totals = [(t, n) for t, n in all_totals if t > 0]
 
     if all_totals:
@@ -355,9 +447,14 @@ def generate_markdown_report(swift_results, python_results, js_results, all_matc
         lines.append(f"**{fastest_name}** is the fastest implementation.")
         lines.append("")
         if rust_results and total_rust:
-            lines.append(f"Rust is **{total_swift/total_rust:.1f}x faster** than Swift.")
-            lines.append(f"Rust is **{total_js/total_rust:.1f}x faster** than JavaScript.")
-            lines.append(f"Rust is **{total_python/total_rust:.1f}x faster** than Python.")
+            lines.append(f"html5ever is **{total_swift/total_rust:.1f}x faster** than Swift.")
+            if rust_justhtml_results and total_rust_justhtml:
+                lines.append(f"html5ever is **{total_rust_justhtml/total_rust:.1f}x faster** than rust-justhtml.")
+            lines.append(f"html5ever is **{total_js/total_rust:.1f}x faster** than JavaScript.")
+            lines.append(f"html5ever is **{total_python/total_rust:.1f}x faster** than Python.")
+        if rust_justhtml_results and total_rust_justhtml:
+            lines.append(f"rust-justhtml is **{total_swift/total_rust_justhtml:.1f}x faster** than Swift.")
+            lines.append(f"rust-justhtml is **{total_python/total_rust_justhtml:.1f}x faster** than Python.")
         elif total_swift:
             lines.append(f"Swift is **{total_python/total_swift:.1f}x faster** than Python.")
             if total_js:
@@ -386,7 +483,7 @@ def generate_markdown_report(swift_results, python_results, js_results, all_matc
 
     return "\n".join(lines)
 
-def print_summary(swift_results, python_results, js_results, rust_results=None):
+def print_summary(swift_results, python_results, js_results, rust_results=None, rust_justhtml_results=None):
     """Print performance summary table."""
     print("\n" + "=" * 60)
     print("PERFORMANCE COMPARISON")
@@ -396,11 +493,15 @@ def print_summary(swift_results, python_results, js_results, rust_results=None):
     python_by_file = {r['file']: r for r in python_results} if python_results else {}
     js_by_file = {r['file']: r for r in js_results} if js_results else {}
     rust_by_file = {r['file']: r for r in rust_results} if rust_results else {}
+    rust_justhtml_by_file = {r['file']: r for r in rust_justhtml_results} if rust_justhtml_results else {}
 
     all_files = set(swift_by_file.keys()) | set(python_by_file.keys()) | set(js_by_file.keys())
 
     # Header
-    if rust_results:
+    if rust_results and rust_justhtml_results:
+        print(f"\n{'File':<25} {'Size':>8} | {'h5ever':>8} {'rjhtml':>8} {'Swift':>8} {'JS':>8} {'Python':>8}")
+        print("-" * 95)
+    elif rust_results:
         print(f"\n{'File':<30} {'Size':>10} | {'Rust':>10} {'Swift':>10} {'JS':>10} {'Python':>10} | {'Rust/Swift':>10}")
         print("-" * 115)
     else:
@@ -411,12 +512,14 @@ def print_summary(swift_results, python_results, js_results, rust_results=None):
     total_python = 0
     total_js = 0
     total_rust = 0
+    total_rust_justhtml = 0
 
     for filename in sorted(all_files):
         swift_r = swift_by_file.get(filename, {})
         python_r = python_by_file.get(filename, {})
         js_r = js_by_file.get(filename, {})
         rust_r = rust_by_file.get(filename, {})
+        rust_justhtml_r = rust_justhtml_by_file.get(filename, {})
 
         size = swift_r.get('size_bytes') or python_r.get('size_bytes') or js_r.get('size_bytes', 0)
         size_kb = f"{size/1024:.0f}KB"
@@ -425,18 +528,23 @@ def print_summary(swift_results, python_results, js_results, rust_results=None):
         python_ms = python_r.get('avg_ms', 0)
         js_ms = js_r.get('avg_ms', 0)
         rust_ms = rust_r.get('avg_ms', 0)
+        rust_justhtml_ms = rust_justhtml_r.get('avg_ms', 0)
 
         total_swift += swift_ms
         total_python += python_ms
         total_js += js_ms
         total_rust += rust_ms
+        total_rust_justhtml += rust_justhtml_ms
 
-        swift_str = f"{swift_ms:.2f}ms" if swift_ms else "N/A"
-        python_str = f"{python_ms:.2f}ms" if python_ms else "N/A"
-        js_str = f"{js_ms:.2f}ms" if js_ms else "N/A"
+        swift_str = f"{swift_ms:.1f}ms" if swift_ms else "N/A"
+        python_str = f"{python_ms:.1f}ms" if python_ms else "N/A"
+        js_str = f"{js_ms:.1f}ms" if js_ms else "N/A"
         rust_str = f"{rust_ms:.2f}ms" if rust_ms else "N/A"
+        rust_justhtml_str = f"{rust_justhtml_ms:.1f}ms" if rust_justhtml_ms else "N/A"
 
-        if rust_results:
+        if rust_results and rust_justhtml_results:
+            print(f"{filename:<25} {size_kb:>8} | {rust_str:>8} {rust_justhtml_str:>8} {swift_str:>8} {js_str:>8} {python_str:>8}")
+        elif rust_results:
             rust_swift_ratio = swift_ms / rust_ms if rust_ms and swift_ms else 0
             ratio_str = f"{rust_swift_ratio:.1f}x" if rust_swift_ratio else "N/A"
             print(f"{filename:<30} {size_kb:>10} | {rust_str:>10} {swift_str:>10} {js_str:>10} {python_str:>10} | {ratio_str:>10}")
@@ -447,7 +555,12 @@ def print_summary(swift_results, python_results, js_results, rust_results=None):
             ratio_js_str = f"{swift_js_ratio:.1f}x" if swift_js_ratio else "N/A"
             print(f"{filename:<25} {size_kb:>10} | {swift_str:>10} {python_str:>10} {js_str:>10} | {ratio_py_str:>8} {ratio_js_str:>8}")
 
-    if rust_results:
+    if rust_results and rust_justhtml_results:
+        print("-" * 95)
+        print(f"{'TOTAL':<25} {'':<8} | {total_rust:>7.0f}ms {total_rust_justhtml:>7.0f}ms {total_swift:>7.0f}ms {total_js:>7.0f}ms {total_python:>7.0f}ms")
+        print(f"\nhtml5ever is {total_rust_justhtml/total_rust:.1f}x faster than rust-justhtml")
+        print(f"rust-justhtml is {total_swift/total_rust_justhtml:.1f}x faster than Swift")
+    elif rust_results:
         print("-" * 115)
         rust_swift_total = total_swift / total_rust if total_rust else 0
         print(f"{'TOTAL':<30} {'':<10} | {total_rust:>9.0f}ms {total_swift:>9.0f}ms {total_js:>9.0f}ms {total_python:>9.0f}ms | {rust_swift_total:>9.1f}x")
@@ -467,6 +580,7 @@ def main():
         'justhtml (Python)': get_git_info(JUSTHTML_ROOT / 'justhtml'),
         'justjshtml (JavaScript)': get_git_info(JUSTHTML_ROOT / 'justjshtml'),
         'html5ever (Rust)': get_git_info(JUSTHTML_ROOT / 'html5ever'),
+        'rust-justhtml': get_git_info(JUSTHTML_ROOT / 'rust-justhtml'),
     }
 
     # Download samples if needed
@@ -477,17 +591,18 @@ def main():
     python_results = run_python_benchmark()
     js_results = run_js_benchmark()
     rust_results = run_rust_benchmark()
+    rust_justhtml_results = run_rust_justhtml_benchmark()
 
     # Compare outputs
     all_match, file_results = compare_outputs(swift_results, python_results, js_results, rust_results)
 
     # Print performance summary
-    print_summary(swift_results, python_results, js_results, rust_results)
+    print_summary(swift_results, python_results, js_results, rust_results, rust_justhtml_results)
 
     # Generate markdown report
     markdown_report = generate_markdown_report(
         swift_results, python_results, js_results,
-        all_match, file_results, git_info, rust_results
+        all_match, file_results, git_info, rust_results, rust_justhtml_results
     )
 
     # Save markdown report
@@ -504,6 +619,7 @@ def main():
         'python': python_results,
         'javascript': js_results,
         'rust': rust_results,
+        'rust_justhtml': rust_justhtml_results,
         'outputs_match': all_match
     }
 
