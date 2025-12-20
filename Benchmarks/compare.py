@@ -216,11 +216,17 @@ def run_rust_justhtml_benchmark():
         print(f"rust-justhtml build failed:\n{result.stderr}", file=sys.stderr)
         return None
 
-    # Run benchmark on each sample file
+    # Run benchmark on each sample file (including test_files for synthetic.html)
     benchmark_binary = rust_justhtml_dir / "target" / "release" / "benchmark"
     results = []
 
-    for sample in sorted(SAMPLES_DIR.glob("*.html")):
+    # Collect files from both samples and test_files directories
+    all_samples = list(SAMPLES_DIR.glob("*.html"))
+    test_files_dir = SCRIPT_DIR / "test_files"
+    if test_files_dir.exists():
+        all_samples.extend(test_files_dir.glob("*.html"))
+
+    for sample in sorted(all_samples, key=lambda p: p.name):
         result = subprocess.run(
             [str(benchmark_binary), "--file", str(sample), "--json"],
             capture_output=True,
