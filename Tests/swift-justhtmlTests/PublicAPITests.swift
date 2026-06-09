@@ -77,6 +77,59 @@ import Testing
 	// Should have at least one error (missing DOCTYPE)
 	#expect(!doc.errors.isEmpty)
 	#expect(doc.errors[0].code == "expected-doctype-but-got-start-tag")
+	#expect(doc.errors[0].message == "Expected DOCTYPE but got start tag")
+}
+
+/// Test collected parse errors expose source location
+@Test func justHTMLCollectErrorsIncludesLocation() async throws {
+	let html = "\n<p>Test</p>"
+	let doc = try JustHTML(html, collectErrors: true)
+
+	#expect(doc.errors.contains { error in
+		error.code == "expected-doctype-but-got-start-tag"
+			&& error.message == "Expected DOCTYPE but got start tag"
+			&& error.line == 2
+			&& error.column == 3
+	})
+}
+
+/// Test strict mode exposes source location on the thrown parse error
+@Test func justHTMLStrictModeErrorIncludesLocation() async throws {
+	let html = "\n<p>Test</p>"
+
+	do {
+		_ = try JustHTML(html, strict: true)
+		Issue.record("Expected strict mode to throw")
+	}
+	catch let error as StrictModeError {
+		#expect(error.parseError.code == "expected-doctype-but-got-start-tag")
+		#expect(error.parseError.message == "Expected DOCTYPE but got start tag")
+		#expect(error.parseError.line == 2)
+		#expect(error.parseError.column == 3)
+	}
+}
+
+/// Test parse errors consistently include location and a human-readable reason
+@Test func justHTMLParseErrorsIncludeLocationAndReason() async throws {
+	let cases = [
+		"\n<p>Test</p>",
+		"<!DOCTYPE html><p a=\"\u{0000}\">Test</p>",
+		"<!DOCTYPE html><p>&not-a-real-entity;</p>",
+	]
+
+	for html in cases {
+		let doc = try JustHTML(html, collectErrors: true)
+
+		#expect(!doc.errors.isEmpty)
+		for error in doc.errors {
+			#expect(error.line != nil)
+			#expect(error.column != nil)
+			#expect(!error.message.isEmpty)
+			#expect(error.message != error.code)
+			#expect(error.description.contains(error.message))
+			#expect(error.description.contains(error.code))
+		}
+	}
 }
 
 /// Test Node.replaceChild()
@@ -169,10 +222,11 @@ import Testing
 /// Test ParseError description
 @Test func parseErrorDescription() async throws {
 	let error1 = ParseError(code: "test-error", message: "Test message", line: 10, column: 5)
-	#expect(error1.description == "(10,5): test-error")
+	#expect(error1.description == "(10,5): Test message [test-error]")
 
 	let error2 = ParseError(code: "test-error")
-	#expect(error2.description == "test-error")
+	#expect(error2.message == "Test error")
+	#expect(error2.description == "Test error [test-error]")
 }
 
 /// Test SelectorError description

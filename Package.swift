@@ -21,6 +21,10 @@ let package = Package(
 			name: "htmltool",
 			targets: ["HTMLTool"]
 		),
+		.executable(
+			name: "swift-justhtml-fuzz",
+			targets: ["SwiftJustHTMLFuzz"]
+		),
 	],
 	dependencies: [
 		.package(url: "https://github.com/swiftlang/swift-docc-plugin", from: "1.4.3"),
@@ -36,6 +40,11 @@ let package = Package(
 			name: "Benchmark",
 			dependencies: ["justhtml"],
 			path: "Benchmarks/Sources"
+		),
+		.executableTarget(
+			name: "SwiftJustHTMLFuzz",
+			dependencies: ["justhtml"],
+			path: "Benchmarks/Fuzz"
 		),
 		.executableTarget(
 			name: "HTMLTool",

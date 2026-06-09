@@ -226,6 +226,14 @@ public final class Tokenizer {
 	private var line: Int = 1
 	private var column: Int = 0
 
+	public var currentLine: Int {
+		return self.line
+	}
+
+	public var currentColumn: Int {
+		return self.column
+	}
+
 	// Current token being built
 	private var currentTagName: String = ""
 	private var currentTagIsEnd: Bool = false

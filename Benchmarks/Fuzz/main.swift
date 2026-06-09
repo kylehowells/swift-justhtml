@@ -8,6 +8,7 @@
 //   Run:   .build/release/swift-justhtml-fuzz --num-tests 10000
 
 import Foundation
+import justhtml
 
 // MARK: - Constants
 
@@ -50,10 +51,9 @@ let entities = [
 
 // MARK: - Random Helpers
 
-var rng = SystemRandomNumberGenerator()
-
 func randomInt(_ range: ClosedRange<Int>) -> Int {
-	Int.random(in: range, using: &rng)
+	let count = range.upperBound - range.lowerBound + 1
+	return range.lowerBound + Int(drand48() * Double(count))
 }
 
 func randomElement<T>(_ array: [T]) -> T {
@@ -63,7 +63,8 @@ func randomElement<T>(_ array: [T]) -> T {
 func randomString(minLen: Int = 0, maxLen: Int = 20) -> String {
 	let chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	let length = randomInt(minLen ... maxLen)
-	return String((0 ..< length).map { _ in chars.randomElement()! })
+	let values = Array(chars)
+	return String((0 ..< length).map { _ in randomElement(values) })
 }
 
 func randomWhitespace() -> String {
@@ -72,7 +73,7 @@ func randomWhitespace() -> String {
 }
 
 func randomBool(_ probability: Double = 0.5) -> Bool {
-	Double.random(in: 0 ... 1, using: &rng) < probability
+	drand48() < probability
 }
 
 // MARK: - Fuzzing Strategies
@@ -382,12 +383,15 @@ func fuzzDeeplyNested() -> String {
 func fuzzManyAttributes() -> String {
 	let numAttrs = randomInt(100 ... 500)
 	let tag = randomElement(tags)
+	let numberedAttrs = (0 ..< numAttrs).map { "attr\($0)='value\($0)'" }.joined(separator: " ")
+	let duplicateIds = (0 ..< 100).map { "id='id\($0)'" }.joined(separator: " ")
+	let classList = (0 ..< 1000).map { "class\($0)" }.joined(separator: " ")
 	let variants = [
-		"<\(tag) " + (0 ..< numAttrs).map { "attr\($0)='value\($0)'" }.joined(separator: " ") + ">",
-		"<\(tag) " + (0 ..< 100).map { "id='id\($0)'" }.joined(separator: " ") + ">",
+		"<\(tag) \(numberedAttrs)>",
+		"<\(tag) \(duplicateIds)>",
 		"<\(tag) data-x='\(String(repeating: "x", count: 100000))'>",
 		"<\(tag) \(String(repeating: "x", count: 10000))='value'>",
-		"<\(tag) class='" + (0 ..< 1000).map { "class\($0)" }.joined(separator: " ") + "'>",
+		"<\(tag) class='\(classList)'>",
 	]
 	return randomElement(variants)
 }
@@ -577,39 +581,70 @@ func fuzzEntityEdgeCases() -> String {
 	return randomElement(variants)
 }
 
+func fuzzIssueRegressionShapes() -> String {
+	let content = randomString(minLen: 1, maxLen: 20)
+	let variants = [
+		"<select><table><li></li><table></table></select>",
+		"<select><table><li><table><tr><td>\(content)</td></tr></table></li></table></select>",
+		"<select><option>one<table><li>two<table><tr><td>three</td></tr></table></select>",
+		"<table><select><table><li><table><tr><td>\(content)</td></tr></table></li></table></select></table>",
+		"<template><select><table><li><table></table></li></table></select></template>",
+		"<select><math><annotation-xml encoding='text/html'><table><li><table></table></li></table></annotation-xml></math></select>",
+		"<select><svg><foreignObject><table><li><table></table></li></table></foreignObject></svg></select>",
+	]
+	return randomElement(variants)
+}
+
+func fuzzLongRawText() -> String {
+	let tag = randomElement(["script", "style", "textarea", "title", "xmp", "plaintext"])
+	let terminators = ["</\(tag)>", "</\(tag)", "</\(tag) >", "</\(tag.uppercased())>", ""]
+	let bodyParts = (0 ..< randomInt(10 ... 80)).map { _ in
+		randomElement([
+			randomString(minLen: 20, maxLen: 120),
+			"</" + randomString(minLen: 1, maxLen: 8),
+			"<!--" + randomString(minLen: 1, maxLen: 50),
+			"<![CDATA[" + randomString(minLen: 1, maxLen: 50),
+			randomElement(entities),
+		])
+	}
+	return "<\(tag)>" + bodyParts.joined() + randomElement(terminators)
+}
+
 // MARK: - Fuzz Generators Array
 
-let fuzzGenerators: [() -> String] = [
-	fuzzOpenTag,
-	fuzzCloseTag,
-	fuzzComment,
-	fuzzText,
-	fuzzScript,
-	fuzzStyle,
-	fuzzNestedStructure,
-	fuzzAdoptionAgency,
-	fuzzFosterParenting,
-	fuzzSvgMath,
-	fuzzTemplate,
-	fuzzEncodingEdgeCases,
-	fuzzDeeplyNested,
-	fuzzManyAttributes,
-	fuzzImplicitTags,
-	fuzzDocumentStructure,
-	fuzzNullHandling,
-	fuzzEofHandling,
-	fuzzIntegrationPoints,
-	fuzzTableScoping,
-	fuzzSelectElement,
-	fuzzFramesetMode,
-	fuzzEntityEdgeCases,
-]
-
-let fuzzWeights = [
-	20, 10, 8, 15, 4, 4, 8, 5, 5, 5, 3, 3, 1, 1, 3, 2, 4, 3, 4, 5, 4, 2, 5,
-]
-
 func weightedRandomGenerator() -> () -> String {
+	let fuzzGenerators: [() -> String] = [
+		fuzzOpenTag,
+		fuzzCloseTag,
+		fuzzComment,
+		fuzzText,
+		fuzzScript,
+		fuzzStyle,
+		{ fuzzNestedStructure() },
+		fuzzAdoptionAgency,
+		fuzzFosterParenting,
+		fuzzSvgMath,
+		fuzzTemplate,
+		fuzzEncodingEdgeCases,
+		fuzzDeeplyNested,
+		fuzzManyAttributes,
+		fuzzImplicitTags,
+		fuzzDocumentStructure,
+		fuzzNullHandling,
+		fuzzEofHandling,
+		fuzzIntegrationPoints,
+		fuzzTableScoping,
+		fuzzSelectElement,
+		fuzzFramesetMode,
+		fuzzEntityEdgeCases,
+		fuzzIssueRegressionShapes,
+		fuzzLongRawText,
+	]
+
+	let fuzzWeights = [
+		20, 10, 8, 15, 4, 4, 8, 5, 5, 5, 3, 3, 1, 1, 3, 2, 4, 3, 4, 5, 4, 2, 5, 6, 4,
+	]
+
 	let totalWeight = fuzzWeights.reduce(0, +)
 	let r = randomInt(0 ... (totalWeight - 1))
 	var cumulative = 0
@@ -644,11 +679,69 @@ func generateFuzzedHTML() -> String {
 
 struct FuzzResult {
 	var successes: Int = 0
-	var crashes: [(index: Int, html: String, error: String)] = []
+	var failures: [(index: Int, html: String, error: String)] = []
+	var diagnosticFailures: [(index: Int, html: String, error: String)] = []
 	var hangs: [(index: Int, html: String, time: Double)] = []
 }
 
-func runFuzzer(numTests: Int, seed: UInt64?, verbose: Bool) -> FuzzResult {
+func checkDiagnostics(_ doc: JustHTML, html: String, index: Int, result: inout FuzzResult) {
+	for error in doc.errors {
+		if error.line == nil || error.column == nil || error.message.isEmpty || error.message == error.code {
+			result.diagnosticFailures.append(
+				(index, html, "Weak parse error diagnostic: \(error.description)")
+			)
+			return
+		}
+	}
+}
+
+func randomFragmentContextName() -> String {
+	let contexts = ["div", "table", "template", "svg", "math", "select", "script", "style", "title", "textarea"]
+	return randomElement(contexts)
+}
+
+func writeStderr(_ message: String) {
+	if traceParserSteps {
+		FileHandle.standardError.write(Data((message + "\n").utf8))
+	}
+}
+
+let traceParserSteps = false
+
+func exerciseParser(_ html: String, index: Int, result: inout FuzzResult) throws {
+	writeStderr("[\(index)] document parse")
+	let doc = try JustHTML(html)
+	writeStderr("[\(index)] document toHTML")
+	_ = doc.toHTML(pretty: false)
+	writeStderr("[\(index)] document toText")
+	_ = doc.toText()
+
+	writeStderr("[\(index)] collectErrors parse")
+	let docWithErrors = try JustHTML(html, collectErrors: true)
+	checkDiagnostics(docWithErrors, html: html, index: index, result: &result)
+
+	writeStderr("[\(index)] data parse")
+	let dataDoc = try JustHTML(data: Data(html.utf8), collectErrors: true)
+	checkDiagnostics(dataDoc, html: html, index: index, result: &result)
+
+	let context = randomFragmentContextName()
+	writeStderr("[\(index)] random fragment \(context)")
+	try exerciseFragmentParser(html, index: index, context: context, result: &result)
+}
+
+func exerciseFragmentParser(_ html: String, index: Int, context: String, result: inout FuzzResult) throws {
+	writeStderr("[\(index)] fragment \(context) parse")
+	let fragmentDoc = try JustHTML(
+		html,
+		fragmentContext: FragmentContext(context),
+		collectErrors: true
+	)
+	checkDiagnostics(fragmentDoc, html: html, index: index, result: &result)
+	writeStderr("[\(index)] fragment \(context) toHTML")
+	_ = fragmentDoc.toHTML(pretty: false)
+}
+
+func runFuzzer(numTests: Int, seed: UInt64?, verbose: Bool, hangThreshold: Double) -> FuzzResult {
 	if let seed = seed {
 		srand48(Int(seed))
 	}
@@ -661,9 +754,6 @@ func runFuzzer(numTests: Int, seed: UInt64?, verbose: Bool) -> FuzzResult {
 
 	print("Fuzzing swift-justhtml with \(numTests) test cases...")
 
-	// Dynamic import of JustHTML
-	// For standalone execution, we import the module at compile time
-
 	for i in 0 ..< numTests {
 		let html = generateFuzzedHTML()
 
@@ -674,15 +764,10 @@ func runFuzzer(numTests: Int, seed: UInt64?, verbose: Bool) -> FuzzResult {
 		let testStart = Date()
 
 		do {
-			// NOTE: This requires JustHTML to be imported
-			// For standalone testing, compile with: swift build -c release
-			// Then run the fuzzer from the test suite
-
-			// Simulate parsing for standalone execution
-			// In actual use, replace with: let _ = try JustHTML(html)
+			try exerciseParser(html, index: i, result: &result)
 			let elapsed = Date().timeIntervalSince(testStart)
 
-			if elapsed > 5.0 {
+			if elapsed > hangThreshold {
 				result.hangs.append((i, html, elapsed))
 				if verbose {
 					print("  HANG: Test \(i) took \(String(format: "%.2f", elapsed))s")
@@ -693,9 +778,9 @@ func runFuzzer(numTests: Int, seed: UInt64?, verbose: Bool) -> FuzzResult {
 			}
 		}
 		catch {
-			result.crashes.append((i, html, "\(error)"))
+			result.failures.append((i, html, "\(error)"))
 			if verbose {
-				print("  CRASH: Test \(i): \(error)")
+				print("  FAILURE: Test \(i): \(error)")
 			}
 		}
 	}
@@ -708,26 +793,45 @@ func runFuzzer(numTests: Int, seed: UInt64?, verbose: Bool) -> FuzzResult {
 	print(String(repeating: "=", count: 60))
 	print("Total tests:    \(numTests)")
 	print("Successes:      \(result.successes)")
-	print("Crashes:        \(result.crashes.count)")
-	print("Hangs (>5s):    \(result.hangs.count)")
+	print("Failures:       \(result.failures.count)")
+	print("Diag failures:  \(result.diagnosticFailures.count)")
+	print("Hangs (>\(String(format: "%.2f", hangThreshold))s): \(result.hangs.count)")
 	print("Total time:     \(String(format: "%.2f", totalTime))s")
 	print("Tests/second:   \(String(format: "%.1f", Double(numTests) / totalTime))")
 
-	if !result.crashes.isEmpty {
+	if !result.failures.isEmpty {
 		print()
 		print(String(repeating: "=", count: 60))
-		print("CRASH DETAILS:")
+		print("FAILURE DETAILS:")
 		print(String(repeating: "=", count: 60))
-		for crash in result.crashes.prefix(10) {
+		for failure in result.failures.prefix(10) {
 			print()
-			print("Test #\(crash.index):")
-			let preview = String(crash.html.prefix(200))
+			print("Test #\(failure.index):")
+			let preview = String(failure.html.prefix(200))
 			print("  HTML: \(preview.debugDescription)...")
-			print("  Error: \(crash.error)")
+			print("  Error: \(failure.error)")
 		}
-		if result.crashes.count > 10 {
+		if result.failures.count > 10 {
 			print()
-			print("... and \(result.crashes.count - 10) more crashes")
+			print("... and \(result.failures.count - 10) more failures")
+		}
+	}
+
+	if !result.diagnosticFailures.isEmpty {
+		print()
+		print(String(repeating: "=", count: 60))
+		print("DIAGNOSTIC FAILURE DETAILS:")
+		print(String(repeating: "=", count: 60))
+		for failure in result.diagnosticFailures.prefix(10) {
+			print()
+			print("Test #\(failure.index):")
+			let preview = String(failure.html.prefix(200))
+			print("  HTML: \(preview.debugDescription)...")
+			print("  Error: \(failure.error)")
+		}
+		if result.diagnosticFailures.count > 10 {
+			print()
+			print("... and \(result.diagnosticFailures.count - 10) more diagnostic failures")
 		}
 	}
 
@@ -760,12 +864,68 @@ func printSamples(_ count: Int) {
 	}
 }
 
+func dumpInput(index: Int, seed: UInt64?) {
+	if let seed = seed {
+		srand48(Int(seed))
+	}
+	else {
+		srand48(Int(Date().timeIntervalSince1970))
+	}
+
+	var html = ""
+	var context = ""
+	for i in 0 ... index {
+		html = generateFuzzedHTML()
+		context = randomFragmentContextName()
+		if i == index {
+			break
+		}
+	}
+
+	FileHandle.standardError.write(Data("fragment-context: \(context)\n".utf8))
+	print(html)
+}
+
+func runInputFile(_ path: String, hangThreshold: Double) -> Int32 {
+	do {
+		let html = try String(contentsOfFile: path, encoding: .utf8)
+		var result = FuzzResult()
+		let start = Date()
+		try exerciseParser(html, index: 0, result: &result)
+
+		print("Input file: \(path)")
+		print("Bytes:      \(html.utf8.count)")
+		print("Failures:   \(result.failures.count)")
+		print("Diag fails: \(result.diagnosticFailures.count)")
+
+		for context in ["div", "table", "template", "svg", "math", "select", "script", "style", "title", "textarea"] {
+			let contextStart = Date()
+			try exerciseFragmentParser(html, index: 0, context: context, result: &result)
+			let contextElapsed = Date().timeIntervalSince(contextStart)
+			print("Fragment \(context): \(String(format: "%.3f", contextElapsed))s")
+		}
+
+		let totalElapsed = Date().timeIntervalSince(start)
+		print("Elapsed:    \(String(format: "%.3f", totalElapsed))s")
+		print("Hangs:      \(totalElapsed > hangThreshold ? 1 : 0)")
+
+		return result.diagnosticFailures.isEmpty && totalElapsed <= hangThreshold ? 0 : 1
+	}
+	catch {
+		print("Failure: \(error)")
+		return 1
+	}
+}
+
 /// Command line interface
 func main() {
 	var numTests = 1000
 	var seed: UInt64? = nil
 	var verbose = false
 	var sampleCount: Int? = nil
+	var dumpIndex: Int? = nil
+	var inputFile: String? = nil
+	var hangThreshold = 5.0
 
 	var args = CommandLine.arguments.dropFirst()
 	while let arg = args.first {
@@ -786,9 +946,27 @@ func main() {
 			case "--verbose", "-v":
 				verbose = true
 
+			case "--hang-threshold":
+				if let next = args.first, let value = Double(next) {
+					hangThreshold = value
+					args = args.dropFirst()
+				}
+
 			case "--sample":
 				if let next = args.first, let n = Int(next) {
 					sampleCount = n
+					args = args.dropFirst()
+				}
+
+			case "--dump-index":
+				if let next = args.first, let n = Int(next) {
+					dumpIndex = n
+					args = args.dropFirst()
+				}
+
+			case "--input-file":
+				if let next = args.first {
+					inputFile = String(next)
 					args = args.dropFirst()
 				}
 
@@ -803,6 +981,9 @@ func main() {
 				  --seed, -s SEED      Random seed for reproducibility
 				  --verbose, -v        Show progress during fuzzing
 				  --sample N           Print N sample fuzzed HTML documents
+				  --dump-index N       Print generated input N and exit
+				  --input-file PATH    Parse one input file and exit
+				  --hang-threshold N   Seconds before flagging a single input as hanging
 				  --help, -h           Show this help message
 				""")
 				return
@@ -817,8 +998,17 @@ func main() {
 		return
 	}
 
-	let result = runFuzzer(numTests: numTests, seed: seed, verbose: verbose)
-	exit(result.crashes.isEmpty && result.hangs.isEmpty ? 0 : 1)
+	if let index = dumpIndex {
+		dumpInput(index: index, seed: seed)
+		return
+	}
+
+	if let inputFile {
+		exit(runInputFile(inputFile, hangThreshold: hangThreshold))
+	}
+
+	let result = runFuzzer(numTests: numTests, seed: seed, verbose: verbose, hangThreshold: hangThreshold)
+	exit(result.failures.isEmpty && result.diagnosticFailures.isEmpty && result.hangs.isEmpty ? 0 : 1)
 }
 
 main()

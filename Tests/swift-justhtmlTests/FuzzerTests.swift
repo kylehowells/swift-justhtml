@@ -1080,6 +1080,15 @@ private func fuzzRandomUnicode(length: Int) -> String {
 	#expect(output.contains("<table>"))
 }
 
+/// Regression test for stack overflow with SVG select + HTML integration point + nested table
+@Test func testSVGSelectForeignObjectNestedTableCrash() throws {
+	let html = "<svg><select><foreignObject><table><table>"
+
+	let doc = try JustHTML(html)
+	_ = doc.toHTML()
+	#expect(doc.root.name == "#document")
+}
+
 /// Test that individual components don't crash
 @Test func testSelectFragmentNonCrashingCases() throws {
 	// All variants should work without crashing

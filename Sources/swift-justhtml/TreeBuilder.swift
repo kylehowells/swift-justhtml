@@ -3844,6 +3844,7 @@ public final class TreeBuilder: TokenSink {
 
 			switch node.name {
 				case "select":
+					guard isHTML else { continue }
 					if last {
 						// In fragment parsing, select context uses inBody (matching
 						// resetInsertionModeForFragment). The select element is only
@@ -3960,7 +3961,13 @@ public final class TreeBuilder: TokenSink {
 
 	private func emitError(_ code: String) {
 		if self.collectErrors {
-			self.errors.append(ParseError(code: code))
+			self.errors.append(
+				ParseError(
+					code: code,
+					line: self.tokenizer?.currentLine,
+					column: self.tokenizer?.currentColumn
+				)
+			)
 		}
 	}
 }
