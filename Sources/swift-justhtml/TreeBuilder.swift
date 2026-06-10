@@ -401,8 +401,9 @@ public final class TreeBuilder: TokenSink {
 			return
 		}
 
-		// Fast path for .inBody mode - batch consecutive non-null characters
-		if self.insertionMode == .inBody, !self.skipNextNewline,
+		// Fast path for body-like modes - batch consecutive non-null characters
+		if (self.insertionMode == .inBody || self.insertionMode == .inCell || self.insertionMode == .inCaption),
+		   !self.skipNextNewline,
 		   !self.isInMathMLTextIntegrationPoint(), !self.isInSVGHtmlIntegrationPoint(),
 		   !self.isInMathMLAnnotationXmlIntegrationPoint(), !self.shouldProcessInForeignContent()
 		{
