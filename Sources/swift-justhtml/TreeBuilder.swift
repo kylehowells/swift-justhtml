@@ -382,14 +382,17 @@ public final class TreeBuilder: DirectTokenSink {
 
 	// MARK: - Token Processing
 
+	@inline(__always)
 	func processCharacters(_ text: String) {
 		self.processCharacters(text, containsNull: nil)
 	}
 
+	@inline(__always)
 	func processCharacters(_ text: String, containsNull: Bool) {
 		self.processCharacters(text, containsNull: Optional(containsNull))
 	}
 
+	@inline(__always)
 	private func processCharacters(_ text: String, containsNull knownContainsNull: Bool?) {
 		// Fast path for .text mode (script/style/etc content) - insert entire string at once
 		if self.insertionMode == .text {

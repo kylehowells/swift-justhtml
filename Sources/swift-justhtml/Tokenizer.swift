@@ -1284,6 +1284,28 @@ public final class Tokenizer {
 		// Use reusable buffer to avoid allocation per tag
 		self.nameBuffer.removeAll(keepingCapacity: true)
 
+		let lowercaseRunStart = self.pos
+		var lowercaseRunEnd = self.pos
+		while lowercaseRunEnd < self.inputLength {
+			let byte = self.inputBytes[lowercaseRunEnd]
+			switch byte {
+				case 0x09, 0x0A, 0x0C, 0x20, 0x2F, 0x3E, 0x00:
+					break
+				case 0x41 ... 0x5A, 0x80 ... 0xFF:
+					break
+				default:
+					lowercaseRunEnd += 1
+					continue
+			}
+			break
+		}
+		if lowercaseRunEnd > lowercaseRunStart {
+			self.currentTagName.append(
+				String(decoding: self.inputBytes[lowercaseRunStart ..< lowercaseRunEnd], as: UTF8.self))
+			self.advanceColumns(lowercaseRunEnd - lowercaseRunStart)
+			self.pos = lowercaseRunEnd
+		}
+
 		while self.pos < self.inputLength {
 			let byte = self.inputBytes[self.pos]
 
@@ -2092,6 +2114,28 @@ public final class Tokenizer {
 		// Batch scan: collect attribute name bytes until delimiter
 		// Use reusable buffer to avoid allocation per attribute
 		self.nameBuffer.removeAll(keepingCapacity: true)
+
+		let lowercaseRunStart = self.pos
+		var lowercaseRunEnd = self.pos
+		while lowercaseRunEnd < self.inputLength {
+			let byte = self.inputBytes[lowercaseRunEnd]
+			switch byte {
+				case 0x09, 0x0A, 0x0C, 0x20, 0x2F, 0x3E, 0x3D, 0x00, 0x22, 0x27, 0x3C:
+					break
+				case 0x41 ... 0x5A, 0x80 ... 0xFF:
+					break
+				default:
+					lowercaseRunEnd += 1
+					continue
+			}
+			break
+		}
+		if lowercaseRunEnd > lowercaseRunStart {
+			self.currentAttrName.append(
+				String(decoding: self.inputBytes[lowercaseRunStart ..< lowercaseRunEnd], as: UTF8.self))
+			self.advanceColumns(lowercaseRunEnd - lowercaseRunStart)
+			self.pos = lowercaseRunEnd
+		}
 
 		while self.pos < self.inputLength {
 			let byte = self.inputBytes[self.pos]
