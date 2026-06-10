@@ -383,6 +383,14 @@ public final class TreeBuilder: DirectTokenSink {
 	// MARK: - Token Processing
 
 	func processCharacters(_ text: String) {
+		self.processCharacters(text, containsNull: nil)
+	}
+
+	func processCharacters(_ text: String, containsNull: Bool) {
+		self.processCharacters(text, containsNull: Optional(containsNull))
+	}
+
+	private func processCharacters(_ text: String, containsNull knownContainsNull: Bool?) {
 		// Fast path for .text mode (script/style/etc content) - insert entire string at once
 		if self.insertionMode == .text {
 			// Handle skipNextNewline for textarea/pre/listing
@@ -407,17 +415,27 @@ public final class TreeBuilder: DirectTokenSink {
 		   self.canUseBodyTextFastPath()
 		{
 			if self.framesetOk {
-				let textScan = self.scanTextForNullAndNonWhitespace(text)
-				if !textScan.hasNull {
+				let hasNull: Bool
+				let hasNonWhitespace: Bool
+				if let knownContainsNull {
+					hasNull = knownContainsNull
+					hasNonWhitespace = knownContainsNull ? false : self.scanTextForNonWhitespace(text)
+				}
+				else {
+					let textScan = self.scanTextForNullAndNonWhitespace(text)
+					hasNull = textScan.hasNull
+					hasNonWhitespace = textScan.hasNonWhitespace
+				}
+				if !hasNull {
 					self.reconstructActiveFormattingElements()
 					self.insertText(text)
-					if textScan.hasNonWhitespace {
+					if hasNonWhitespace {
 						self.framesetOk = false
 					}
 					return
 				}
 			}
-			else if !self.containsNullByte(text) {
+			else if !(knownContainsNull ?? self.containsNullByte(text)) {
 				self.reconstructActiveFormattingElements()
 				self.insertText(text)
 				return
@@ -4826,6 +4844,20 @@ public final class TreeBuilder: DirectTokenSink {
 		}
 
 		return (false, hasNonWhitespace)
+	}
+
+	@inline(__always)
+	private func scanTextForNonWhitespace(_ text: String) -> Bool {
+		for byte in text.utf8 {
+			switch byte {
+				case 0x09, 0x0A, 0x0C, 0x0D, 0x20:
+					continue
+
+				default:
+					return true
+			}
+		}
+		return false
 	}
 
 	@inline(__always)

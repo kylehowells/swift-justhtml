@@ -15,6 +15,7 @@ public protocol TokenSink: AnyObject {
 /// public Token enum values on the parser hot path.
 internal protocol DirectTokenSink: TokenSink {
 	func processCharacters(_ text: String)
+	func processCharacters(_ text: String, containsNull: Bool)
 	func processStartTag(name: String, attrs: [String: String], selfClosing: Bool)
 	func processEndTag(name: String)
 	func processComment(_ text: String)
@@ -283,6 +284,7 @@ public final class Tokenizer {
 
 	/// Character buffer (bytes - converted to String only when flushing)
 	private var charBuffer: ContiguousArray<UInt8> = []
+	private var charBufferContainsNull: Bool = false
 
 	/// Reusable buffer for tag/attribute name scanning (avoids allocation per tag)
 	private var nameBuffer: ContiguousArray<UInt8> = []
@@ -346,6 +348,7 @@ public final class Tokenizer {
 		self.currentDoctypeSystemId = nil
 		self.currentDoctypeForceQuirks = false
 		self.charBuffer.removeAll(keepingCapacity: true)
+		self.charBufferContainsNull = false
 		self.nameBuffer.removeAll(keepingCapacity: true)
 		self.tempBuffer = ""
 		self.lastStartTagName = self.opts.initialRawtextTag ?? ""
@@ -813,7 +816,7 @@ public final class Tokenizer {
 				case let .endTag(name):
 					directSink.processEndTag(name: name)
 				case let .character(text):
-					directSink.processCharacters(text)
+					directSink.processCharacters(text, containsNull: self.containsNullByte(text))
 				case let .comment(text):
 					directSink.processComment(text)
 				case let .doctype(doctype):
@@ -836,6 +839,9 @@ public final class Tokenizer {
 
 	@inline(__always)
 	private func emitChar(_ ch: Character) {
+		if ch == "\0" {
+			self.charBufferContainsNull = true
+		}
 		// Convert character to UTF-8 bytes
 		for byte in String(ch).utf8 {
 			self.charBuffer.append(byte)
@@ -846,17 +852,29 @@ public final class Tokenizer {
 	private func emitString(_ s: String) {
 		// Append string as UTF-8 bytes
 		for byte in s.utf8 {
+			if byte == 0 {
+				self.charBufferContainsNull = true
+			}
 			self.charBuffer.append(byte)
 		}
 	}
 
 	@inline(__always)
 	private func emitByte(_ byte: UInt8) {
+		if byte == 0 {
+			self.charBufferContainsNull = true
+		}
 		self.charBuffer.append(byte)
 	}
 
 	@inline(__always)
 	private func emitBytes(_ bytes: ArraySlice<UInt8>) {
+		if !self.charBufferContainsNull {
+			for byte in bytes where byte == 0 {
+				self.charBufferContainsNull = true
+				break
+			}
+		}
 		self.charBuffer.append(contentsOf: bytes)
 	}
 
@@ -868,13 +886,24 @@ public final class Tokenizer {
 				text = coerceTextForXML(text)
 			}
 			if let directSink = self.directSink {
-				directSink.processCharacters(text)
+				directSink.processCharacters(text, containsNull: self.charBufferContainsNull)
 			}
 			else {
 				self.sink.processToken(.character(text))
 			}
 			self.charBuffer.removeAll(keepingCapacity: true)
+			self.charBufferContainsNull = false
 		}
+	}
+
+	@inline(__always)
+	private func containsNullByte(_ text: String) -> Bool {
+		for byte in text.utf8 {
+			if byte == 0 {
+				return true
+			}
+		}
+		return false
 	}
 
 	private func emitCurrentTag() {
