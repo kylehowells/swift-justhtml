@@ -1300,8 +1300,15 @@ public final class Tokenizer {
 			break
 		}
 		if lowercaseRunEnd > lowercaseRunStart {
-			self.currentTagName.append(
-				String(decoding: self.inputBytes[lowercaseRunStart ..< lowercaseRunEnd], as: UTF8.self))
+			let decoded = String(
+				decoding: self.inputBytes[lowercaseRunStart ..< lowercaseRunEnd],
+				as: UTF8.self)
+			if self.currentTagName.isEmpty {
+				self.currentTagName = decoded
+			}
+			else {
+				self.currentTagName.append(decoded)
+			}
 			self.advanceColumns(lowercaseRunEnd - lowercaseRunStart)
 			self.pos = lowercaseRunEnd
 		}
@@ -2131,8 +2138,15 @@ public final class Tokenizer {
 			break
 		}
 		if lowercaseRunEnd > lowercaseRunStart {
-			self.currentAttrName.append(
-				String(decoding: self.inputBytes[lowercaseRunStart ..< lowercaseRunEnd], as: UTF8.self))
+			let decoded = String(
+				decoding: self.inputBytes[lowercaseRunStart ..< lowercaseRunEnd],
+				as: UTF8.self)
+			if self.currentAttrName.isEmpty {
+				self.currentAttrName = decoded
+			}
+			else {
+				self.currentAttrName.append(decoded)
+			}
 			self.advanceColumns(lowercaseRunEnd - lowercaseRunStart)
 			self.pos = lowercaseRunEnd
 		}
