@@ -11,6 +11,17 @@ public protocol TokenSink: AnyObject {
 	var currentNamespace: Namespace? { get }
 }
 
+/// Internal direct-token sink used by the tree builder to avoid allocating
+/// public Token enum values on the parser hot path.
+internal protocol DirectTokenSink: TokenSink {
+	func processCharacters(_ text: String)
+	func processStartTag(name: String, attrs: [String: String], selfClosing: Bool)
+	func processEndTag(name: String)
+	func processComment(_ text: String)
+	func processDoctype(_ doctype: Doctype)
+	func processEOF()
+}
+
 /// Script element needs SCRIPT DATA state
 private let SCRIPT_ELEMENT = "script"
 
@@ -232,6 +243,7 @@ public final class Tokenizer {
 	}
 
 	private let sink: TokenSink
+	private let directSink: DirectTokenSink?
 	private let opts: TokenizerOpts
 
 	private var state: State
@@ -290,6 +302,7 @@ public final class Tokenizer {
 	public init(_ sink: TokenSink, opts: TokenizerOpts = TokenizerOpts(), collectErrors: Bool = false)
 	{
 		self.sink = sink
+		self.directSink = sink as? DirectTokenSink
 		self.opts = opts
 		self.state = opts.initialState
 		self.collectErrors = collectErrors
@@ -793,6 +806,23 @@ public final class Tokenizer {
 	@inline(__always)
 	private func emit(_ token: Token) {
 		self.flushCharBuffer()
+		if let directSink = self.directSink {
+			switch token {
+				case let .startTag(name, attrs, selfClosing):
+					directSink.processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
+				case let .endTag(name):
+					directSink.processEndTag(name: name)
+				case let .character(text):
+					directSink.processCharacters(text)
+				case let .comment(text):
+					directSink.processComment(text)
+				case let .doctype(doctype):
+					directSink.processDoctype(doctype)
+				case .eof:
+					directSink.processEOF()
+			}
+			return
+		}
 		self.sink.processToken(token)
 	}
 
@@ -837,7 +867,12 @@ public final class Tokenizer {
 			if self.opts.xmlCoercion {
 				text = coerceTextForXML(text)
 			}
-			self.sink.processToken(.character(text))
+			if let directSink = self.directSink {
+				directSink.processCharacters(text)
+			}
+			else {
+				self.sink.processToken(.character(text))
+			}
 			self.charBuffer.removeAll(keepingCapacity: true)
 		}
 	}
@@ -845,13 +880,25 @@ public final class Tokenizer {
 	private func emitCurrentTag() {
 		self.flushCharBuffer()
 		if self.currentTagIsEnd {
-			self.sink.processToken(.endTag(name: self.currentTagName))
+			if let directSink = self.directSink {
+				directSink.processEndTag(name: self.currentTagName)
+			}
+			else {
+				self.sink.processToken(.endTag(name: self.currentTagName))
+			}
 		}
 		else {
-			self.sink.processToken(
-				.startTag(
+			if let directSink = self.directSink {
+				directSink.processStartTag(
 					name: self.currentTagName, attrs: self.currentAttrs,
-					selfClosing: self.currentTagSelfClosing))
+					selfClosing: self.currentTagSelfClosing)
+			}
+			else {
+				self.sink.processToken(
+					.startTag(
+						name: self.currentTagName, attrs: self.currentAttrs,
+						selfClosing: self.currentTagSelfClosing))
+			}
 			self.lastStartTagName = self.currentTagName
 
 			// Switch to appropriate state for special elements (only in HTML namespace)

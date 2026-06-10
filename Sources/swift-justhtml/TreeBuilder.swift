@@ -99,7 +99,7 @@ private let kQuirksPublicIdPrefixes = [
 // MARK: - TreeBuilder
 
 /// Tree builder that constructs DOM from tokens
-public final class TreeBuilder: TokenSink {
+public final class TreeBuilder: DirectTokenSink {
 	/// Document root
 	private var document: Node
 
@@ -382,7 +382,7 @@ public final class TreeBuilder: TokenSink {
 
 	// MARK: - Token Processing
 
-	private func processCharacters(_ text: String) {
+	func processCharacters(_ text: String) {
 		// Fast path for .text mode (script/style/etc content) - insert entire string at once
 		if self.insertionMode == .text {
 			// Handle skipNextNewline for textarea/pre/listing
@@ -728,7 +728,7 @@ public final class TreeBuilder: TokenSink {
 		self.insertionMode = self.originalInsertionMode
 	}
 
-	private func processStartTag(name: String, attrs: [String: String], selfClosing: Bool) {
+	func processStartTag(name: String, attrs: [String: String], selfClosing: Bool) {
 		self.processStartTag(StartTagToken(name: name, attrs: attrs, selfClosing: selfClosing))
 	}
 
@@ -1861,7 +1861,7 @@ public final class TreeBuilder: TokenSink {
 		return element
 	}
 
-	private func processEndTag(name: String) {
+	func processEndTag(name: String) {
 		self.processEndTag(EndTagToken(name: name))
 	}
 
@@ -2720,7 +2720,7 @@ public final class TreeBuilder: TokenSink {
 		self.popOpenElementsThroughIndex(stackIndex)
 	}
 
-	private func processComment(_ text: String) {
+	func processComment(_ text: String) {
 		self.flushPendingTableCharacterTokens()
 		let comment = Node.comment(text)
 
@@ -2752,7 +2752,7 @@ public final class TreeBuilder: TokenSink {
 		}
 	}
 
-	private func processDoctype(_ doctype: Doctype) {
+	func processDoctype(_ doctype: Doctype) {
 		self.flushPendingTableCharacterTokens()
 		if self.insertionMode != .initial {
 			self.emitError("unexpected-doctype")
@@ -2810,7 +2810,7 @@ public final class TreeBuilder: TokenSink {
 		kQuirksPublicIdPrefixes.contains { publicId.asciiCaseInsensitiveHasPrefix($0) }
 	}
 
-	private func processEOF() {
+	func processEOF() {
 		while true {
 			self.flushPendingTableCharacterTokens()
 			// Generate implied end tags and finish
