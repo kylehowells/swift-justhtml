@@ -3395,7 +3395,6 @@ public final class TreeBuilder: DirectTokenSink {
 	private func appendTextIfPossible(_ text: String, to node: Node) -> Bool {
 		guard node.tagId == .text else { return false }
 		if case var .text(existing) = node.data {
-			node.data = nil
 			existing.append(text)
 			node.data = .text(existing)
 			return true

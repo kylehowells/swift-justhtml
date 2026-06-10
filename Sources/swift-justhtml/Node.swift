@@ -457,6 +457,14 @@ public final class Node {
 		self.reserveLikelyChildCapacity()
 	}
 
+	private init(specialName name: String, tagId: TagID, data: NodeData) {
+		self.name = name
+		self.tagId = tagId
+		self.namespace = nil
+		self.attrs = [:]
+		self.data = data
+	}
+
 	private func reserveLikelyChildCapacity() {
 		switch self.tagId {
 			case .document, .html:
@@ -487,15 +495,15 @@ public final class Node {
 	}
 
 	static func text(_ text: String) -> Node {
-		Node(name: "#text", tagId: .text, namespace: nil, data: .text(text))
+		Node(specialName: "#text", tagId: .text, data: .text(text))
 	}
 
 	static func comment(_ text: String) -> Node {
-		Node(name: "#comment", tagId: .comment, namespace: nil, data: .comment(text))
+		Node(specialName: "#comment", tagId: .comment, data: .comment(text))
 	}
 
 	static func doctype(_ doctype: Doctype) -> Node {
-		Node(name: "!doctype", tagId: .doctype, namespace: nil, data: .doctype(doctype))
+		Node(specialName: "!doctype", tagId: .doctype, data: .doctype(doctype))
 	}
 
 	// MARK: - DOM Manipulation
