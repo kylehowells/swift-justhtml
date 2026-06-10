@@ -404,8 +404,7 @@ public final class TreeBuilder: DirectTokenSink {
 		// Fast path for body-like modes - batch consecutive non-null characters
 		if (self.insertionMode == .inBody || self.insertionMode == .inCell || self.insertionMode == .inCaption),
 		   !self.skipNextNewline,
-		   !self.isInMathMLTextIntegrationPoint(), !self.isInSVGHtmlIntegrationPoint(),
-		   !self.isInMathMLAnnotationXmlIntegrationPoint(), !self.shouldProcessInForeignContent()
+		   self.canUseBodyTextFastPath()
 		{
 			if self.framesetOk {
 				let textScan = self.scanTextForNullAndNonWhitespace(text)
@@ -429,6 +428,27 @@ public final class TreeBuilder: DirectTokenSink {
 		for ch in text {
 			self.processCharacter(ch)
 		}
+	}
+
+	@inline(__always)
+	private func canUseBodyTextFastPath() -> Bool {
+		let currentNode: Node?
+		if self.contextElement != nil, self.openElements.count == 1 {
+			currentNode = self.contextElement
+		}
+		else {
+			currentNode = self.openElements.last
+		}
+
+		guard let node = currentNode, let namespace = node.namespace else {
+			return true
+		}
+
+		if namespace == .html {
+			return true
+		}
+
+		return namespace != .svg && namespace != .math
 	}
 
 	private func processCharacter(_ ch: Character) {
