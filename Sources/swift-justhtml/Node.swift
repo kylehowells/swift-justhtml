@@ -461,10 +461,16 @@ public final class Node {
 		switch self.tagId {
 			case .document, .html:
 				self.children.reserveCapacity(2)
-			case .head, .body, .ul, .ol, .table, .tbody, .thead, .tfoot, .tr, .select:
-				self.children.reserveCapacity(8)
-			case .li:
+			case .p, .li:
 				self.children.reserveCapacity(2)
+			case .div, .table:
+				self.children.reserveCapacity(4)
+			case .head, .body, .ul, .ol, .tbody, .tr, .select, .article, .section, .form:
+				self.children.reserveCapacity(16)
+			case .main, .pre:
+				self.children.reserveCapacity(32)
+			case .cite:
+				self.children.reserveCapacity(8)
 			default:
 				break
 		}
