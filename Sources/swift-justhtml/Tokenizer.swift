@@ -1004,6 +1004,25 @@ public final class Tokenizer {
 		self.currentAttrValue = ""
 	}
 
+	private func reserveAttrsForCurrentTagIfNeeded() {
+		guard !self.currentTagIsEnd, self.currentAttrs.isEmpty, self.currentAttrName.isEmpty else {
+			return
+		}
+
+		switch self.currentTagName {
+			case "img":
+				self.currentAttrs.reserveCapacity(8)
+			case "input":
+				self.currentAttrs.reserveCapacity(6)
+			case "form", "textarea", "source":
+				self.currentAttrs.reserveCapacity(4)
+			case "section":
+				self.currentAttrs.reserveCapacity(3)
+			default:
+				break
+		}
+	}
+
 	private func emitError(_ code: String) {
 		if self.collectErrors {
 			self.errors.append(ParseError(code: code, line: self.line, column: self.column))
@@ -2100,11 +2119,13 @@ public final class Tokenizer {
 					self.pos += 1
 					self.advanceColumn()
 					self.emitError("unexpected-equals-sign-before-attribute-name")
+					self.reserveAttrsForCurrentTagIfNeeded()
 					self.currentAttrName = "="
 					self.state = .attributeName
 					return
 
 				default:
+					self.reserveAttrsForCurrentTagIfNeeded()
 					self.storeCurrentAttr()
 					self.state = .attributeName
 					return
