@@ -461,6 +461,8 @@ public final class Node {
 		switch self.tagId {
 			case .document, .html:
 				self.children.reserveCapacity(2)
+			case .td, .th, .a, .span, .h2, .strong, .em, .code, .option, .label, .sup:
+				self.children.reserveCapacity(1)
 			case .p, .li:
 				self.children.reserveCapacity(2)
 			case .div, .table:
