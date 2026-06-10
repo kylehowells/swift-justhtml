@@ -63,7 +63,7 @@ private let kBreakoutTags: Set<String> = ["head", "body", "html", "br"]
 private let kTableContextTags: Set<String> = ["table", "template", "html"]
 private let kTableBodyContextTags: Set<String> = ["tbody", "tfoot", "thead", "template", "html"]
 private let kRowContextTags: Set<String> = ["tr", "template", "html"]
-private let kSelectContentTags: Set<String> = ["input", "textarea"]
+private let kSelectContentTags: Set<String> = ["input"]
 private let kOptionTags: Set<String> = ["optgroup", "option"]
 private let kRubyBaseTags: Set<String> = ["rb", "rtc"]
 private let kRubyTextTags: Set<String> = ["rp", "rt"]
@@ -1399,9 +1399,7 @@ public final class TreeBuilder: TokenSink {
 						self.contextElement?.tagId == .select
 							&& !self.openElements.contains { $0.tagId == .select }
 					if selectIsContextOnly {
-						self.contextElement = nil
-						// Go directly to inBody without creating implicit head/body
-						self.insertionMode = .inBody
+						return
 					}
 					else {
 						self.popUntil("select")
@@ -1446,21 +1444,19 @@ public final class TreeBuilder: TokenSink {
 					let element = self.insertElement(name: name, attrs: attrs)
 					self.pushFormattingElement(element)
 				}
-				else if kFormElementTags.contains(
-					name.lowercased())
-				{
+				else if name.lowercased() == "br" || name.lowercased() == "img" {
+					// Per HTML5 spec: br and img are inserted as void elements in select
+					self.reconstructActiveFormattingElements()
+					_ = self.insertElement(name: name, attrs: attrs)
+					self.popCurrentElement()
+				}
+				else if kFormElementTags.contains(name.lowercased()) {
 					// Per HTML5 spec: these elements are allowed inside select
 					self.reconstructActiveFormattingElements()
 					_ = self.insertElement(name: name, attrs: attrs)
 					if selfClosing {
 						self.popCurrentElement()
 					}
-				}
-				else if name.lowercased() == "br" || name.lowercased() == "img" {
-					// Per HTML5 spec: br and img are inserted as void elements in select
-					self.reconstructActiveFormattingElements()
-					_ = self.insertElement(name: name, attrs: attrs)
-					self.popCurrentElement()
 				}
 				else if [
 					"caption", "col", "colgroup", "table", "tbody", "td", "tfoot", "th", "thead", "tr",
@@ -1734,6 +1730,10 @@ public final class TreeBuilder: TokenSink {
 			_ = self.insertElement(name: name, attrs: attrs)
 			self.framesetOk = false
 			self.insertionMode = .inTable
+		}
+		else if self.contextElement?.tagId == .select, kSelectContentTags.contains(name) {
+			self.emitError("unexpected-start-tag-in-select")
+			return
 		}
 		else if kVoidElementTags.contains(name) {
 			self.reconstructActiveFormattingElements()
@@ -3845,6 +3845,7 @@ public final class TreeBuilder: TokenSink {
 			switch node.name {
 				case "select":
 					guard isHTML else { continue }
+
 					if last {
 						// In fragment parsing, select context uses inBody (matching
 						// resetInsertionModeForFragment). The select element is only

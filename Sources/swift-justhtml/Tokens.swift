@@ -56,20 +56,26 @@ public struct ParseError: Error, CustomStringConvertible, LocalizedError, Sendab
 			switch part {
 				case "eof":
 					words.append("EOF")
+
 				case "doctype":
 					words.append("DOCTYPE")
+
 				case "cdata":
 					words.append("CDATA")
+
 				case "html":
 					words.append("HTML")
+
 				case "svg":
 					words.append("SVG")
+
 				default:
 					words.append(String(part))
 			}
 		}
 
 		guard let first = words.first else { return code }
+
 		let sentence = ([first.prefix(1).uppercased() + first.dropFirst()] + words.dropFirst()).joined(
 			separator: " ")
 		return sentence

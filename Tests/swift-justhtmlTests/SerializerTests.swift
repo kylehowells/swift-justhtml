@@ -536,9 +536,8 @@ func serializeAttribute(_ name: String, value: String, options: [String: Any]) -
 	if !needsQuotes, !hasDoubleQuote, !hasSingleQuote, customQuoteChar == nil {
 		// Unquoted attribute
 		var escaped = value.replacingOccurrences(of: "&", with: "&amp;")
-		if escapeLtInAttrs {
-			escaped = escaped.replacingOccurrences(of: "<", with: "&lt;")
-		}
+		escaped = escaped.replacingOccurrences(of: "<", with: "&lt;")
+		escaped = escaped.replacingOccurrences(of: ">", with: "&gt;")
 		return "\(name)=\(escaped)"
 	}
 
@@ -566,6 +565,7 @@ func serializeAttribute(_ name: String, value: String, options: [String: Any]) -
 	if escapeLtInAttrs {
 		escaped = escaped.replacingOccurrences(of: "<", with: "&lt;")
 	}
+	escaped = escaped.replacingOccurrences(of: ">", with: "&gt;")
 	if quoteChar == "\"" {
 		escaped = escaped.replacingOccurrences(of: "\"", with: "&quot;")
 	}
