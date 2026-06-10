@@ -213,6 +213,9 @@ import PackageDescription
 
 let package = Package(
     name: "MemTest",
+    platforms: [
+        .macOS(.v13),
+    ],
     dependencies: [
         .package(path: "{SWIFT_PROJECT_ROOT}"),
     ],

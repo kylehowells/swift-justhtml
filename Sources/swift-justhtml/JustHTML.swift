@@ -55,6 +55,7 @@ public struct JustHTML {
 			xmlCoercion: xmlCoercion,
 			scripting: scripting
 		)
+		opts.trackLocations = shouldCollect
 		opts.maxEntityNameLength = limits.maxEntityNameLength
 
 		let tokenizer = Tokenizer(treeBuilder, opts: opts, collectErrors: shouldCollect)
@@ -113,6 +114,7 @@ public struct JustHTML {
 			xmlCoercion: xmlCoercion,
 			scripting: scripting
 		)
+		opts.trackLocations = shouldCollect
 		opts.maxEntityNameLength = limits.maxEntityNameLength
 
 		let tokenizer = Tokenizer(treeBuilder, opts: opts, collectErrors: shouldCollect)

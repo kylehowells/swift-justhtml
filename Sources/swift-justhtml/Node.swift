@@ -433,8 +433,46 @@ public final class Node {
 
 		// Create template content for template elements
 		if self.tagId == .template, namespace == nil || namespace == .html {
-			self.templateContent = Node(name: "#document-fragment")
+			self.templateContent = Node.documentFragment()
 		}
+	}
+
+	init(
+		name: String,
+		tagId: TagID,
+		namespace: Namespace?,
+		attrs: [String: String] = [:],
+		data: NodeData? = nil
+	) {
+		self.name = name
+		self.tagId = tagId
+		self.namespace = namespace
+		self.attrs = attrs
+		self.data = data
+
+		if tagId == .template, namespace == nil || namespace == .html {
+			self.templateContent = Node.documentFragment()
+		}
+	}
+
+	static func document() -> Node {
+		Node(name: "#document", tagId: .document, namespace: nil)
+	}
+
+	static func documentFragment() -> Node {
+		Node(name: "#document-fragment", tagId: .documentFragment, namespace: nil)
+	}
+
+	static func text(_ text: String) -> Node {
+		Node(name: "#text", tagId: .text, namespace: nil, data: .text(text))
+	}
+
+	static func comment(_ text: String) -> Node {
+		Node(name: "#comment", tagId: .comment, namespace: nil, data: .comment(text))
+	}
+
+	static func doctype(_ doctype: Doctype) -> Node {
+		Node(name: "!doctype", tagId: .doctype, namespace: nil, data: .doctype(doctype))
 	}
 
 	// MARK: - DOM Manipulation

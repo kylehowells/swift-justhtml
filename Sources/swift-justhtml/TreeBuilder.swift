@@ -172,10 +172,10 @@ public final class TreeBuilder: TokenSink {
 		self.maxNestingDepth = maxNestingDepth
 
 		if fragmentContext != nil {
-			self.document = Node(name: "#document-fragment")
+			self.document = Node.documentFragment()
 		}
 		else {
-			self.document = Node(name: "#document")
+			self.document = Node.document()
 		}
 
 		// Set up fragment parsing context per WHATWG spec
@@ -406,17 +406,20 @@ public final class TreeBuilder: TokenSink {
 		   !self.isInMathMLTextIntegrationPoint(), !self.isInSVGHtmlIntegrationPoint(),
 		   !self.isInMathMLAnnotationXmlIntegrationPoint(), !self.shouldProcessInForeignContent()
 		{
-			// Check if text contains any null characters
-			if !text.contains("\0") {
+			if self.framesetOk {
+				let textScan = self.scanTextForNullAndNonWhitespace(text)
+				if !textScan.hasNull {
+					self.reconstructActiveFormattingElements()
+					self.insertText(text)
+					if textScan.hasNonWhitespace {
+						self.framesetOk = false
+					}
+					return
+				}
+			}
+			else if !self.containsNullByte(text) {
 				self.reconstructActiveFormattingElements()
 				self.insertText(text)
-				// Set framesetOk = false if there's any non-whitespace
-				for ch in text {
-					if !self.isWhitespace(ch) {
-						self.framesetOk = false
-						break
-					}
-				}
 				return
 			}
 		}
@@ -899,8 +902,7 @@ public final class TreeBuilder: TokenSink {
 				self.parseRawtext(name: tag.name, attrs: tag.attrs)
 
 			case .template:
-				let element = self.insertElement(name: tag.name, attrs: tag.attrs)
-				element.templateContent = Node(name: "#document-fragment")
+				_ = self.insertElement(name: tag.name, attrs: tag.attrs)
 				self.templateInsertionModes.append(.inTemplate)
 				self.insertionMode = .inTemplate
 
@@ -2719,7 +2721,7 @@ public final class TreeBuilder: TokenSink {
 
 	private func processComment(_ text: String) {
 		self.flushPendingTableCharacterTokens()
-		let comment = Node(name: "#comment", data: .comment(text))
+		let comment = Node.comment(text)
 
 		switch self.insertionMode {
 			case .initial, .beforeHtml:
@@ -2756,7 +2758,7 @@ public final class TreeBuilder: TokenSink {
 			return
 		}
 
-		let node = Node(name: "!doctype", data: .doctype(doctype))
+		let node = Node.doctype(doctype)
 		self.document.appendChild(node)
 
 		// Determine quirks mode based on doctype
@@ -3051,15 +3053,16 @@ public final class TreeBuilder: TokenSink {
 	private func createElement(name: String, namespace: Namespace = .html, attrs: [String: String])
 		-> Node
 	{
+		let tagId = TagID.from(name)
 		if namespace == .html {
-			if name == "select" {
+			if tagId == .select {
 				self.sawSelectElement = true
 			}
-			else if name == "selectedcontent" {
+			else if tagId == .selectedcontent {
 				self.sawSelectedcontentElement = true
 			}
 		}
-		return Node(name: name, namespace: namespace, attrs: attrs)
+		return Node(name: name, tagId: tagId, namespace: namespace, attrs: attrs)
 	}
 
 	/// Adjust attributes for foreign content (SVG/MathML)
@@ -3325,7 +3328,7 @@ public final class TreeBuilder: TokenSink {
 						return
 					}
 				}
-				let textNode = Node(name: "#text", data: .text(text))
+				let textNode = Node.text(text)
 				parent.insertChild(textNode, at: tableIdx)
 			}
 		}
@@ -3343,13 +3346,14 @@ public final class TreeBuilder: TokenSink {
 			return
 		}
 
-		let textNode = Node(name: "#text", data: .text(text))
+		let textNode = Node.text(text)
 		target.appendChild(textNode)
 	}
 
 	private func appendTextIfPossible(_ text: String, to node: Node) -> Bool {
 		guard node.tagId == .text else { return false }
 		if case var .text(existing) = node.data {
+			node.data = nil
 			existing.append(text)
 			node.data = .text(existing)
 			return true
@@ -3772,10 +3776,10 @@ public final class TreeBuilder: TokenSink {
 	private func isScopeBoundary(_ node: Node, scope: ScopeBoundaryKind) -> Bool {
 		guard self.isScopeBoundaryTag(node.tagId, scope: scope) else { return false }
 
-		if self.isMathMLScopeBoundaryTag(node.name) {
+		if self.isMathMLScopeBoundaryTag(node.tagId) {
 			return node.namespace == .math
 		}
-		if self.isSVGIntegrationPointTag(node.name) {
+		if self.isSVGIntegrationPointTag(node.tagId) {
 			return node.namespace == .svg
 		}
 		return true
@@ -3824,15 +3828,6 @@ public final class TreeBuilder: TokenSink {
 		}
 	}
 
-	private func isMathMLScopeBoundaryTag(_ name: String) -> Bool {
-		switch name {
-			case "mi", "mo", "mn", "ms", "mtext", "annotation-xml":
-				return true
-			default:
-				return false
-		}
-	}
-
 	private func isMathMLTextIntegrationPointTag(_ tagId: TagID) -> Bool {
 		switch tagId {
 			case .mi, .mo, .mn, .ms, .mtext:
@@ -3845,15 +3840,6 @@ public final class TreeBuilder: TokenSink {
 	private func isSVGIntegrationPointTag(_ tagId: TagID) -> Bool {
 		switch tagId {
 			case .foreignObject, .desc, .title:
-				return true
-			default:
-				return false
-		}
-	}
-
-	private func isSVGIntegrationPointTag(_ name: String) -> Bool {
-		switch name {
-			case "foreignObject", "desc", "title":
 				return true
 			default:
 				return false
@@ -4799,6 +4785,36 @@ public final class TreeBuilder: TokenSink {
 	@inline(__always)
 	private func isWhitespace(_ ch: Character) -> Bool {
 		return ch == " " || ch == "\t" || ch == "\n" || ch == "\r" || ch == "\u{0C}"
+	}
+
+	@inline(__always)
+	private func scanTextForNullAndNonWhitespace(_ text: String) -> (hasNull: Bool, hasNonWhitespace: Bool) {
+		var hasNonWhitespace = false
+
+		for byte in text.utf8 {
+			switch byte {
+				case 0x00:
+					return (true, hasNonWhitespace)
+
+				case 0x09, 0x0A, 0x0C, 0x0D, 0x20:
+					continue
+
+				default:
+					hasNonWhitespace = true
+			}
+		}
+
+		return (false, hasNonWhitespace)
+	}
+
+	@inline(__always)
+	private func containsNullByte(_ text: String) -> Bool {
+		for byte in text.utf8 {
+			if byte == 0x00 {
+				return true
+			}
+		}
+		return false
 	}
 
 	private func emitError(_ code: String) {

@@ -50,7 +50,10 @@ public struct HTMLStreamIterator: IteratorProtocol {
 
 	init(html: String) {
 		let sink = StreamEventSink()
-		let tokenizer = Tokenizer(sink, opts: TokenizerOpts(), collectErrors: false)
+		let tokenizer = Tokenizer(
+			sink,
+			opts: TokenizerOpts(trackLocations: false),
+			collectErrors: false)
 		tokenizer.startIncrementalRun(html)
 		self.sink = sink
 		self.tokenizer = tokenizer
