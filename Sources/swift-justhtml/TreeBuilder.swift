@@ -1149,12 +1149,10 @@ public final class TreeBuilder: DirectTokenSink {
 				self.processStartTagUsingRules(of: .inHead, tag, preserveTemplateMode: true)
 
 			case .svg:
-				self.insertForeignElement(
-					name: tag.name, namespace: .svg, attrs: tag.attrs, selfClosing: tag.selfClosing)
+				self.insertForeignElement(tag, namespace: .svg)
 
 			case .math:
-				self.insertForeignElement(
-					name: tag.name, namespace: .math, attrs: tag.attrs, selfClosing: tag.selfClosing)
+				self.insertForeignElement(tag, namespace: .math)
 
 			default:
 				self.processOtherStartTagInSelect(tag)
@@ -1461,13 +1459,13 @@ public final class TreeBuilder: DirectTokenSink {
 			case .address, .article, .aside, .blockquote, .center, .details, .dialog,
 			     .div, .dl, .fieldset, .figcaption, .figure, .footer, .header, .main,
 			     .menu, .nav, .ol, .p, .search, .section, .summary, .ul:
-				self.processBlockStartTagInBody(name: tag.name, attrs: tag.attrs)
+				self.processBlockStartTagInBody(tag)
 
 			case .h1, .h2, .h3, .h4, .h5, .h6:
-				self.processHeadingStartTagInBody(name: tag.name, attrs: tag.attrs)
+				self.processHeadingStartTagInBody(tag)
 
 			case .pre, .listing:
-				self.processPreListingStartTagInBody(name: tag.name, attrs: tag.attrs)
+				self.processPreListingStartTagInBody(tag)
 
 			case .form:
 				self.processFormStartTagInBody(attrs: tag.attrs)
@@ -1476,7 +1474,7 @@ public final class TreeBuilder: DirectTokenSink {
 				self.processListItemStartTag(attrs: tag.attrs)
 
 			case .dd, .dt:
-				self.processDefinitionListItemStartTag(name: tag.name, attrs: tag.attrs)
+				self.processDefinitionListItemStartTag(tag)
 
 			case .plaintext:
 				self.processPlaintextStartTagInBody(attrs: tag.attrs)
@@ -1491,10 +1489,10 @@ public final class TreeBuilder: DirectTokenSink {
 				self.processNobrStartTag(attrs: tag.attrs)
 
 			case .b, .big, .code, .em, .font, .i, .s, .small, .strike, .strong, .tt, .u:
-				self.insertFormattingElement(name: tag.name, attrs: tag.attrs)
+				self.insertFormattingElement(tag)
 
 			case .applet, .marquee, .object:
-				self.processFormattingScopeStartTag(name: tag.name, attrs: tag.attrs)
+				self.processFormattingScopeStartTag(tag)
 
 			case .table:
 				self.processTableStartTagInBody(attrs: tag.attrs)
@@ -1503,13 +1501,13 @@ public final class TreeBuilder: DirectTokenSink {
 				self.rejectSelectContentStartTagInBody()
 
 			case .area, .br, .embed, .img, .keygen, .wbr:
-				self.processVoidStartTagInBody(name: tag.name, attrs: tag.attrs)
+				self.processVoidStartTagInBody(tag)
 
 			case .input:
 				self.processInputStartTagInBody(attrs: tag.attrs)
 
 			case .param, .source, .track:
-				self.processMediaStartTagInBody(name: tag.name, attrs: tag.attrs)
+				self.processMediaStartTagInBody(tag)
 
 			case .hr:
 				self.processHrStartTagInBody(attrs: tag.attrs)
@@ -1524,27 +1522,27 @@ public final class TreeBuilder: DirectTokenSink {
 				self.processXmpStartTagInBody(attrs: tag.attrs)
 
 			case .iframe:
-				self.processRawtextStartTagInBody(name: tag.name, attrs: tag.attrs, framesetOk: false)
+				self.processRawtextStartTagInBody(tag, framesetOk: false)
 
 			case .select:
 				self.processSelectStartTagInBody(attrs: tag.attrs)
 
 			case .optgroup, .option:
-				self.processOptionStartTagInBody(name: tag.name, attrs: tag.attrs)
+				self.processOptionStartTagInBody(tag)
 
 			case .rb, .rtc:
-				self.processRubyBaseStartTagInBody(name: tag.name, attrs: tag.attrs)
+				self.processRubyBaseStartTagInBody(tag)
 
 			case .rp, .rt:
-				self.processRubyTextStartTagInBody(name: tag.name, attrs: tag.attrs)
+				self.processRubyTextStartTagInBody(tag)
 
 			case .math:
 				self.processForeignStartTagInBody(
-					name: tag.name, namespace: .math, attrs: tag.attrs, selfClosing: tag.selfClosing)
+					tag, namespace: .math)
 
 			case .svg:
 				self.processForeignStartTagInBody(
-					name: tag.name, namespace: .svg, attrs: tag.attrs, selfClosing: tag.selfClosing)
+					tag, namespace: .svg)
 
 			case .caption, .col, .colgroup, .frame, .head, .tbody, .td, .tfoot, .th, .thead, .tr:
 				self.ignoreTableStartTagInBody()
@@ -1557,11 +1555,11 @@ public final class TreeBuilder: DirectTokenSink {
 	private func processFallbackStartTagInBody(_ tag: StartTagToken) {
 		switch tag.name {
 			case "dir", "hgroup":
-				self.processBlockStartTagInBody(name: tag.name, attrs: tag.attrs)
+				self.processBlockStartTagInBody(tag)
 			case "noembed":
-				self.processRawtextStartTagInBody(name: tag.name, attrs: tag.attrs)
+				self.processRawtextStartTagInBody(tag)
 			default:
-				self.processGenericStartTagInBody(name: tag.name, attrs: tag.attrs)
+				self.processGenericStartTagInBody(tag)
 		}
 	}
 
@@ -1604,22 +1602,22 @@ public final class TreeBuilder: DirectTokenSink {
 		}
 	}
 
-	private func processBlockStartTagInBody(name: String, attrs: [String: String]) {
-		_ = self.insertElementAfterClosingPInButtonScope(name: name, attrs: attrs)
+	private func processBlockStartTagInBody(_ tag: StartTagToken) {
+		_ = self.insertElementAfterClosingPInButtonScope(tag)
 	}
 
-	private func processHeadingStartTagInBody(name: String, attrs: [String: String]) {
+	private func processHeadingStartTagInBody(_ tag: StartTagToken) {
 		self.closePElementIfInButtonScope()
 		if let current = currentNode, self.isHeadingTag(current.tagId) {
 			self.emitError("unexpected-start-tag")
 			self.popCurrentElement()
 		}
-		_ = self.insertElement(name: name, attrs: attrs)
+		_ = self.insertElement(tag)
 	}
 
-	private func processPreListingStartTagInBody(name: String, attrs: [String: String]) {
+	private func processPreListingStartTagInBody(_ tag: StartTagToken) {
 		self.closePElementIfInButtonScope()
-		_ = self.insertElementAndDisableFrameset(name: name, attrs: attrs)
+		_ = self.insertElementAndDisableFrameset(tag)
 		self.skipNextNewline = true
 	}
 
@@ -1664,11 +1662,11 @@ public final class TreeBuilder: DirectTokenSink {
 		}
 	}
 
-	private func processDefinitionListItemStartTag(name: String, attrs: [String: String]) {
+	private func processDefinitionListItemStartTag(_ tag: StartTagToken) {
 		self.framesetOk = false
 		self.closeOpenDefinitionListItem()
 		self.closePElementIfInButtonScope()
-		_ = self.insertElement(name: name, attrs: attrs)
+		_ = self.insertElement(tag)
 	}
 
 	private func closeOpenDefinitionListItem() {
@@ -1716,8 +1714,19 @@ public final class TreeBuilder: DirectTokenSink {
 		return self.insertElement(name: name, attrs: attrs)
 	}
 
+	@discardableResult
+	private func insertElementAfterClosingPInButtonScope(_ tag: StartTagToken) -> Node {
+		self.closePElementIfInButtonScope()
+		return self.insertElement(tag)
+	}
+
 	private func insertFormattingElement(name: String, attrs: [String: String]) {
 		let element = self.insertElementAfterReconstructingFormatting(name: name, attrs: attrs)
+		self.pushFormattingElement(element)
+	}
+
+	private func insertFormattingElement(_ tag: StartTagToken) {
+		let element = self.insertElementAfterReconstructingFormatting(tag)
 		self.pushFormattingElement(element)
 	}
 
@@ -1729,8 +1738,8 @@ public final class TreeBuilder: DirectTokenSink {
 		self.removeFirstOpenElement(matching: elem)
 	}
 
-	private func processFormattingScopeStartTag(name: String, attrs: [String: String]) {
-		_ = self.insertElementAfterReconstructingFormatting(name: name, attrs: attrs)
+	private func processFormattingScopeStartTag(_ tag: StartTagToken) {
+		_ = self.insertElementAfterReconstructingFormatting(tag)
 		self.insertMarker()
 		self.framesetOk = false
 	}
@@ -1746,6 +1755,12 @@ public final class TreeBuilder: DirectTokenSink {
 
 	private func rejectSelectContentStartTagInBody() {
 		self.emitError("unexpected-start-tag-in-select")
+	}
+
+	private func processVoidStartTagInBody(_ tag: StartTagToken) {
+		self.reconstructActiveFormattingElements()
+		self.insertElementAndPop(tag)
+		self.framesetOk = false
 	}
 
 	private func processVoidStartTagInBody(name: String, attrs: [String: String]) {
@@ -1770,8 +1785,8 @@ public final class TreeBuilder: DirectTokenSink {
 		return type.asciiCaseInsensitiveEquals("hidden")
 	}
 
-	private func processMediaStartTagInBody(name: String, attrs: [String: String]) {
-		self.insertElementAndPop(name: name, attrs: attrs)
+	private func processMediaStartTagInBody(_ tag: StartTagToken) {
+		self.insertElementAndPop(tag)
 	}
 
 	private func processHrStartTagInBody(attrs: [String: String]) {
@@ -1805,6 +1820,13 @@ public final class TreeBuilder: DirectTokenSink {
 		self.insertElementAndSwitchToTextMode(name: name, attrs: attrs)
 	}
 
+	private func processRawtextStartTagInBody(_ tag: StartTagToken, framesetOk: Bool? = nil) {
+		if let framesetOk {
+			self.framesetOk = framesetOk
+		}
+		self.insertElementAndSwitchToTextMode(tag)
+	}
+
 	private func processSelectStartTagInBody(attrs: [String: String]) {
 		_ = self.insertElementAfterReconstructingFormatting(name: "select", attrs: attrs)
 		// Insert marker to prevent reconstruction of formatting elements from outside select
@@ -1826,40 +1848,37 @@ public final class TreeBuilder: DirectTokenSink {
 			|| self.insertionMode == .inCaption
 	}
 
-	private func processOptionStartTagInBody(name: String, attrs: [String: String]) {
+	private func processOptionStartTagInBody(_ tag: StartTagToken) {
 		if self.currentNode?.tagId == .option {
 			self.popCurrentElement()
 		}
-		_ = self.insertElementAfterReconstructingFormatting(name: name, attrs: attrs)
+		_ = self.insertElementAfterReconstructingFormatting(tag)
 	}
 
-	private func processRubyBaseStartTagInBody(name: String, attrs: [String: String]) {
-		self.processRubyScopedStartTagInBody(name: name, attrs: attrs)
+	private func processRubyBaseStartTagInBody(_ tag: StartTagToken) {
+		self.processRubyScopedStartTagInBody(tag)
 	}
 
-	private func processRubyTextStartTagInBody(name: String, attrs: [String: String]) {
-		self.processRubyScopedStartTagInBody(name: name, attrs: attrs, impliedEndTagException: "rtc")
+	private func processRubyTextStartTagInBody(_ tag: StartTagToken) {
+		self.processRubyScopedStartTagInBody(tag, impliedEndTagException: "rtc")
 	}
 
 	private func processRubyScopedStartTagInBody(
-		name: String,
-		attrs: [String: String],
+		_ tag: StartTagToken,
 		impliedEndTagException: String? = nil
 	) {
 		if self.hasElementInScope(.ruby) {
 			self.generateImpliedEndTags(except: impliedEndTagException)
 		}
-		_ = self.insertElement(name: name, attrs: attrs)
+		_ = self.insertElement(tag)
 	}
 
 	private func processForeignStartTagInBody(
-		name: String,
+		_ tag: StartTagToken,
 		namespace: Namespace,
-		attrs: [String: String],
-		selfClosing: Bool
 	) {
 		self.reconstructActiveFormattingElements()
-		self.insertForeignElement(name: name, namespace: namespace, attrs: attrs, selfClosing: selfClosing)
+		self.insertForeignElement(tag, namespace: namespace)
 	}
 
 	@discardableResult
@@ -1877,12 +1896,23 @@ public final class TreeBuilder: DirectTokenSink {
 		return element
 	}
 
+	@discardableResult
+	private func insertForeignElement(_ tag: StartTagToken, namespace: Namespace) -> Node {
+		let adjustedAttrs = self.adjustForeignAttributes(tag.attrs, namespace: namespace)
+		let element = self.insertElement(
+			name: tag.name, tagId: tag.tagId, namespace: namespace, attrs: adjustedAttrs)
+		if tag.selfClosing {
+			self.popCurrentElement()
+		}
+		return element
+	}
+
 	private func ignoreTableStartTagInBody() {
 		self.emitError("unexpected-start-tag")
 	}
 
-	private func processGenericStartTagInBody(name: String, attrs: [String: String]) {
-		_ = self.insertElementAfterReconstructingFormatting(name: name, attrs: attrs)
+	private func processGenericStartTagInBody(_ tag: StartTagToken) {
+		_ = self.insertElementAfterReconstructingFormatting(tag)
 	}
 
 	@discardableResult
@@ -1891,13 +1921,30 @@ public final class TreeBuilder: DirectTokenSink {
 		return self.insertElement(name: name, attrs: attrs)
 	}
 
+	@discardableResult
+	private func insertElementAfterReconstructingFormatting(_ tag: StartTagToken) -> Node {
+		self.reconstructActiveFormattingElements()
+		return self.insertElement(tag)
+	}
+
 	private func insertElementAndPop(name: String, attrs: [String: String]) {
 		_ = self.insertElement(name: name, attrs: attrs)
 		self.popCurrentElement()
 	}
 
+	private func insertElementAndPop(_ tag: StartTagToken) {
+		_ = self.insertElement(tag)
+		self.popCurrentElement()
+	}
+
 	private func insertElementAndDisableFrameset(name: String, attrs: [String: String]) -> Node {
 		let element = self.insertElement(name: name, attrs: attrs)
+		self.framesetOk = false
+		return element
+	}
+
+	private func insertElementAndDisableFrameset(_ tag: StartTagToken) -> Node {
+		let element = self.insertElement(tag)
 		self.framesetOk = false
 		return element
 	}
@@ -3092,10 +3139,13 @@ public final class TreeBuilder: DirectTokenSink {
 		return self.document
 	}
 
-	private func createElement(name: String, namespace: Namespace = .html, attrs: [String: String])
-		-> Node
-	{
-		let tagId = TagID.from(name)
+	private func createElement(
+		name: String,
+		tagId suppliedTagId: TagID? = nil,
+		namespace: Namespace = .html,
+		attrs: [String: String]
+	) -> Node {
+		let tagId = suppliedTagId ?? TagID.from(name)
 		if namespace == .html {
 			if tagId == .select {
 				self.sawSelectElement = true
@@ -3192,10 +3242,14 @@ public final class TreeBuilder: DirectTokenSink {
 	}
 
 	@discardableResult
-	private func insertElement(name: String, namespace: Namespace = .html, attrs: [String: String])
-		-> Node
-	{
-		let element = self.createElement(name: name, namespace: namespace, attrs: attrs)
+	private func insertElement(
+		name: String,
+		tagId suppliedTagId: TagID? = nil,
+		namespace: Namespace = .html,
+		attrs: [String: String]
+	) -> Node {
+		let element = self.createElement(
+			name: name, tagId: suppliedTagId, namespace: namespace, attrs: attrs)
 		self.insertNode(element)
 
 		// DoS protection: limit nesting depth
@@ -3208,6 +3262,11 @@ public final class TreeBuilder: DirectTokenSink {
 		// Content will be inserted into the parent element instead
 
 		return element
+	}
+
+	@discardableResult
+	private func insertElement(_ tag: StartTagToken, namespace: Namespace = .html) -> Node {
+		self.insertElement(name: tag.name, tagId: tag.tagId, namespace: namespace, attrs: tag.attrs)
 	}
 
 	private func insertNode(_ node: Node) {
@@ -4629,6 +4688,12 @@ public final class TreeBuilder: DirectTokenSink {
 
 	private func insertElementAndSwitchToTextMode(name: String, attrs: [String: String]) {
 		_ = self.insertElement(name: name, attrs: attrs)
+		self.originalInsertionMode = self.insertionMode
+		self.insertionMode = .text
+	}
+
+	private func insertElementAndSwitchToTextMode(_ tag: StartTagToken) {
+		_ = self.insertElement(tag)
 		self.originalInsertionMode = self.insertionMode
 		self.insertionMode = .text
 	}
