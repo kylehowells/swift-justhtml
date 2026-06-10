@@ -902,23 +902,27 @@ public final class Tokenizer {
 			self.lastStartTagName = self.currentTagName
 
 			// Switch to appropriate state for special elements (only in HTML namespace)
-			let ns = self.sink.currentNamespace
-			if ns == nil || ns == .html {
-				if isRCDATAElement(self.currentTagName) {
-					self.state = .rcdata
-				}
-				else if isRAWTEXTElement(self.currentTagName) {
-					self.state = .rawtext
-				}
-				else if self.currentTagName == "noscript", self.opts.scripting {
+			let nextState: State?
+			switch self.currentTagName {
+				case "title", "textarea":
+					nextState = .rcdata
+				case "style", "xmp", "iframe", "noembed", "noframes":
+					nextState = .rawtext
+				case "noscript" where self.opts.scripting:
 					// When scripting is enabled, noscript content is raw text
-					self.state = .rawtext
-				}
-				else if self.currentTagName == SCRIPT_ELEMENT {
-					self.state = .scriptData
-				}
-				else if self.currentTagName == "plaintext" {
-					self.state = .plaintext
+					nextState = .rawtext
+				case SCRIPT_ELEMENT:
+					nextState = .scriptData
+				case "plaintext":
+					nextState = .plaintext
+				default:
+					nextState = nil
+			}
+
+			if let nextState {
+				let ns = self.sink.currentNamespace
+				if ns == nil || ns == .html {
+					self.state = nextState
 				}
 			}
 		}
