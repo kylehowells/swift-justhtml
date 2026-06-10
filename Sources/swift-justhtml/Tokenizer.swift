@@ -231,7 +231,7 @@ public final class Tokenizer {
 		case numericCharacterReferenceEnd
 	}
 
-	private weak var sink: TokenSink? = nil
+	private let sink: TokenSink
 	private let opts: TokenizerOpts
 
 	private var state: State
@@ -793,7 +793,7 @@ public final class Tokenizer {
 	@inline(__always)
 	private func emit(_ token: Token) {
 		self.flushCharBuffer()
-		self.sink?.processToken(token)
+		self.sink.processToken(token)
 	}
 
 	@inline(__always)
@@ -837,7 +837,7 @@ public final class Tokenizer {
 			if self.opts.xmlCoercion {
 				text = coerceTextForXML(text)
 			}
-			self.sink?.processToken(.character(text))
+			self.sink.processToken(.character(text))
 			self.charBuffer.removeAll(keepingCapacity: true)
 		}
 	}
@@ -845,17 +845,17 @@ public final class Tokenizer {
 	private func emitCurrentTag() {
 		self.flushCharBuffer()
 		if self.currentTagIsEnd {
-			self.sink?.processToken(.endTag(name: self.currentTagName))
+			self.sink.processToken(.endTag(name: self.currentTagName))
 		}
 		else {
-			self.sink?.processToken(
+			self.sink.processToken(
 				.startTag(
 					name: self.currentTagName, attrs: self.currentAttrs,
 					selfClosing: self.currentTagSelfClosing))
 			self.lastStartTagName = self.currentTagName
 
 			// Switch to appropriate state for special elements (only in HTML namespace)
-			let ns = self.sink?.currentNamespace
+			let ns = self.sink.currentNamespace
 			if ns == nil || ns == .html {
 				if isRCDATAElement(self.currentTagName) {
 					self.state = .rcdata
@@ -2475,7 +2475,8 @@ public final class Tokenizer {
 		}
 		else if self.consumeIf("[CDATA[", caseInsensitive: false) {
 			// CDATA is only valid in foreign content (SVG/MathML)
-			if let ns = sink?.currentNamespace, ns == .svg || ns == .math {
+			let ns = self.sink.currentNamespace
+			if ns == .svg || ns == .math {
 				// In foreign content - process as CDATA section
 				self.state = .cdataSection
 			}
