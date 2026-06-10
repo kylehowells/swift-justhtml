@@ -187,26 +187,26 @@ public struct JustHTML {
 		// Note: We DON'T set initialRawtextTag for fragments because no start tag was emitted,
 		// so no end tag should be considered "appropriate" per WHATWG spec
 		if let ctx = fragmentContext, ctx.namespace == nil || ctx.namespace == .html {
-			let tagName = ctx.tagName.lowercased()
-			switch tagName {
-				case "title", "textarea":
-					opts.initialState = .rcdata
-
-				case "style", "xmp", "iframe", "noembed", "noframes":
-					opts.initialState = .rawtext
-
-				case "noscript" where scripting:
-					// When scripting is enabled, noscript content is raw text
-					opts.initialState = .rawtext
-
-				case "script":
-					opts.initialState = .scriptData
-
-				case "plaintext":
-					opts.initialState = .plaintext
-
-				default:
-					break
+			let tagName = ctx.tagName
+			if tagName.asciiCaseInsensitiveEquals("title")
+				|| tagName.asciiCaseInsensitiveEquals("textarea")
+			{
+				opts.initialState = .rcdata
+			}
+			else if tagName.asciiCaseInsensitiveEquals("style")
+				|| tagName.asciiCaseInsensitiveEquals("xmp")
+				|| tagName.asciiCaseInsensitiveEquals("iframe")
+				|| tagName.asciiCaseInsensitiveEquals("noembed")
+				|| tagName.asciiCaseInsensitiveEquals("noframes")
+				|| (scripting && tagName.asciiCaseInsensitiveEquals("noscript"))
+			{
+				opts.initialState = .rawtext
+			}
+			else if tagName.asciiCaseInsensitiveEquals("script") {
+				opts.initialState = .scriptData
+			}
+			else if tagName.asciiCaseInsensitiveEquals("plaintext") {
+				opts.initialState = .plaintext
 			}
 		}
 

@@ -43,10 +43,38 @@ python3 compare.py
 
 This:
 1. Downloads sample HTML files if not present
-2. Builds Swift in release mode
-3. Runs Swift, Python, and JavaScript benchmarks
-4. Compares output for consistency
-5. Generates `BENCHMARK_RESULTS.md`
+2. Generates `test_files/synthetic.html` if not present
+3. Builds Swift in release mode
+4. Runs Swift, Python, and JavaScript benchmarks
+5. Runs Rust comparison benchmarks when those sibling repositories are available
+6. Compares output for consistency
+7. Generates `BENCHMARK_RESULTS.md`
+
+`BENCHMARK_RESULTS.md` is only replaced when the required Swift, Python, and
+JavaScript benchmark runs complete and the output comparison passes. Incomplete
+or mismatched runs write `BENCHMARK_RESULTS.incomplete.md` and
+`results.incomplete.json` instead.
+
+To prepare fixtures without running benchmarks:
+
+```bash
+cd Benchmarks
+python3 compare.py --prepare-only
+```
+
+To run only real-world samples and skip the generated synthetic stress file:
+
+```bash
+cd Benchmarks
+python3 compare.py --skip-synthetic
+```
+
+To intentionally replace the canonical report with a partial or mismatched run:
+
+```bash
+cd Benchmarks
+python3 compare.py --allow-incomplete-results
+```
 
 #### Memory Comparison (`memory_compare.py`)
 
@@ -132,9 +160,14 @@ swift test --filter testOverallTiming -c release
 
 ```bash
 cd Benchmarks
+python3 compare.py --prepare-only
 python3 compare.py
 # Creates BENCHMARK_RESULTS.md
 ```
+
+If a required sibling implementation is missing or the output comparison fails,
+the run creates `BENCHMARK_RESULTS.incomplete.md` instead and leaves the
+canonical report untouched.
 
 ### Memory Results
 
@@ -148,7 +181,7 @@ python3 memory_compare.py
 
 ```bash
 cd Benchmarks
-python3 generate_synthetic.py
+python3 compare.py --prepare-only
 # Creates test_files/synthetic.html (~20MB)
 ```
 
@@ -158,7 +191,7 @@ python3 generate_synthetic.py
 
 - **Throughput (MB/s):** Higher is better; expect 15-30 MB/s
 - **Time per KB:** Should be consistent (~0.04 ms/KB) indicating linear scaling
-- **Comparison ratios:** Swift should match or beat JavaScript
+- **Comparison ratios:** Swift is currently much faster than Python but slower overall than JavaScript and Rust in the checked-in benchmark report
 
 ### Memory Usage
 

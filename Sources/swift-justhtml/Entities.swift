@@ -116,19 +116,20 @@ private func isHexDigit(_ ch: Character) -> Bool {
 ///   - inAttribute: Whether this is inside an attribute value
 /// - Returns: Text with entities decoded
 public func decodeEntitiesInText(_ text: String, inAttribute: Bool = false) -> String {
-	var result: [String] = []
+	var result = ""
+	result.reserveCapacity(text.count)
 	var i = text.startIndex
 
 	while i < text.endIndex {
 		let nextAmp = text[i...].firstIndex(of: "&")
 
 		if nextAmp == nil {
-			result.append(String(text[i...]))
+			result.append(contentsOf: text[i...])
 			break
 		}
 
 		if nextAmp! > i {
-			result.append(String(text[i ..< nextAmp!]))
+			result.append(contentsOf: text[i ..< nextAmp!])
 		}
 
 		i = nextAmp!
@@ -165,7 +166,7 @@ public func decodeEntitiesInText(_ text: String, inAttribute: Bool = false) -> S
 				continue
 			}
 
-			result.append(String(text[i ..< (hasSemicolon ? text.index(after: j) : j)]))
+			result.append(contentsOf: text[i ..< (hasSemicolon ? text.index(after: j) : j)])
 			i = hasSemicolon ? text.index(after: j) : j
 			continue
 		}
@@ -251,7 +252,7 @@ public func decodeEntitiesInText(_ text: String, inAttribute: Bool = false) -> S
 
 		// No match - keep as is
 		if hasSemicolon {
-			result.append(String(text[i ... j]))
+			result.append(contentsOf: text[i ... j])
 			i = text.index(after: j)
 		}
 		else {
@@ -260,5 +261,5 @@ public func decodeEntitiesInText(_ text: String, inAttribute: Bool = false) -> S
 		}
 	}
 
-	return result.joined()
+	return result
 }

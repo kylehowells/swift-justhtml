@@ -80,6 +80,9 @@ def main():
     # Sort by filename
     all_files.sort(key=lambda x: x[1])
 
+    if os.environ.get("BENCHMARK_SKIP_SYNTHETIC") == "1":
+        all_files = [entry for entry in all_files if entry[1] != "synthetic.html"]
+
     results = []
 
     for filepath, filename, file_size in all_files:

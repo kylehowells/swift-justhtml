@@ -26,6 +26,50 @@ private final class TokenCollector: TokenSink {
 	}
 }
 
+private final class RawTokenCollector: TokenSink {
+	var tokens: [Token] = []
+	var currentNamespace: Namespace? = .html
+
+	func processToken(_ token: Token) {
+		self.tokens.append(token)
+	}
+}
+
+@Test func tokenizerEmitsSingleEOFToken() async throws {
+	let cases: [(String, Tokenizer.State)] = [
+		("hello", .data),
+		("hello", .rcdata),
+		("hello", .rawtext),
+		("hello", .scriptData),
+		("hello", .plaintext),
+		("<", .data),
+		("<script><!--", .data),
+	]
+
+	for (input, state) in cases {
+		let collector = RawTokenCollector()
+		let tokenizer = Tokenizer(collector, opts: TokenizerOpts(initialState: state), collectErrors: true)
+		tokenizer.run(input)
+
+		let eofCount = collector.tokens.reduce(0) { count, token in
+			if case .eof = token {
+				return count + 1
+			}
+			return count
+		}
+
+		#expect(eofCount == 1, "Expected one EOF for input \(input) in state \(state), got \(eofCount)")
+		if let last = collector.tokens.last {
+			if case .eof = last {
+				// Expected
+			}
+			else {
+				#expect(Bool(false), "Expected EOF to be the final token")
+			}
+		}
+	}
+}
+
 /// Convert a Token to the html5lib test format array
 private func tokenToTestArray(_ token: Token) -> [Any] {
 	switch token {

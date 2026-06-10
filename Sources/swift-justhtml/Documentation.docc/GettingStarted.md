@@ -120,7 +120,7 @@ let fragment = try JustHTML("<tr><td>Cell</td></tr>", fragmentContext: ctx)
 
 ## Streaming API
 
-For memory-efficient parsing of large documents:
+For event-based parsing without building a DOM or full token list:
 
 ```swift
 for event in HTMLStream("<p>Hello</p>") {
@@ -138,6 +138,8 @@ for event in HTMLStream("<p>Hello</p>") {
     }
 }
 ```
+
+`HTMLStream` holds the input string in memory while advancing the tokenizer incrementally.
 
 ## Error Handling
 

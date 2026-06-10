@@ -122,6 +122,22 @@ import Testing
 	#expect(md.contains("| Bob"))
 }
 
+@Test func markdownTablePadsRaggedRows() async throws {
+	let html = """
+	<table>
+	    <tr><th>A</th><th>B</th></tr>
+	    <tr><td>One</td></tr>
+	</table>
+	"""
+	let doc = try JustHTML(html)
+	let md = doc.toMarkdown()
+	#expect(md == """
+	| A   | B   |
+	| --- | --- |
+	| One |     |
+	""")
+}
+
 @Test func markdownStrikethrough() async throws {
 	let html = "<p>This is <del>deleted</del> text</p>"
 	let doc = try JustHTML(html)

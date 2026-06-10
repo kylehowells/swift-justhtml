@@ -11,7 +11,14 @@ public struct EncodingResult {
 }
 
 /// ASCII whitespace byte values
-private let ASCII_WHITESPACE_BYTES: Set<UInt8> = [0x09, 0x0A, 0x0C, 0x0D, 0x20]
+private func isASCIIWhitespaceByte(_ byte: UInt8) -> Bool {
+	switch byte {
+	case 0x09, 0x0A, 0x0C, 0x0D, 0x20:
+		return true
+	default:
+		return false
+	}
+}
 
 /// Normalize an encoding label to a canonical name
 public func normalizeEncodingLabel(_ label: String?) -> String? {
@@ -93,7 +100,7 @@ private func sniffBOM(_ data: Data) -> (encoding: String?, bomLength: Int) {
 /// Skip ASCII whitespace in data
 private func skipAsciiWhitespace(_ data: Data, from i: Int) -> Int {
 	var idx = i
-	while idx < data.count, ASCII_WHITESPACE_BYTES.contains(data[idx]) {
+	while idx < data.count, isASCIIWhitespaceByte(data[idx]) {
 		idx += 1
 	}
 	return idx
@@ -147,7 +154,7 @@ private func extractCharsetFromContent(_ contentBytes: Data) -> Data? {
 	// Normalize: lowercase and collapse whitespace
 	var normalized = Data()
 	for b in contentBytes {
-		if ASCII_WHITESPACE_BYTES.contains(b) {
+		if isASCIIWhitespaceByte(b) {
 			normalized.append(0x20)
 		}
 		else if b >= 0x41, b <= 0x5A {
@@ -168,7 +175,7 @@ private func extractCharsetFromContent(_ contentBytes: Data) -> Data? {
 	let n = normalized.count
 
 	// Skip whitespace
-	while i < n && ASCII_WHITESPACE_BYTES.contains(normalized[i]) {
+	while i < n && isASCIIWhitespaceByte(normalized[i]) {
 		i += 1
 	}
 
@@ -177,7 +184,7 @@ private func extractCharsetFromContent(_ contentBytes: Data) -> Data? {
 	i += 1
 
 	// Skip whitespace
-	while i < n && ASCII_WHITESPACE_BYTES.contains(normalized[i]) {
+	while i < n && isASCIIWhitespaceByte(normalized[i]) {
 		i += 1
 	}
 	if i >= n { return nil }
@@ -195,7 +202,7 @@ private func extractCharsetFromContent(_ contentBytes: Data) -> Data? {
 		if let q = quote {
 			if ch == q { break }
 		}
-		else if ASCII_WHITESPACE_BYTES.contains(ch) || ch == 0x3B {
+		else if isASCIIWhitespaceByte(ch) || ch == 0x3B {
 			break
 		}
 		i += 1
@@ -328,7 +335,7 @@ private func prescanForMetaCharset(_ data: Data) -> String? {
 
 			if ch == 0x3C { break } // '<'
 
-			if ASCII_WHITESPACE_BYTES.contains(ch) || ch == 0x2F { // '/'
+			if isASCIIWhitespaceByte(ch) || ch == 0x2F { // '/'
 				k += 1
 				continue
 			}
@@ -337,7 +344,7 @@ private func prescanForMetaCharset(_ data: Data) -> String? {
 			let attrStart = k
 			while k < n {
 				let c = data[k]
-				if ASCII_WHITESPACE_BYTES.contains(c) || c == 0x3D || c == 0x3E || c == 0x2F || c == 0x3C {
+				if isASCIIWhitespaceByte(c) || c == 0x3D || c == 0x3E || c == 0x2F || c == 0x3C {
 					break
 				}
 				k += 1
@@ -373,7 +380,7 @@ private func prescanForMetaCharset(_ data: Data) -> String? {
 					let valStart = k
 					while k < n {
 						let c = data[k]
-						if ASCII_WHITESPACE_BYTES.contains(c) || c == 0x3E || c == 0x3C {
+						if isASCIIWhitespaceByte(c) || c == 0x3E || c == 0x3C {
 							break
 						}
 						k += 1

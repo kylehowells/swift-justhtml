@@ -9,17 +9,29 @@ public enum Serialize {
 	/// Serialize node to html5lib test format
 	public static func toTestFormat(_ node: Node) -> String {
 		if node.name == "#document" {
-			return node.children.map { self.nodeToTestFormat($0, indent: 0) }.joined(separator: "\n")
+			return self.nodesToTestFormat(node.children, indent: 0)
 		}
 		if node.name == "#document-fragment" {
 			// For fragment parsing, the html element is a wrapper - output its children
 			if let htmlElement = node.children.first(where: { $0.name == "html" }) {
-				return htmlElement.children.map { self.nodeToTestFormat($0, indent: 0) }.joined(
-					separator: "\n")
+				return self.nodesToTestFormat(htmlElement.children, indent: 0)
 			}
-			return node.children.map { self.nodeToTestFormat($0, indent: 0) }.joined(separator: "\n")
+			return self.nodesToTestFormat(node.children, indent: 0)
 		}
 		return self.nodeToTestFormat(node, indent: 0)
+	}
+
+	private static func nodesToTestFormat(_ nodes: [Node], indent: Int) -> String {
+		var output = ""
+		var needsNewline = false
+		for node in nodes {
+			if needsNewline {
+				output.append("\n")
+			}
+			output.append(self.nodeToTestFormat(node, indent: indent))
+			needsNewline = true
+		}
+		return output
 	}
 
 	private static func nodeToTestFormat(_ node: Node, indent: Int) -> String {
@@ -51,37 +63,37 @@ public enum Serialize {
 			return "| <!DOCTYPE >"
 		}
 
-		var parts = ["| <!DOCTYPE"]
+		var output = "| <!DOCTYPE"
 
 		if let name = doctype.name, !name.isEmpty {
-			parts.append(" \(name)")
+			output.append(" \(name)")
 		}
 		else {
-			parts.append(" ")
+			output.append(" ")
 		}
 
 		if doctype.publicId != nil || doctype.systemId != nil {
 			let pub = doctype.publicId ?? ""
 			let sys = doctype.systemId ?? ""
-			parts.append(" \"\(pub)\"")
-			parts.append(" \"\(sys)\"")
+			output.append(" \"\(pub)\"")
+			output.append(" \"\(sys)\"")
 		}
 
-		parts.append(">")
-		return parts.joined()
+		output.append(">")
+		return output
 	}
 
 	private static func elementToTestFormat(_ node: Node, indent: Int) -> String {
 		let padding = String(repeating: " ", count: indent)
 		let qualifiedName = self.qualifiedName(node)
-		var lines = ["| \(padding)<\(qualifiedName)>"]
+		var output = "| \(padding)<\(qualifiedName)>"
 
 		// Attributes (sorted)
 		// Note: Foreign attributes are already adjusted during parsing (e.g., xml:lang -> xml lang)
 		let sortedAttrs = node.attrs.sorted { $0.key < $1.key }
 		for (name, value) in sortedAttrs {
 			let attrPadding = String(repeating: " ", count: indent + 2)
-			lines.append("| \(attrPadding)\(name)=\"\(value)\"")
+			output.append("\n| \(attrPadding)\(name)=\"\(value)\"")
 		}
 
 		// Template content
@@ -89,19 +101,21 @@ public enum Serialize {
 		   let templateContent = node.templateContent
 		{
 			let contentPadding = String(repeating: " ", count: indent + 2)
-			lines.append("| \(contentPadding)content")
+			output.append("\n| \(contentPadding)content")
 			for child in templateContent.children {
-				lines.append(self.nodeToTestFormat(child, indent: indent + 4))
+				output.append("\n")
+				output.append(self.nodeToTestFormat(child, indent: indent + 4))
 			}
 		}
 		else {
 			// Regular children
 			for child in node.children {
-				lines.append(self.nodeToTestFormat(child, indent: indent + 2))
+				output.append("\n")
+				output.append(self.nodeToTestFormat(child, indent: indent + 2))
 			}
 		}
 
-		return lines.joined(separator: "\n")
+		return output
 	}
 
 	private static func qualifiedName(_ node: Node) -> String {
@@ -145,11 +159,21 @@ public enum Serialize {
 				return "\(prefix)<!DOCTYPE html>"
 
 			case "#document", "#document-fragment":
-				let parts = node.children.compactMap { child -> String? in
-					let html = self.nodeToHTML(child, indent: indent, indentSize: indentSize, pretty: pretty)
-					return html.isEmpty ? nil : html
+				var html = ""
+				var needsSeparator = false
+				for child in node.children {
+					let childHTML = self.nodeToHTML(
+						child, indent: indent, indentSize: indentSize, pretty: pretty)
+					if childHTML.isEmpty {
+						continue
+					}
+					if pretty, needsSeparator {
+						html.append(newline)
+					}
+					html.append(childHTML)
+					needsSeparator = true
 				}
-				return pretty ? parts.joined(separator: newline) : parts.joined()
+				return html
 
 			default:
 				return self.elementToHTML(node, indent: indent, indentSize: indentSize, pretty: pretty)
@@ -164,7 +188,7 @@ public enum Serialize {
 
 		let openTag = self.serializeStartTag(node.name, attrs: node.attrs)
 
-		if VOID_ELEMENTS.contains(node.name) {
+		if self.isVoidElement(node) {
 			return "\(prefix)\(openTag)"
 		}
 
@@ -190,38 +214,55 @@ public enum Serialize {
 			return "\(prefix)\(openTag)\(self.escapeText(text))</\(node.name)>"
 		}
 
-		var parts = ["\(prefix)\(openTag)"]
+		var html = "\(prefix)\(openTag)"
 		for child in children {
 			let childHTML = self.nodeToHTML(
 				child, indent: indent + 1, indentSize: indentSize, pretty: pretty)
 			if !childHTML.isEmpty {
-				parts.append(childHTML)
+				if pretty {
+					html.append(newline)
+				}
+				html.append(childHTML)
 			}
 		}
-		parts.append("\(prefix)</\(node.name)>")
+		if pretty {
+			html.append(newline)
+		}
+		html.append("\(prefix)</\(node.name)>")
 
-		return pretty ? parts.joined(separator: newline) : parts.joined()
+		return html
+	}
+
+	private static func isVoidElement(_ node: Node) -> Bool {
+		switch node.tagId {
+		case .area, .base, .br, .col, .embed, .hr, .img, .input, .link, .meta,
+		     .param, .source, .track, .wbr:
+			return true
+		default:
+			return VOID_ELEMENTS.contains(node.name)
+		}
 	}
 
 	private static func serializeStartTag(_ name: String, attrs: [String: String]) -> String {
-		var parts = ["<", name]
+		var tag = "<"
+		tag.append(name)
 
 		for (key, value) in attrs.sorted(by: { $0.key < $1.key }) {
 			if value.isEmpty {
-				parts.append(" \(key)")
+				tag.append(" \(key)")
 			}
 			else if self.canUnquoteAttrValue(value) {
-				parts.append(" \(key)=\(self.escapeAttr(value))")
+				tag.append(" \(key)=\(self.escapeAttr(value))")
 			}
 			else {
 				let quote = self.chooseAttrQuote(value)
 				let escaped = self.escapeAttrValue(value, quote: quote)
-				parts.append(" \(key)=\(quote)\(escaped)\(quote)")
+				tag.append(" \(key)=\(quote)\(escaped)\(quote)")
 			}
 		}
 
-		parts.append(">")
-		return parts.joined()
+		tag.append(">")
+		return tag
 	}
 
 	private static func escapeText(_ text: String) -> String {
@@ -423,11 +464,8 @@ public enum Serialize {
 					self.collectMarkdown(child, context: &innerContext)
 				}
 				let inner = innerContext.output.trimmingCharacters(in: .whitespacesAndNewlines)
-				let quoted = inner.split(separator: "\n", omittingEmptySubsequences: false)
-					.map { "> \($0)" }
-					.joined(separator: "\n")
 				context.flushNewlines()
-				context.addText(quoted)
+				self.addBlockquote(inner, context: &context)
 				context.addNewlines(2)
 
 			case "a":
@@ -517,6 +555,20 @@ public enum Serialize {
 		}
 	}
 
+	private static func addBlockquote(_ text: String, context: inout MarkdownContext) {
+		var quoted = "> "
+		quoted.reserveCapacity(text.count + 2)
+		for ch in text {
+			if ch == "\n" {
+				quoted.append("\n> ")
+			}
+			else {
+				quoted.append(ch)
+			}
+		}
+		context.addText(quoted)
+	}
+
 	private static func collapseWhitespace(_ text: String) -> String {
 		var result = ""
 		var lastWasWhitespace = false
@@ -538,6 +590,7 @@ public enum Serialize {
 
 	private static func convertTable(_ table: Node, context: inout MarkdownContext) {
 		var rows: [[String]] = []
+		var columnCount = 0
 
 		/// Find rows (handle thead, tbody, tr directly under table)
 		func findRows(_ node: Node) {
@@ -554,6 +607,7 @@ public enum Serialize {
 						}
 					}
 					if !cells.isEmpty {
+						columnCount = max(columnCount, cells.count)
 						rows.append(cells)
 					}
 				}
@@ -566,23 +620,11 @@ public enum Serialize {
 		findRows(table)
 
 		guard !rows.isEmpty else { return }
-
-		// Determine column count
-		let columnCount = rows.map { $0.count }.max() ?? 0
 		guard columnCount > 0 else { return }
-
-		// Normalize rows to have same column count
-		let normalizedRows = rows.map { row -> [String] in
-			var r = row
-			while r.count < columnCount {
-				r.append("")
-			}
-			return r
-		}
 
 		// Calculate column widths
 		var colWidths = Array(repeating: 3, count: columnCount) // minimum width of 3 for ---
-		for row in normalizedRows {
+		for row in rows {
 			for (i, cell) in row.enumerated() {
 				colWidths[i] = max(colWidths[i], cell.count)
 			}
@@ -591,36 +633,46 @@ public enum Serialize {
 		context.flushNewlines()
 
 		// Output header row (first row)
-		let headerRow = normalizedRows[0]
-		context.addText("| ")
-		context.addText(
-			headerRow.enumerated()
-				.map { i, cell in
-					cell.padding(toLength: colWidths[i], withPad: " ", startingAt: 0)
-				}
-				.joined(separator: " | "))
-		context.addText(" |")
+		self.addMarkdownTableRow(rows[0], columnCount: columnCount, colWidths: colWidths, context: &context)
 		context.addNewlines(1)
 		context.flushNewlines()
 
 		// Output separator row
-		context.addText("| ")
-		context.addText(colWidths.map { String(repeating: "-", count: $0) }.joined(separator: " | "))
-		context.addText(" |")
+		self.addMarkdownTableSeparator(colWidths, context: &context)
 		context.addNewlines(1)
 
 		// Output data rows
-		for row in normalizedRows.dropFirst() {
+		for row in rows.dropFirst() {
 			context.flushNewlines()
-			context.addText("| ")
-			context.addText(
-				row.enumerated()
-					.map { i, cell in
-						cell.padding(toLength: colWidths[i], withPad: " ", startingAt: 0)
-					}
-					.joined(separator: " | "))
-			context.addText(" |")
+			self.addMarkdownTableRow(row, columnCount: columnCount, colWidths: colWidths, context: &context)
 			context.addNewlines(1)
 		}
+	}
+
+	private static func addMarkdownTableRow(
+		_ row: [String], columnCount: Int, colWidths: [Int], context: inout MarkdownContext
+	) {
+		context.addText("| ")
+		for i in 0..<columnCount {
+			if i > 0 {
+				context.addText(" | ")
+			}
+			let cell = i < row.count ? row[i] : ""
+			context.addText(cell.padding(toLength: colWidths[i], withPad: " ", startingAt: 0))
+		}
+		context.addText(" |")
+	}
+
+	private static func addMarkdownTableSeparator(
+		_ colWidths: [Int], context: inout MarkdownContext
+	) {
+		context.addText("| ")
+		for i in colWidths.indices {
+			if i > colWidths.startIndex {
+				context.addText(" | ")
+			}
+			context.addText(String(repeating: "-", count: colWidths[i]))
+		}
+		context.addText(" |")
 	}
 }

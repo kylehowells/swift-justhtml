@@ -30,7 +30,7 @@ swift run htmltool query "a[href]" page.html
 - ``Node/toHTML(pretty:indentSize:)`` - Serialization
 - ``Node/toMarkdown()`` - Markdown conversion
 - ``JustHTML/query(_:)`` - CSS selectors
-- ``HTMLStream`` - Streaming parser
+- ``HTMLStream`` - Event-based parser
 
 ### html2md
 

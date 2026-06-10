@@ -11,14 +11,28 @@ public protocol TokenSink: AnyObject {
 	var currentNamespace: Namespace? { get }
 }
 
-/// RCDATA elements that switch tokenizer to RCDATA state
-private let RCDATA_ELEMENTS: Set<String> = ["title", "textarea"]
-
-/// RAWTEXT elements that switch tokenizer to RAWTEXT state
-private let RAWTEXT_ELEMENTS: Set<String> = ["style", "xmp", "iframe", "noembed", "noframes"]
-
 /// Script element needs SCRIPT DATA state
 private let SCRIPT_ELEMENT = "script"
+
+/// RCDATA elements that switch tokenizer to RCDATA state.
+private func isRCDATAElement(_ name: String) -> Bool {
+	switch name {
+		case "title", "textarea":
+			return true
+		default:
+			return false
+	}
+}
+
+/// RAWTEXT elements that switch tokenizer to RAWTEXT state.
+private func isRAWTEXTElement(_ name: String) -> Bool {
+	switch name {
+		case "style", "xmp", "iframe", "noembed", "noframes":
+			return true
+		default:
+			return false
+	}
+}
 
 /// Preprocess line endings per HTML5 spec
 /// CR (U+000D) followed by LF (U+000A) → LF
@@ -225,6 +239,8 @@ public final class Tokenizer {
 	private var inputLength: Int = 0
 	private var line: Int = 1
 	private var column: Int = 0
+	private var emittedEOF: Bool = false
+	private var eofDrainIterations: Int = 0
 
 	public var currentLine: Int {
 		return self.line
@@ -280,16 +296,48 @@ public final class Tokenizer {
 	}
 
 	public func run(_ html: String) {
+		self.startIncrementalRun(html)
+
+		while self.pumpIncrementalRun() {}
+	}
+
+	internal func startIncrementalRun(_ html: String) {
 		// Preprocess input: normalize line endings per HTML5 spec
 		// CR (U+000D) followed by LF (U+000A) → LF
 		// CR (U+000D) not followed by LF → LF
 		// Note: Always process, don't rely on contains() which may have platform differences
 		let preprocessed = preprocessLineEndings(html)
 
+		self.state = self.opts.initialState
+		self.returnState = .data
+		self.pos = 0
+		self.line = 1
+		self.column = 0
+		self.emittedEOF = false
+		self.eofDrainIterations = 0
+
+		self.currentTagName = ""
+		self.currentTagIsEnd = false
+		self.currentTagSelfClosing = false
+		self.currentAttrs.removeAll(keepingCapacity: true)
+		self.currentAttrName = ""
+		self.currentAttrValue = ""
+		self.currentComment = ""
+		self.currentDoctypeName = ""
+		self.currentDoctypePublicId = nil
+		self.currentDoctypeSystemId = nil
+		self.currentDoctypeForceQuirks = false
+		self.charBuffer.removeAll(keepingCapacity: true)
+		self.nameBuffer.removeAll(keepingCapacity: true)
+		self.tempBuffer = ""
+		self.lastStartTagName = self.opts.initialRawtextTag ?? ""
+		self.charRefCode = 0
+		self.charRefTempBuffer = ""
+		self.errors.removeAll(keepingCapacity: true)
+
 		// Convert to UTF-8 bytes for fast processing
 		self.inputBytes = ContiguousArray(preprocessed.utf8)
 		self.inputLength = self.inputBytes.count
-		self.pos = 0
 
 		// Optionally discard BOM (EF BB BF in UTF-8)
 		if self.opts.discardBom, self.inputLength >= 3,
@@ -297,22 +345,28 @@ public final class Tokenizer {
 		{
 			self.pos = 3
 		}
+	}
 
-		// Process all input
-		while self.pos < self.inputLength {
+	@discardableResult
+	internal func pumpIncrementalRun() -> Bool {
+		if self.emittedEOF {
+			return false
+		}
+
+		if self.pos < self.inputLength {
 			self.processState()
+			return !self.emittedEOF
 		}
 
 		// Handle EOF - process remaining states until we reach data state
-		var eofIterations = 0
-		while self.state != .data, eofIterations < 100 {
+		if self.state != .data, self.eofDrainIterations < 100 {
 			self.processState()
-			eofIterations += 1
+			self.eofDrainIterations += 1
+			return !self.emittedEOF
 		}
 
-		// Flush and emit EOF
-		self.flushCharBuffer()
-		self.emit(.eof)
+		self.emitEOF()
+		return false
 	}
 
 	/// Switch to plaintext state (called by tree builder for plaintext element)
@@ -677,10 +731,9 @@ public final class Tokenizer {
 	}
 
 	private func consumeIf(_ expected: String, caseInsensitive: Bool = true) -> Bool {
-		let expectedBytes = Array(expected.utf8)
 		var tempPos = self.pos
 
-		for expectedByte in expectedBytes {
+		for expectedByte in expected.utf8 {
 			guard tempPos < self.inputLength else { return false }
 
 			let inputByte = self.inputBytes[tempPos]
@@ -703,7 +756,7 @@ public final class Tokenizer {
 
 		// Consume the matched characters
 		self.pos = tempPos
-		self.column += expectedBytes.count
+		self.column += expected.utf8.count
 		return true
 	}
 
@@ -713,6 +766,14 @@ public final class Tokenizer {
 	private func emit(_ token: Token) {
 		self.flushCharBuffer()
 		self.sink?.processToken(token)
+	}
+
+	@inline(__always)
+	private func emitEOF() {
+		guard !self.emittedEOF else { return }
+
+		self.emittedEOF = true
+		self.emit(.eof)
 	}
 
 	@inline(__always)
@@ -768,10 +829,10 @@ public final class Tokenizer {
 			// Switch to appropriate state for special elements (only in HTML namespace)
 			let ns = self.sink?.currentNamespace
 			if ns == nil || ns == .html {
-				if RCDATA_ELEMENTS.contains(self.currentTagName) {
+				if isRCDATAElement(self.currentTagName) {
 					self.state = .rcdata
 				}
-				else if RAWTEXT_ELEMENTS.contains(self.currentTagName) {
+				else if isRAWTEXTElement(self.currentTagName) {
 					self.state = .rawtext
 				}
 				else if self.currentTagName == "noscript", self.opts.scripting {
@@ -894,7 +955,7 @@ public final class Tokenizer {
 		if self.pos > startPos {
 			self.emitTextBytes(from: startPos, to: self.pos)
 		}
-		self.emit(.eof)
+		self.emitEOF()
 	}
 
 	/// Emit a run of bytes as text (just copy bytes, convert when flushing)
@@ -955,7 +1016,7 @@ public final class Tokenizer {
 		if self.pos > startPos {
 			self.emitTextBytes(from: startPos, to: self.pos)
 		}
-		self.emit(.eof)
+		self.emitEOF()
 	}
 
 	private func rawtextState() {
@@ -998,12 +1059,12 @@ public final class Tokenizer {
 		if self.pos > startPos {
 			self.emitTextBytes(from: startPos, to: self.pos)
 		}
-		self.emit(.eof)
+		self.emitEOF()
 	}
 
 	private func plaintextState() {
 		guard let ch = consume() else {
-			self.emit(.eof)
+			self.emitEOF()
 			return
 		}
 
@@ -1362,7 +1423,7 @@ public final class Tokenizer {
 
 	private func scriptDataState() {
 		guard let ch = consume() else {
-			self.emit(.eof)
+			self.emitEOF()
 			return
 		}
 
@@ -1515,7 +1576,7 @@ public final class Tokenizer {
 	private func scriptDataEscapedState() {
 		guard let ch = consume() else {
 			self.emitError("eof-in-script-html-comment-like-text")
-			self.emit(.eof)
+			self.emitEOF()
 			return
 		}
 
@@ -1539,7 +1600,7 @@ public final class Tokenizer {
 	private func scriptDataEscapedDashState() {
 		guard let ch = consume() else {
 			self.emitError("eof-in-script-html-comment-like-text")
-			self.emit(.eof)
+			self.emitEOF()
 			return
 		}
 
@@ -1565,7 +1626,7 @@ public final class Tokenizer {
 	private func scriptDataEscapedDashDashState() {
 		guard let ch = consume() else {
 			self.emitError("eof-in-script-html-comment-like-text")
-			self.emit(.eof)
+			self.emitEOF()
 			return
 		}
 
@@ -1727,7 +1788,7 @@ public final class Tokenizer {
 	private func scriptDataDoubleEscapedState() {
 		guard let ch = consume() else {
 			self.emitError("eof-in-script-html-comment-like-text")
-			self.emit(.eof)
+			self.emitEOF()
 			return
 		}
 
@@ -1752,7 +1813,7 @@ public final class Tokenizer {
 	private func scriptDataDoubleEscapedDashState() {
 		guard let ch = consume() else {
 			self.emitError("eof-in-script-html-comment-like-text")
-			self.emit(.eof)
+			self.emitEOF()
 			return
 		}
 
@@ -1779,7 +1840,7 @@ public final class Tokenizer {
 	private func scriptDataDoubleEscapedDashDashState() {
 		guard let ch = consume() else {
 			self.emitError("eof-in-script-html-comment-like-text")
-			self.emit(.eof)
+			self.emitEOF()
 			return
 		}
 
@@ -3192,7 +3253,6 @@ public final class Tokenizer {
 
 		guard let ch = consume() else {
 			self.state = .decimalCharacterReferenceStart
-			self.reconsume()
 			return
 		}
 
@@ -3470,6 +3530,31 @@ extension String {
 				let lower1 = b1 >= 65 && b1 <= 90 ? b1 + 32 : b1
 				let lower2 = b2 >= 65 && b2 <= 90 ? b2 + 32 : b2
 				if lower1 != lower2 {
+					return false
+				}
+			}
+		}
+
+		return true
+	}
+
+	/// Fast ASCII case-insensitive prefix check using UTF-8 bytes
+	@inline(__always)
+	func asciiCaseInsensitiveHasPrefix(_ prefix: String) -> Bool {
+		let selfUTF8 = self.utf8
+		let prefixUTF8 = prefix.utf8
+
+		guard selfUTF8.count >= prefixUTF8.count else { return false }
+
+		var selfIter = selfUTF8.makeIterator()
+		var prefixIter = prefixUTF8.makeIterator()
+
+		while let prefixByte = prefixIter.next() {
+			guard let selfByte = selfIter.next() else { return false }
+			if selfByte != prefixByte {
+				let lowerSelf = selfByte >= 65 && selfByte <= 90 ? selfByte + 32 : selfByte
+				let lowerPrefix = prefixByte >= 65 && prefixByte <= 90 ? prefixByte + 32 : prefixByte
+				if lowerSelf != lowerPrefix {
 					return false
 				}
 			}

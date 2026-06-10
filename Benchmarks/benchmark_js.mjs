@@ -89,6 +89,10 @@ function main() {
     // Sort by filename
     allFiles.sort((a, b) => a.filename.localeCompare(b.filename));
 
+    if (process.env.BENCHMARK_SKIP_SYNTHETIC === '1') {
+        allFiles = allFiles.filter(({ filename }) => filename !== 'synthetic.html');
+    }
+
     const results = [];
 
     for (const { filepath, filename, fileSize } of allFiles) {

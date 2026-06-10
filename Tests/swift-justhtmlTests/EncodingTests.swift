@@ -163,8 +163,10 @@ func getEncodingTestsDirectory() -> URL? {
 
 @Test func debugFailures() async throws {
 	// Debug failing encoding test from file
-	let fileURL = URL(
-		fileURLWithPath: "/home/kyle/Development/justhtml/html5lib-tests/encoding/tests1.dat")
+	guard let fileURL = getEncodingTestsDirectory()?.appendingPathComponent("tests1.dat") else {
+		print("Skipping debugFailures: external encoding fixtures not found")
+		return
+	}
 	guard let content = try? Data(contentsOf: fileURL) else {
 		print("Could not read file")
 		return
