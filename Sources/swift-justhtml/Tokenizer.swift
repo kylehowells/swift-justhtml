@@ -935,6 +935,51 @@ public final class Tokenizer {
 	private func dataState() {
 		// Batch scan: find next special character and emit all text at once
 		let startPos = self.pos
+
+		if !self.trackLocations {
+			while self.pos < self.inputLength {
+				let byte = self.inputBytes[self.pos]
+
+				if byte == 0x3C { // '<'
+					if self.pos > startPos {
+						self.emitTextBytes(from: startPos, to: self.pos)
+					}
+					self.pos += 1
+					self.state = .tagOpen
+					return
+				}
+
+				if byte == 0x26 { // '&'
+					if self.pos > startPos {
+						self.emitTextBytes(from: startPos, to: self.pos)
+					}
+					self.pos += 1
+					self.returnState = .data
+					self.state = .characterReference
+					return
+				}
+
+				if byte == 0x00 { // null
+					if self.pos > startPos {
+						self.emitTextBytes(from: startPos, to: self.pos)
+					}
+					self.pos += 1
+					self.emitError("unexpected-null-character")
+					self.emitChar("\0")
+					return
+				}
+
+				self.pos += 1
+			}
+
+			// EOF
+			if self.pos > startPos {
+				self.emitTextBytes(from: startPos, to: self.pos)
+			}
+			self.emitEOF()
+			return
+		}
+
 		while self.pos < self.inputLength {
 			let byte = self.inputBytes[self.pos]
 
