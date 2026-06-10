@@ -435,6 +435,7 @@ public final class Node {
 		if self.tagId == .template, namespace == nil || namespace == .html {
 			self.templateContent = Node.documentFragment()
 		}
+		self.reserveLikelyChildCapacity()
 	}
 
 	init(
@@ -452,6 +453,20 @@ public final class Node {
 
 		if tagId == .template, namespace == nil || namespace == .html {
 			self.templateContent = Node.documentFragment()
+		}
+		self.reserveLikelyChildCapacity()
+	}
+
+	private func reserveLikelyChildCapacity() {
+		switch self.tagId {
+			case .document, .html:
+				self.children.reserveCapacity(2)
+			case .head, .body, .ul, .ol, .table, .tbody, .thead, .tfoot, .tr, .select:
+				self.children.reserveCapacity(8)
+			case .li:
+				self.children.reserveCapacity(2)
+			default:
+				break
 		}
 	}
 
