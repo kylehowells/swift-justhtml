@@ -4,31 +4,35 @@ Swift-justhtml performance characteristics and optimization history.
 
 ## Overview
 
-Swift-justhtml is a dependency-free HTML5 parser with full compatibility coverage. Current checked-in benchmarks show it is much faster than Python JustHTML, but still slower overall than JavaScript justjshtml and Rust implementations. This document covers performance benchmarks, memory usage, and the optimization journey.
+Swift-justhtml is a dependency-free HTML5 parser with full compatibility coverage. Current checked-in benchmarks show it is much faster than Python JustHTML, slightly faster than JavaScript justjshtml overall, faster than the unoptimized rust-justhtml POC, and still slower than html5ever. This document covers performance benchmarks, memory usage, and the optimization journey.
 
 ## Performance Summary
 
-*As of the checked-in `Benchmarks/BENCHMARK_RESULTS.md` report generated on 2025-12-20.*
+*As of the checked-in `Benchmarks/BENCHMARK_RESULTS.md` report generated on 2026-06-11.*
 
 ### Parse Time Comparison
 
 | Implementation | Total Time | Comparison |
 |----------------|-----------|------------|
-| html5ever (Rust) | 302ms | 4.4x faster than Swift |
-| rust-justhtml | 696ms | 1.9x faster than Swift |
-| JavaScript (justjshtml) | 1206ms | 1.1x faster than Swift |
-| **Swift** | 1319ms | - |
-| Python ([justhtml](https://github.com/EmilStenstrom/justhtml)) | 4197ms | 3.2x slower than Swift |
+| html5ever (Rust) | 454ms | 2.2x faster than Swift |
+| **Swift** | 996ms | - |
+| JavaScript (justjshtml) | 1188ms | 1.2x slower than Swift |
+| rust-justhtml | 1534ms | 1.5x slower than Swift |
+| Python ([justhtml](https://github.com/EmilStenstrom/justhtml)) | 4614ms | 4.6x slower than Swift |
 
 *Benchmark: Parsing the benchmark sample set, including a 20MB synthetic file.*
+
+The benchmark report currently flags one output mismatch for `wikipedia_ww2.html`. Swift matches JavaScript there, and manual comparison with html5ever shows html5ever matches Swift/JavaScript at the differing `<hr>` node. Python JustHTML is the divergent implementation, nesting a following `<link>` and `<div>` under the void `<hr>` element.
 
 ### Memory Usage Comparison
 
 | Implementation | Peak RSS | Comparison |
 |----------------|----------|------------|
-| **Swift** | 103 MB | - |
-| Python | 106 MB | 1.03x more |
-| JavaScript | 226 MB | 2.2x more |
+| html5ever (Rust) | 40.62 MB | 2.21x less than Swift |
+| **Swift** | 89.74 MB | - |
+| Python | 138.91 MB | 1.55x more |
+| rust-justhtml | 143.23 MB | 1.60x more |
+| JavaScript | 255.23 MB | 2.84x more |
 
 *Benchmark: Average peak memory across 6 test files including 20MB synthetic HTML*
 
@@ -36,15 +40,16 @@ Swift-justhtml is a dependency-free HTML5 parser with full compatibility coverag
 
 | File | Size | Time | Throughput |
 |------|------|------|------------|
-| hackernews.html | 34 KB | 2.05ms | 17 MB/s |
-| wikipedia_countries.html | 360 KB | 14.25ms | 25 MB/s |
-| wikipedia_html.html | 472 KB | 19.69ms | 24 MB/s |
-| wikipedia_swift.html | 411 KB | 16.80ms | 24 MB/s |
-| wikipedia_ww2.html | 1,204 KB | 44.39ms | 27 MB/s |
+| hackernews.html | 34 KB | 1.87ms | 18.55 MB/s |
+| synthetic.html | 20,498 KB | 896.64ms | 23.41 MB/s |
+| wikipedia_countries.html | 361 KB | 13.90ms | 26.58 MB/s |
+| wikipedia_html.html | 497 KB | 20.15ms | 25.27 MB/s |
+| wikipedia_swift.html | 416 KB | 17.77ms | 23.95 MB/s |
+| wikipedia_ww2.html | 1,203 KB | 45.38ms | 27.15 MB/s |
 
-## Current Performance Profile
+## Historical Performance Profile
 
-The parser achieves ~98ms total parse time with the following component breakdown:
+An earlier profiling pass on the smaller profiling fixture set measured ~98ms total parse time with the following component breakdown. The full cross-implementation benchmark above uses a larger six-file fixture set, including the 20MB synthetic stress file, so the totals are not directly comparable.
 
 ```
 Tokenizer:     ~47% of total parse time (~44ms)

@@ -643,9 +643,11 @@ Recommended cleanup:
 
 ### P2: Performance documentation and benchmark baselines contradict each other
 
-Status: partially addressed in the 2026-06-10 cleanup pass. README and DocC now match the checked-in benchmark report and no longer claim Swift beats JavaScript overall. Full benchmark regeneration is still a separate reproducibility task.
+Status: addressed in the 2026-06-11 benchmark refresh. README, DocC, and checked-in benchmark reports now match a full benchmark run with the Python, JavaScript, html5ever, and rust-justhtml sibling repositories available.
 
-The README and DocC performance page claim Swift slightly beats JavaScript, while benchmark results and prior investigation notes show Swift is slower than the Node.js implementation.
+The README and DocC performance page had drifted away from the generated benchmark reports.
+
+The refreshed benchmark report documents the remaining `wikipedia_ww2.html` output mismatch as Python-specific. Swift matches JavaScript, and manual comparison with html5ever shows html5ever also matches Swift/JavaScript at the differing `<hr>` void-element node. Python nests the following `<link>` and `<div>` under `<hr>`, which is not the expected tree shape for a void element.
 
 Relevant files:
 
@@ -656,14 +658,14 @@ Relevant files:
 
 Recommended cleanup:
 
-- Pick one benchmark source of truth.
+- Keep `Benchmarks/BENCHMARK_RESULTS.md` and `Benchmarks/MEMORY_RESULTS.md` as the source of truth.
 - Regenerate benchmark docs from current benchmark output when possible.
 - Update README and DocC to match the current measured state.
 - Keep historical performance notes, but label stale data clearly.
 
 ### P2: Benchmark and profiling setup is not fully reproducible
 
-Status: partially addressed in the 2026-06-10 cleanup pass. Tests no longer contain stale absolute local paths; profiling sample discovery is repository-relative; `Benchmarks/compare.py --prepare-only` can now prepare benchmark fixtures before a timing run; `--skip-synthetic` now excludes cached synthetic fixtures from benchmark runs; generated benchmark reports and JSON now capture command, Swift/Python versions, platform, machine, fixture source, fixture size, and fixture hashes. Incomplete or mismatched comparison runs write `.incomplete` outputs instead of replacing `BENCHMARK_RESULTS.md`. Full benchmark regeneration from a clean setup with all sibling implementations available is still a separate pass.
+Status: addressed in the 2026-06-11 benchmark refresh. Tests no longer contain stale absolute local paths; profiling sample discovery is repository-relative; `Benchmarks/compare.py --prepare-only` can prepare benchmark fixtures before a timing run; `--skip-synthetic` excludes cached synthetic fixtures from benchmark runs; generated benchmark reports and JSON capture command, Swift/Python versions, platform, machine, fixture source, fixture size, and fixture hashes. A full benchmark regeneration was run with the Python, JavaScript, html5ever, and rust-justhtml sibling repositories available.
 
 Benchmark sample files and generated test files are not checked in. `Benchmarks/compare.py` can download samples and generate reports, but a fresh checkout does not obviously have everything needed to reproduce numbers.
 
@@ -919,9 +921,8 @@ Completed in the 2026-06-10 cleanup pass:
 
 Remaining cleanup order:
 
-1. Fully regenerate and record benchmark results from a documented clean setup with the JavaScript and Rust sibling repositories available.
-2. Use benchmark runs to check whether the helper cleanup remains neutral under release timing.
-3. Treat further `TreeBuilder` work as optional, evidence-driven micro-refactoring rather than an active required cleanup item. Remaining arbitrary-name stack scans are intentional fallbacks for unknown/custom tag names unless profiling or a concrete bug shows otherwise.
+1. Use benchmark runs to check whether future helper cleanup remains neutral under release timing.
+2. Treat further `TreeBuilder` work as optional, evidence-driven micro-refactoring rather than an active required cleanup item. Remaining arbitrary-name stack scans are intentional fallbacks for unknown/custom tag names unless profiling or a concrete bug shows otherwise.
 
 Public API reduction is not listed as a cleanup item. It should only be reconsidered if a higher-priority parser, streaming, performance, or memory change cannot be done cleanly while preserving the existing API.
 

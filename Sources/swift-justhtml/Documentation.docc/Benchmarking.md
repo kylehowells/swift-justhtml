@@ -4,7 +4,7 @@ Testing and benchmarking methodology for swift-justhtml.
 
 ## Overview
 
-Swift-justhtml includes comprehensive benchmarking infrastructure to measure parse time, memory usage, and compare performance against Python ([justhtml](https://github.com/EmilStenstrom/justhtml)) and JavaScript ([justjshtml](https://github.com/simonw/justjshtml)) implementations.
+Swift-justhtml includes comprehensive benchmarking infrastructure to measure parse time, memory usage, and compare performance against Python ([justhtml](https://github.com/EmilStenstrom/justhtml)), JavaScript ([justjshtml](https://github.com/simonw/justjshtml)), html5ever, and the rust-justhtml POC when those sibling checkouts are available.
 
 ## Benchmark Suite
 
@@ -128,6 +128,10 @@ All implementations output a normalized tree format for comparison:
 
 This ensures all parsers produce identical DOM trees from the same input.
 
+The current `wikipedia_ww2.html` benchmark fixture has one known mismatch in the Python JustHTML output. The source contains an infobox fragment like `<hr /><link ... /><div class="plainlist">`; Python nests the following `<link>` and `<div>` under the `<hr>` element, while Swift, JavaScript, and html5ever keep them as siblings. Because `<hr>` is a void element, the Swift/JavaScript/html5ever result is the expected tree shape.
+
+html5ever's full serialized output is not used for the byte-for-byte consistency table because it has separate serializer/tokenizer conventions around `<noscript>` content, even though it agrees with Swift and JavaScript on the `<hr>` mismatch.
+
 ## Running Profiling Tests
 
 ### Swift Profiling Tests
@@ -189,19 +193,19 @@ python3 compare.py --prepare-only
 
 ### Parse Time
 
-- **Throughput (MB/s):** Higher is better; expect 15-30 MB/s
+- **Throughput (MB/s):** Higher is better; the current Swift report is roughly 18-27 MB/s across the checked-in fixture set
 - **Time per KB:** Should be consistent (~0.04 ms/KB) indicating linear scaling
-- **Comparison ratios:** Swift is currently much faster than Python but slower overall than JavaScript and Rust in the checked-in benchmark report
+- **Comparison ratios:** Swift is currently much faster than Python, slightly faster than JavaScript overall, faster than rust-justhtml, and slower than html5ever in the checked-in benchmark report
 
 ### Memory Usage
 
 - **Peak RSS:** Lower is better
-- **Memory/input ratio:** Typically 2-3x the input size
-- **Comparison:** Swift uses ~2x less memory than JavaScript
+- **Memory/input ratio:** Varies by fixture and implementation; the current Swift average peak RSS is 89.74 MB across the six-file benchmark set
+- **Comparison:** Swift uses less memory than Python, JavaScript, and rust-justhtml on average, but more than html5ever
 
 ### Output Consistency
 
-All three implementations should produce identical output. Mismatches indicate parser bugs that should be investigated.
+Swift, Python, and JavaScript should produce identical output. Mismatches indicate parser bugs or reference divergence that should be investigated. For the current `wikipedia_ww2.html` fixture, Swift agrees with JavaScript and html5ever; Python is the divergent implementation around a void `<hr>` element.
 
 ## Continuous Benchmarking
 

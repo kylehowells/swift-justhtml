@@ -183,19 +183,21 @@ Run the fuzzer: `swift test --filter fuzzTest`
 
 ## Performance
 
-swift-justhtml is optimized for performance, but the current checked-in benchmark results show it remains slower than the JavaScript implementation overall:
+swift-justhtml is optimized for performance. In the current checked-in benchmark results it is much faster than Python, slightly faster than JavaScript overall, faster than the unoptimized rust-justhtml POC, and still slower than html5ever.
 
 ### Parse Time
 
 | Implementation | Parse Time | Comparison |
 |----------------|-----------|------------|
-| html5ever (Rust) | 302ms | 4.4x faster than Swift |
-| rust-justhtml | 696ms | 1.9x faster than Swift |
-| JavaScript | 1206ms | 1.1x faster than Swift |
-| **Swift** | 1319ms | - |
-| Python | 4197ms | 3.2x slower than Swift |
+| html5ever (Rust) | 454ms | 2.2x faster than Swift |
+| **Swift** | 996ms | - |
+| JavaScript | 1188ms | 1.2x slower than Swift |
+| rust-justhtml | 1534ms | 1.5x slower than Swift |
+| Python | 4614ms | 4.6x slower than Swift |
 
 *Benchmark: Parsing the checked-in benchmark sample set, including a 20MB synthetic file. See `Benchmarks/BENCHMARK_RESULTS.md` for exact repository versions and fixture details.*
+
+The current benchmark report flags one `wikipedia_ww2.html` output mismatch. Swift matches JavaScript there, and html5ever matches Swift/JavaScript at the differing `<hr>` node; Python JustHTML is the divergent output for that void-element case.
 
 See [Benchmarks/BENCHMARK_RESULTS.md](Benchmarks/BENCHMARK_RESULTS.md) for detailed performance comparison.
 
@@ -203,9 +205,11 @@ See [Benchmarks/BENCHMARK_RESULTS.md](Benchmarks/BENCHMARK_RESULTS.md) for detai
 
 | Implementation | Peak RSS | Comparison |
 |----------------|----------|------------|
-| **Swift** | 103 MB | - |
-| Python | 106 MB | 1.03x more |
-| JavaScript | 226 MB | 2.2x more |
+| html5ever (Rust) | 40.62 MB | 2.21x less than Swift |
+| **Swift** | 89.74 MB | - |
+| Python | 138.91 MB | 1.55x more |
+| rust-justhtml | 143.23 MB | 1.60x more |
+| JavaScript | 255.23 MB | 2.84x more |
 
 *Benchmark: Average peak memory across 6 test files including 20MB synthetic HTML*
 

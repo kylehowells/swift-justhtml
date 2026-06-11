@@ -395,6 +395,15 @@ def generate_markdown_report(swift_results, python_results, js_results, all_matc
     """Generate a markdown report with benchmark results."""
     lines = []
 
+    def speed_sentence(name_a, time_a, name_b, time_b):
+        if not time_a or not time_b:
+            return None
+        if time_a < time_b:
+            return f"{name_a} is **{time_b/time_a:.1f}x faster** than {name_b}."
+        if time_a > time_b:
+            return f"{name_a} is **{time_a/time_b:.1f}x slower** than {name_b}."
+        return f"{name_a} and {name_b} have the same total parse time."
+
     # Header
     lines.append("# Cross-Implementation Benchmark Results")
     lines.append("")
@@ -436,6 +445,16 @@ def generate_markdown_report(swift_results, python_results, js_results, all_matc
         emoji = "✅" if status == "OK" else "❌"
         lines.append(f"| {filename} | {emoji} {status} |")
     lines.append("")
+
+    if file_results.get("wikipedia_ww2.html") == "MISMATCH":
+        lines.append("### Known `wikipedia_ww2.html` mismatch")
+        lines.append("")
+        lines.append("The current mismatch is between Python JustHTML and the Swift/JavaScript outputs. Swift and JavaScript agree on the normalized tree, and manual comparison with html5ever shows html5ever also agrees with Swift/JavaScript at the differing node.")
+        lines.append("")
+        lines.append("The source fixture contains an infobox fragment like `<hr /><link ... /><div class=\"plainlist\">`. Python nests the following `<link>` and `<div>` under the `<hr>` node, while Swift, JavaScript, and html5ever keep them as siblings after `<hr>`. Since `<hr>` is an HTML void element, the Swift/JavaScript/html5ever shape is the expected one.")
+        lines.append("")
+        lines.append("html5ever's full serialized output is not byte-identical to Swift/JavaScript because of separate serializer/tokenizer conventions around `<noscript>` content, so this report still uses Swift/Python/JavaScript for the automated byte-for-byte output consistency table.")
+        lines.append("")
 
     # Performance comparison
     lines.append("## Performance Comparison")
@@ -553,8 +572,12 @@ def generate_markdown_report(swift_results, python_results, js_results, all_matc
             lines.append(f"html5ever is **{total_js/total_rust:.1f}x faster** than JavaScript.")
             lines.append(f"html5ever is **{total_python/total_rust:.1f}x faster** than Python.")
         if rust_justhtml_results and total_rust_justhtml:
-            lines.append(f"rust-justhtml is **{total_swift/total_rust_justhtml:.1f}x faster** than Swift.")
-            lines.append(f"rust-justhtml is **{total_python/total_rust_justhtml:.1f}x faster** than Python.")
+            rust_swift_sentence = speed_sentence("rust-justhtml", total_rust_justhtml, "Swift", total_swift)
+            if rust_swift_sentence:
+                lines.append(rust_swift_sentence)
+            rust_python_sentence = speed_sentence("rust-justhtml", total_rust_justhtml, "Python", total_python)
+            if rust_python_sentence:
+                lines.append(rust_python_sentence)
         elif total_swift:
             lines.append(f"Swift is **{total_python/total_swift:.1f}x faster** than Python.")
             if total_js:
@@ -663,7 +686,10 @@ def print_summary(swift_results, python_results, js_results, rust_results=None, 
         print("-" * 95)
         print(f"{'TOTAL':<25} {'':<8} | {total_rust:>7.0f}ms {total_rust_justhtml:>7.0f}ms {total_swift:>7.0f}ms {total_js:>7.0f}ms {total_python:>7.0f}ms")
         print(f"\nhtml5ever is {total_rust_justhtml/total_rust:.1f}x faster than rust-justhtml")
-        print(f"rust-justhtml is {total_swift/total_rust_justhtml:.1f}x faster than Swift")
+        if total_rust_justhtml < total_swift:
+            print(f"rust-justhtml is {total_swift/total_rust_justhtml:.1f}x faster than Swift")
+        elif total_swift:
+            print(f"rust-justhtml is {total_rust_justhtml/total_swift:.1f}x slower than Swift")
     elif rust_results:
         print("-" * 115)
         rust_swift_total = total_swift / total_rust if total_rust else 0
