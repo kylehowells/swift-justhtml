@@ -49,22 +49,26 @@ let package = Package(
 		.executableTarget(
 			name: "HTMLTool",
 			dependencies: ["justhtml"],
-			path: "Examples/htmltool"
+			path: "Examples/htmltool",
+			exclude: ["README.md"]
 		),
 		.executableTarget(
 			name: "HTML2MD",
 			dependencies: ["justhtml"],
-			path: "Examples/html2md"
+			path: "Examples/html2md",
+			exclude: ["README.md"]
 		),
 		.executableTarget(
 			name: "ExtractLinks",
 			dependencies: ["justhtml"],
-			path: "Examples/extractlinks"
+			path: "Examples/extractlinks",
+			exclude: ["README.md"]
 		),
 		.executableTarget(
 			name: "FetchPage",
 			dependencies: ["justhtml"],
-			path: "Examples/fetchpage"
+			path: "Examples/fetchpage",
+			exclude: ["README.md"]
 		),
 		.testTarget(
 			name: "swift-justhtmlTests",

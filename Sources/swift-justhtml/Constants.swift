@@ -8,22 +8,6 @@ let VOID_ELEMENTS: Set<String> = [
 	"link", "meta", "param", "source", "track", "wbr",
 ]
 
-/// Raw text elements (contents not parsed as HTML)
-let RAW_TEXT_ELEMENTS: Set<String> = [
-	"script", "style",
-]
-
-/// Escapable raw text elements
-let ESCAPABLE_RAW_TEXT_ELEMENTS: Set<String> = [
-	"textarea", "title",
-]
-
-/// Formatting elements for the adoption agency algorithm
-let FORMATTING_ELEMENTS: Set<String> = [
-	"a", "b", "big", "code", "em", "font", "i", "nobr",
-	"s", "small", "strike", "strong", "tt", "u",
-]
-
 /// Special elements that have special parsing rules
 let SPECIAL_ELEMENTS: Set<String> = [
 	"address", "applet", "area", "article", "aside", "base", "basefont",
@@ -39,65 +23,21 @@ let SPECIAL_ELEMENTS: Set<String> = [
 	"tr", "track", "ul", "wbr", "xmp",
 ]
 
-/// Elements that imply closing a <p> element
-let P_CLOSING_ELEMENTS: Set<String> = [
-	"address", "article", "aside", "blockquote", "center", "details",
-	"dialog", "dir", "div", "dl", "fieldset", "figcaption", "figure",
-	"footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "header",
-	"hgroup", "hr", "main", "menu", "nav", "ol", "p", "pre", "search",
-	"section", "table", "ul",
+/// Special elements with known TagID mappings.
+/// Keep `SPECIAL_ELEMENTS` as the fallback for names that do not have TagID cases
+/// yet, including legacy parser boundary names like `dir`, `hgroup`, and `noembed`.
+let SPECIAL_ELEMENTS_ID: Set<TagID> = [
+	.address, .applet, .area, .article, .aside, .base, .basefont,
+	.bgsound, .blockquote, .body, .br, .button, .caption, .center,
+	.col, .colgroup, .dd, .details, .div, .dl, .dt, .embed,
+	.fieldset, .figcaption, .figure, .footer, .form, .frame, .frameset,
+	.h1, .h2, .h3, .h4, .h5, .h6, .head, .header, .hr, .html,
+	.iframe, .img, .input, .keygen, .li, .link, .listing, .main,
+	.marquee, .menu, .meta, .nav, .noframes, .noscript, .object,
+	.ol, .p, .param, .plaintext, .pre, .script, .search, .section,
+	.select, .source, .style, .summary, .table, .tbody, .td, .template,
+	.textarea, .tfoot, .th, .thead, .title, .tr, .track, .ul, .wbr, .xmp,
 ]
-
-/// Scope elements for checking element scope
-/// HTML namespace: applet, caption, html, table, td, th, marquee, object, template
-/// MathML namespace: mi, mo, mn, ms, mtext, annotation-xml
-/// SVG namespace: foreignObject, desc, title
-let SCOPE_ELEMENTS: Set<String> = [
-	"applet", "caption", "html", "table", "td", "th", "marquee", "object", "template",
-	// MathML elements (namespace-specific but we match by name)
-	"mi", "mo", "mn", "ms", "mtext", "annotation-xml",
-	// SVG elements (namespace-specific but we match by name)
-	"foreignObject", "desc", "title",
-]
-
-/// List item scope elements
-let LIST_ITEM_SCOPE_ELEMENTS: Set<String> = SCOPE_ELEMENTS.union(["ol", "ul"])
-
-/// Button scope elements
-let BUTTON_SCOPE_ELEMENTS: Set<String> = SCOPE_ELEMENTS.union(["button"])
-
-/// Table scope elements
-let TABLE_SCOPE_ELEMENTS: Set<String> = ["html", "table", "template"]
-
-// MARK: - TagID-based scope elements (fast integer comparisons)
-
-/// Scope elements for checking element scope (TagID version)
-let SCOPE_ELEMENTS_ID: Set<TagID> = [
-	.applet, .caption, .html, .table, .td, .th, .marquee, .object, .template,
-	// MathML elements
-	.mi, .mo, .mn, .ms, .mtext, .annotationXml,
-	// SVG elements
-	.foreignObject, .desc, .title,
-]
-
-/// List item scope elements (TagID version)
-let LIST_ITEM_SCOPE_ELEMENTS_ID: Set<TagID> = SCOPE_ELEMENTS_ID.union([.ol, .ul])
-
-/// Button scope elements (TagID version)
-let BUTTON_SCOPE_ELEMENTS_ID: Set<TagID> = SCOPE_ELEMENTS_ID.union([.button])
-
-/// Table scope elements (TagID version)
-let TABLE_SCOPE_ELEMENTS_ID: Set<TagID> = [.html, .table, .template]
-
-/// Elements that are implicitly closed by certain other elements
-let IMPLIED_END_TAGS: Set<String> = [
-	"dd", "dt", "li", "optgroup", "option", "p", "rb", "rp", "rt", "rtc",
-]
-
-/// Thoroughly implied end tags (includes more elements)
-let THOROUGHLY_IMPLIED_END_TAGS: Set<String> = IMPLIED_END_TAGS.union([
-	"caption", "colgroup", "tbody", "td", "tfoot", "th", "thead", "tr",
-])
 
 /// SVG element case adjustments
 let SVG_ELEMENT_ADJUSTMENTS: [String: String] = [

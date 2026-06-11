@@ -6,12 +6,12 @@ Swift port of [justhtml](https://github.com/EmilStenstrom/justhtml) (Python) and
 
 ## Features
 
-- **Full HTML5 Compliance** - Passes all 1,831 [html5lib-tests](https://github.com/html5lib/html5lib-tests) tree construction tests
+- **Full HTML5 Compliance** - Passes all 1,798 non-scripted [html5lib-tests](https://github.com/html5lib/html5lib-tests) tree construction tests in the current external fixture suite
 - **Zero Dependencies** - Pure Swift using only standard library and Foundation
 - **Cross-Platform** - macOS, iOS, tvOS, watchOS, visionOS, and Linux
 - **CSS Selectors** - Query documents using standard CSS selector syntax
 - **Multiple Output Formats** - Serialize to HTML, plain text, or Markdown
-- **Streaming API** - Memory-efficient event-based parsing
+- **Streaming API** - Event-based parsing without building a DOM or full token list
 - **Fragment Parsing** - Parse HTML fragments in specific contexts
 
 ## Installation
@@ -95,7 +95,8 @@ let fragment = try JustHTML("<tr><td>Cell</td></tr>", fragmentContext: ctx)
 ### Streaming API
 
 ```swift
-// Memory-efficient event-based parsing
+// Event-based parsing without building a DOM or full token list.
+// The input string is still held in memory.
 for event in HTMLStream("<p>Hello</p>") {
     switch event {
     case .start(let tag, let attrs):
@@ -163,11 +164,11 @@ swift-justhtml implements the [WHATWG HTML parsing specification](https://html.s
 
 | Test Suite | Passed | Failed |
 |------------|--------|--------|
-| Tree Construction | 1,831 | 0 |
+| Tree Construction | 1,798 | 0 |
 | Tokenizer | 6,810 | 0 |
 | Serializer | 230 | 0 |
 | Encoding | 82 | 0 |
-| **Total** | **8,953** | **0** |
+| **Total** | **8,920** | **0** |
 
 ### Fuzz Testing
 
@@ -182,17 +183,21 @@ Run the fuzzer: `swift test --filter fuzzTest`
 
 ## Performance
 
-swift-justhtml is optimized for performance, matching or exceeding JavaScript implementations:
+swift-justhtml is optimized for performance. In the current checked-in benchmark results it is much faster than Python, slightly faster than JavaScript overall, faster than the unoptimized rust-justhtml POC, and still slower than html5ever.
 
 ### Parse Time
 
 | Implementation | Parse Time | Comparison |
 |----------------|-----------|------------|
-| **Swift** | 97ms | - |
-| JavaScript | 99ms | 1.02x slower |
-| Python | 398ms | 4.1x slower |
+| html5ever (Rust) | 454ms | 2.2x faster than Swift |
+| **Swift** | 996ms | - |
+| JavaScript | 1188ms | 1.2x slower than Swift |
+| rust-justhtml | 1534ms | 1.5x slower than Swift |
+| Python | 4614ms | 4.6x slower than Swift |
 
-*Benchmark: Parsing 2.5MB of HTML across 5 Wikipedia articles*
+*Benchmark: Parsing the checked-in benchmark sample set, including a 20MB synthetic file. See `Benchmarks/BENCHMARK_RESULTS.md` for exact repository versions and fixture details.*
+
+The current benchmark report flags one `wikipedia_ww2.html` output mismatch. Swift matches JavaScript there, and html5ever matches Swift/JavaScript at the differing `<hr>` node; Python JustHTML is the divergent output for that void-element case.
 
 See [Benchmarks/BENCHMARK_RESULTS.md](Benchmarks/BENCHMARK_RESULTS.md) for detailed performance comparison.
 
@@ -200,9 +205,11 @@ See [Benchmarks/BENCHMARK_RESULTS.md](Benchmarks/BENCHMARK_RESULTS.md) for detai
 
 | Implementation | Peak RSS | Comparison |
 |----------------|----------|------------|
-| **Swift** | 103 MB | - |
-| Python | 106 MB | 1.03x more |
-| JavaScript | 226 MB | 2.2x more |
+| html5ever (Rust) | 40.62 MB | 2.21x less than Swift |
+| **Swift** | 89.74 MB | - |
+| Python | 138.91 MB | 1.55x more |
+| rust-justhtml | 143.23 MB | 1.60x more |
+| JavaScript | 255.23 MB | 2.84x more |
 
 *Benchmark: Average peak memory across 6 test files including 20MB synthetic HTML*
 
@@ -212,7 +219,7 @@ See [Benchmarks/MEMORY_RESULTS.md](Benchmarks/MEMORY_RESULTS.md) for detailed me
 
 | Library | html5lib Pass Rate | Crashes/Hangs | Dependencies |
 |---------|-------------------|---------------|--------------|
-| **swift-justhtml** | 100% (1831/1831) | None | None |
+| **swift-justhtml** | 100% (1798/1798) | None | None |
 | Kanna | 94.4% (1542/1633) | None | libxml2 |
 | SwiftSoup | 87.9% (1436/1633) | Infinite loop on 197 tests | swift-atomics |
 | LilHTML | 47.4% (775/1634) | Crashes on 855 tests | libxml2 |

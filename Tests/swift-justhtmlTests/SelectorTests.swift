@@ -86,6 +86,15 @@ import Testing
 	#expect(results[0].toText() == "With")
 }
 
+@Test func selectorAttributeNameFallbackIsNormalizedOnce() async throws {
+	let html = "<div data-mode=\"active\">Active</div><div>Inactive</div>"
+	let doc = try JustHTML(html)
+
+	let results = try query(doc.root, selector: "[DATA-MODE]")
+	#expect(results.count == 1)
+	#expect(results[0].toText() == "Active")
+}
+
 @Test func selectorAttributeEquals() async throws {
 	let html = "<input type=\"text\"><input type=\"checkbox\">"
 	let doc = try JustHTML(html)
@@ -127,6 +136,21 @@ import Testing
 
 	let results = try query(doc.root, selector: "a[href*=\"example\"]")
 	#expect(results.count == 1)
+}
+
+@Test func selectorAttributeCaseInsensitiveOperators() async throws {
+	let html = """
+	<div data-kind="Primary-Button" data-tags="Alpha beta" data-path="/Docs/Guide.HTML"></div>
+	<div data-kind="secondary-link" data-tags="gamma" data-path="/assets/image.png"></div>
+	"""
+	let doc = try JustHTML(html)
+
+	#expect(try query(doc.root, selector: "[data-kind=\"primary-button\" i]").count == 1)
+	#expect(try query(doc.root, selector: "[data-tags~=\"alpha\" i]").count == 1)
+	#expect(try query(doc.root, selector: "[data-kind|=\"primary\" i]").count == 1)
+	#expect(try query(doc.root, selector: "[data-path^=\"/docs\" i]").count == 1)
+	#expect(try query(doc.root, selector: "[data-path$=\".html\" i]").count == 1)
+	#expect(try query(doc.root, selector: "[data-path*=\"guide\" i]").count == 1)
 }
 
 @Test func selectorFirstChild() async throws {
@@ -186,6 +210,30 @@ import Testing
 	#expect(results.count == 2)
 	#expect(results[0].toText() == "3")
 	#expect(results[1].toText() == "6")
+}
+
+@Test func selectorOfTypePseudoClasses() async throws {
+	let html = "<section><p>One</p><span>A</span><p>Two</p><span>B</span><p>Three</p></section>"
+	let doc = try JustHTML(html)
+
+	let first = try query(doc.root, selector: "p:first-of-type")
+	#expect(first.count == 1)
+	#expect(first[0].toText() == "One")
+
+	let last = try query(doc.root, selector: "p:last-of-type")
+	#expect(last.count == 1)
+	#expect(last[0].toText() == "Three")
+
+	let only = try query(doc.root, selector: "section:only-of-type")
+	#expect(only.count == 1)
+
+	let nth = try query(doc.root, selector: "p:nth-of-type(2)")
+	#expect(nth.count == 1)
+	#expect(nth[0].toText() == "Two")
+
+	let nthLast = try query(doc.root, selector: "p:nth-last-of-type(2)")
+	#expect(nthLast.count == 1)
+	#expect(nthLast[0].toText() == "Two")
 }
 
 @Test func selectorNot() async throws {

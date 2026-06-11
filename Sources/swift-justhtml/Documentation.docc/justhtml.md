@@ -28,12 +28,12 @@ let html = doc.toHTML()
 
 ## Features
 
-- **Full HTML5 Compliance**: Passes all 1,831 html5lib tree construction tests
+- **Full HTML5 Compliance**: Passes all 1,798 non-scripted html5lib tree construction tests in the current external fixture suite
 - **Zero Dependencies**: Pure Swift implementation using only the standard library and Foundation
 - **Cross-Platform**: Works on macOS, iOS, tvOS, watchOS, visionOS, and Linux
 - **CSS Selectors**: Query documents using standard CSS selector syntax
 - **Multiple Output Formats**: Serialize to HTML, plain text, or Markdown
-- **Streaming API**: Memory-efficient event-based parsing with ``HTMLStream``
+- **Streaming API**: Event-based parsing with ``HTMLStream`` without building a DOM or full token list
 - **Fragment Parsing**: Parse HTML fragments in specific contexts with ``FragmentContext``
 
 ## Topics

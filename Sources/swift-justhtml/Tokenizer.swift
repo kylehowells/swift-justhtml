@@ -11,14 +11,44 @@ public protocol TokenSink: AnyObject {
 	var currentNamespace: Namespace? { get }
 }
 
-/// RCDATA elements that switch tokenizer to RCDATA state
-private let RCDATA_ELEMENTS: Set<String> = ["title", "textarea"]
+// MARK: - DirectTokenSink
 
-/// RAWTEXT elements that switch tokenizer to RAWTEXT state
-private let RAWTEXT_ELEMENTS: Set<String> = ["style", "xmp", "iframe", "noembed", "noframes"]
+/// Internal direct-token sink used by the tree builder to avoid allocating
+/// public Token enum values on the parser hot path.
+internal protocol DirectTokenSink: TokenSink {
+	func processCharacters(_ text: String)
+	func processCharacters(_ text: String, containsNull: Bool)
+	func processStartTag(name: String, attrs: [String: String], selfClosing: Bool)
+	func processEndTag(name: String)
+	func processComment(_ text: String)
+	func processDoctype(_ doctype: Doctype)
+	func processEOF()
+}
 
 /// Script element needs SCRIPT DATA state
 private let SCRIPT_ELEMENT = "script"
+
+/// RCDATA elements that switch tokenizer to RCDATA state.
+private func isRCDATAElement(_ name: String) -> Bool {
+	switch name {
+		case "title", "textarea":
+			return true
+
+		default:
+			return false
+	}
+}
+
+/// RAWTEXT elements that switch tokenizer to RAWTEXT state.
+private func isRAWTEXTElement(_ name: String) -> Bool {
+	switch name {
+		case "style", "xmp", "iframe", "noembed", "noframes":
+			return true
+
+		default:
+			return false
+	}
+}
 
 /// Preprocess line endings per HTML5 spec
 /// CR (U+000D) followed by LF (U+000A) → LF
@@ -110,6 +140,7 @@ public struct TokenizerOpts {
 	public var xmlCoercion: Bool
 	public var discardBom: Bool
 	public var scripting: Bool
+	public var trackLocations: Bool
 	/// Maximum length for named character reference entity names (DoS protection)
 	public var maxEntityNameLength: Int
 
@@ -119,6 +150,7 @@ public struct TokenizerOpts {
 		xmlCoercion: Bool = false,
 		discardBom: Bool = false,
 		scripting: Bool = false,
+		trackLocations: Bool = true,
 		maxEntityNameLength: Int = ParserLimits.default.maxEntityNameLength
 	) {
 		self.initialState = initialState
@@ -126,6 +158,7 @@ public struct TokenizerOpts {
 		self.xmlCoercion = xmlCoercion
 		self.discardBom = discardBom
 		self.scripting = scripting
+		self.trackLocations = trackLocations
 		self.maxEntityNameLength = maxEntityNameLength
 	}
 }
@@ -214,7 +247,8 @@ public final class Tokenizer {
 		case numericCharacterReferenceEnd
 	}
 
-	private weak var sink: TokenSink? = nil
+	private let sink: TokenSink
+	private let directSink: DirectTokenSink?
 	private let opts: TokenizerOpts
 
 	private var state: State
@@ -225,6 +259,9 @@ public final class Tokenizer {
 	private var inputLength: Int = 0
 	private var line: Int = 1
 	private var column: Int = 0
+	private let trackLocations: Bool
+	private var emittedEOF: Bool = false
+	private var eofDrainIterations: Int = 0
 
 	public var currentLine: Int {
 		return self.line
@@ -251,6 +288,7 @@ public final class Tokenizer {
 
 	/// Character buffer (bytes - converted to String only when flushing)
 	private var charBuffer: ContiguousArray<UInt8> = []
+	private var charBufferContainsNull: Bool = false
 
 	/// Reusable buffer for tag/attribute name scanning (avoids allocation per tag)
 	private var nameBuffer: ContiguousArray<UInt8> = []
@@ -270,9 +308,11 @@ public final class Tokenizer {
 	public init(_ sink: TokenSink, opts: TokenizerOpts = TokenizerOpts(), collectErrors: Bool = false)
 	{
 		self.sink = sink
+		self.directSink = sink as? DirectTokenSink
 		self.opts = opts
 		self.state = opts.initialState
 		self.collectErrors = collectErrors
+		self.trackLocations = opts.trackLocations || collectErrors
 		self.pos = 0
 		if let rawtextTag = opts.initialRawtextTag {
 			self.lastStartTagName = rawtextTag
@@ -280,16 +320,49 @@ public final class Tokenizer {
 	}
 
 	public func run(_ html: String) {
+		self.startIncrementalRun(html)
+
+		while self.pumpIncrementalRun() { }
+	}
+
+	internal func startIncrementalRun(_ html: String) {
 		// Preprocess input: normalize line endings per HTML5 spec
 		// CR (U+000D) followed by LF (U+000A) → LF
 		// CR (U+000D) not followed by LF → LF
 		// Note: Always process, don't rely on contains() which may have platform differences
 		let preprocessed = preprocessLineEndings(html)
 
+		self.state = self.opts.initialState
+		self.returnState = .data
+		self.pos = 0
+		self.line = 1
+		self.column = 0
+		self.emittedEOF = false
+		self.eofDrainIterations = 0
+
+		self.currentTagName = ""
+		self.currentTagIsEnd = false
+		self.currentTagSelfClosing = false
+		self.currentAttrs.removeAll(keepingCapacity: true)
+		self.currentAttrName = ""
+		self.currentAttrValue = ""
+		self.currentComment = ""
+		self.currentDoctypeName = ""
+		self.currentDoctypePublicId = nil
+		self.currentDoctypeSystemId = nil
+		self.currentDoctypeForceQuirks = false
+		self.charBuffer.removeAll(keepingCapacity: true)
+		self.charBufferContainsNull = false
+		self.nameBuffer.removeAll(keepingCapacity: true)
+		self.tempBuffer = ""
+		self.lastStartTagName = self.opts.initialRawtextTag ?? ""
+		self.charRefCode = 0
+		self.charRefTempBuffer = ""
+		self.errors.removeAll(keepingCapacity: true)
+
 		// Convert to UTF-8 bytes for fast processing
 		self.inputBytes = ContiguousArray(preprocessed.utf8)
 		self.inputLength = self.inputBytes.count
-		self.pos = 0
 
 		// Optionally discard BOM (EF BB BF in UTF-8)
 		if self.opts.discardBom, self.inputLength >= 3,
@@ -297,22 +370,28 @@ public final class Tokenizer {
 		{
 			self.pos = 3
 		}
+	}
 
-		// Process all input
-		while self.pos < self.inputLength {
+	@discardableResult
+	internal func pumpIncrementalRun() -> Bool {
+		if self.emittedEOF {
+			return false
+		}
+
+		if self.pos < self.inputLength {
 			self.processState()
+			return !self.emittedEOF
 		}
 
 		// Handle EOF - process remaining states until we reach data state
-		var eofIterations = 0
-		while self.state != .data, eofIterations < 100 {
+		if self.state != .data, self.eofDrainIterations < 100 {
 			self.processState()
-			eofIterations += 1
+			self.eofDrainIterations += 1
+			return !self.emittedEOF
 		}
 
-		// Flush and emit EOF
-		self.flushCharBuffer()
-		self.emit(.eof)
+		self.emitEOF()
+		return false
 	}
 
 	/// Switch to plaintext state (called by tree builder for plaintext element)
@@ -565,19 +644,12 @@ public final class Tokenizer {
 
 		// Fast path for ASCII (most common in HTML)
 		if byte < 0x80 {
-			// Track line/column
-			if byte == 0x0A { // '\n'
-				self.line += 1
-				self.column = 0
-			}
-			else {
-				self.column += 1
-			}
+			self.advanceLocation(for: byte)
 			return Character(UnicodeScalar(byte))
 		}
 
 		// Multi-byte UTF-8 sequence
-		self.column += 1
+		self.advanceColumn()
 		return self.decodeUTF8(startingWith: byte)
 	}
 
@@ -666,21 +738,22 @@ public final class Tokenizer {
 			self.pos -= 1
 		}
 
-		// Adjust line/column tracking
-		if self.inputBytes[self.pos] == 0x0A { // '\n'
-			self.line -= 1
-			// column tracking becomes inaccurate here but that's OK
-		}
-		else {
-			self.column -= 1
+		if self.trackLocations {
+			// Adjust line/column tracking
+			if self.inputBytes[self.pos] == 0x0A { // '\n'
+				self.line -= 1
+				// column tracking becomes inaccurate here but that's OK
+			}
+			else {
+				self.column -= 1
+			}
 		}
 	}
 
 	private func consumeIf(_ expected: String, caseInsensitive: Bool = true) -> Bool {
-		let expectedBytes = Array(expected.utf8)
 		var tempPos = self.pos
 
-		for expectedByte in expectedBytes {
+		for expectedByte in expected.utf8 {
 			guard tempPos < self.inputLength else { return false }
 
 			let inputByte = self.inputBytes[tempPos]
@@ -703,8 +776,37 @@ public final class Tokenizer {
 
 		// Consume the matched characters
 		self.pos = tempPos
-		self.column += expectedBytes.count
+		if self.trackLocations {
+			self.column += expected.utf8.count
+		}
 		return true
+	}
+
+	@inline(__always)
+	private func advanceColumn() {
+		if self.trackLocations {
+			self.column += 1
+		}
+	}
+
+	@inline(__always)
+	private func advanceColumns(_ count: Int) {
+		if self.trackLocations {
+			self.column += count
+		}
+	}
+
+	@inline(__always)
+	private func advanceLocation(for byte: UInt8) {
+		guard self.trackLocations else { return }
+
+		if byte == 0x0A {
+			self.line += 1
+			self.column = 0
+		}
+		else {
+			self.column += 1
+		}
 	}
 
 	// MARK: - Token Emission
@@ -712,11 +814,44 @@ public final class Tokenizer {
 	@inline(__always)
 	private func emit(_ token: Token) {
 		self.flushCharBuffer()
-		self.sink?.processToken(token)
+		if let directSink = self.directSink {
+			switch token {
+				case let .startTag(name, attrs, selfClosing):
+					directSink.processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
+
+				case let .endTag(name):
+					directSink.processEndTag(name: name)
+
+				case let .character(text):
+					directSink.processCharacters(text, containsNull: self.containsNullByte(text))
+
+				case let .comment(text):
+					directSink.processComment(text)
+
+				case let .doctype(doctype):
+					directSink.processDoctype(doctype)
+
+				case .eof:
+					directSink.processEOF()
+			}
+			return
+		}
+		self.sink.processToken(token)
+	}
+
+	@inline(__always)
+	private func emitEOF() {
+		guard !self.emittedEOF else { return }
+
+		self.emittedEOF = true
+		self.emit(.eof)
 	}
 
 	@inline(__always)
 	private func emitChar(_ ch: Character) {
+		if ch == "\0" {
+			self.charBufferContainsNull = true
+		}
 		// Convert character to UTF-8 bytes
 		for byte in String(ch).utf8 {
 			self.charBuffer.append(byte)
@@ -727,17 +862,29 @@ public final class Tokenizer {
 	private func emitString(_ s: String) {
 		// Append string as UTF-8 bytes
 		for byte in s.utf8 {
+			if byte == 0 {
+				self.charBufferContainsNull = true
+			}
 			self.charBuffer.append(byte)
 		}
 	}
 
 	@inline(__always)
 	private func emitByte(_ byte: UInt8) {
+		if byte == 0 {
+			self.charBufferContainsNull = true
+		}
 		self.charBuffer.append(byte)
 	}
 
 	@inline(__always)
 	private func emitBytes(_ bytes: ArraySlice<UInt8>) {
+		if !self.charBufferContainsNull {
+			for byte in bytes where byte == 0 {
+				self.charBufferContainsNull = true
+				break
+			}
+		}
 		self.charBuffer.append(contentsOf: bytes)
 	}
 
@@ -748,41 +895,78 @@ public final class Tokenizer {
 			if self.opts.xmlCoercion {
 				text = coerceTextForXML(text)
 			}
-			self.sink?.processToken(.character(text))
+			if let directSink = self.directSink {
+				directSink.processCharacters(text, containsNull: self.charBufferContainsNull)
+			}
+			else {
+				self.sink.processToken(.character(text))
+			}
 			self.charBuffer.removeAll(keepingCapacity: true)
+			self.charBufferContainsNull = false
 		}
+	}
+
+	@inline(__always)
+	private func containsNullByte(_ text: String) -> Bool {
+		for byte in text.utf8 {
+			if byte == 0 {
+				return true
+			}
+		}
+		return false
 	}
 
 	private func emitCurrentTag() {
 		self.flushCharBuffer()
 		if self.currentTagIsEnd {
-			self.sink?.processToken(.endTag(name: self.currentTagName))
+			if let directSink = self.directSink {
+				directSink.processEndTag(name: self.currentTagName)
+			}
+			else {
+				self.sink.processToken(.endTag(name: self.currentTagName))
+			}
 		}
 		else {
-			self.sink?.processToken(
-				.startTag(
+			if let directSink = self.directSink {
+				directSink.processStartTag(
 					name: self.currentTagName, attrs: self.currentAttrs,
-					selfClosing: self.currentTagSelfClosing))
+					selfClosing: self.currentTagSelfClosing)
+			}
+			else {
+				self.sink.processToken(
+					.startTag(
+						name: self.currentTagName, attrs: self.currentAttrs,
+						selfClosing: self.currentTagSelfClosing))
+			}
 			self.lastStartTagName = self.currentTagName
 
 			// Switch to appropriate state for special elements (only in HTML namespace)
-			let ns = self.sink?.currentNamespace
-			if ns == nil || ns == .html {
-				if RCDATA_ELEMENTS.contains(self.currentTagName) {
-					self.state = .rcdata
-				}
-				else if RAWTEXT_ELEMENTS.contains(self.currentTagName) {
-					self.state = .rawtext
-				}
-				else if self.currentTagName == "noscript", self.opts.scripting {
+			let nextState: State?
+			switch self.currentTagName {
+				case "title", "textarea":
+					nextState = .rcdata
+
+				case "style", "xmp", "iframe", "noembed", "noframes":
+					nextState = .rawtext
+
+				case "noscript" where self.opts.scripting:
 					// When scripting is enabled, noscript content is raw text
-					self.state = .rawtext
-				}
-				else if self.currentTagName == SCRIPT_ELEMENT {
-					self.state = .scriptData
-				}
-				else if self.currentTagName == "plaintext" {
-					self.state = .plaintext
+					nextState = .rawtext
+
+				case SCRIPT_ELEMENT:
+					nextState = .scriptData
+
+				case "plaintext":
+					nextState = .plaintext
+
+				default:
+					nextState = nil
+			}
+
+			if let nextState {
+				let ns = self.sink.currentNamespace
+				if ns == nil || ns == .html {
+					self.state = nextState
 				}
 			}
 		}
@@ -826,11 +1010,36 @@ public final class Tokenizer {
 	}
 
 	private func storeCurrentAttr() {
-		if !self.currentAttrName.isEmpty, self.currentAttrs[self.currentAttrName] == nil {
-			self.currentAttrs[self.currentAttrName] = self.currentAttrValue
+		if !self.currentAttrName.isEmpty,
+		   let existingValue = self.currentAttrs.updateValue(self.currentAttrValue, forKey: self.currentAttrName)
+		{
+			self.currentAttrs[self.currentAttrName] = existingValue
 		}
 		self.currentAttrName = ""
 		self.currentAttrValue = ""
+	}
+
+	private func reserveAttrsForCurrentTagIfNeeded() {
+		guard !self.currentTagIsEnd, self.currentAttrs.isEmpty, self.currentAttrName.isEmpty else {
+			return
+		}
+
+		switch self.currentTagName {
+			case "img":
+				self.currentAttrs.reserveCapacity(8)
+
+			case "input":
+				self.currentAttrs.reserveCapacity(6)
+
+			case "form", "textarea", "source":
+				self.currentAttrs.reserveCapacity(4)
+
+			case "section":
+				self.currentAttrs.reserveCapacity(3)
+
+			default:
+				break
+		}
 	}
 
 	private func emitError(_ code: String) {
@@ -844,6 +1053,51 @@ public final class Tokenizer {
 	private func dataState() {
 		// Batch scan: find next special character and emit all text at once
 		let startPos = self.pos
+
+		if !self.trackLocations {
+			while self.pos < self.inputLength {
+				let byte = self.inputBytes[self.pos]
+
+				if byte == 0x3C { // '<'
+					if self.pos > startPos {
+						self.emitTextBytes(from: startPos, to: self.pos)
+					}
+					self.pos += 1
+					self.state = .tagOpen
+					return
+				}
+
+				if byte == 0x26 { // '&'
+					if self.pos > startPos {
+						self.emitTextBytes(from: startPos, to: self.pos)
+					}
+					self.pos += 1
+					self.returnState = .data
+					self.state = .characterReference
+					return
+				}
+
+				if byte == 0x00 { // null
+					if self.pos > startPos {
+						self.emitTextBytes(from: startPos, to: self.pos)
+					}
+					self.pos += 1
+					self.emitError("unexpected-null-character")
+					self.emitChar("\0")
+					return
+				}
+
+				self.pos += 1
+			}
+
+			// EOF
+			if self.pos > startPos {
+				self.emitTextBytes(from: startPos, to: self.pos)
+			}
+			self.emitEOF()
+			return
+		}
+
 		while self.pos < self.inputLength {
 			let byte = self.inputBytes[self.pos]
 
@@ -852,7 +1106,7 @@ public final class Tokenizer {
 					self.emitTextBytes(from: startPos, to: self.pos)
 				}
 				self.pos += 1
-				self.column += 1
+				self.advanceColumn()
 				self.state = .tagOpen
 				return
 			}
@@ -862,7 +1116,7 @@ public final class Tokenizer {
 					self.emitTextBytes(from: startPos, to: self.pos)
 				}
 				self.pos += 1
-				self.column += 1
+				self.advanceColumn()
 				self.returnState = .data
 				self.state = .characterReference
 				return
@@ -873,20 +1127,13 @@ public final class Tokenizer {
 					self.emitTextBytes(from: startPos, to: self.pos)
 				}
 				self.pos += 1
-				self.column += 1
+				self.advanceColumn()
 				self.emitError("unexpected-null-character")
 				self.emitChar("\0")
 				return
 			}
 
-			// Track line/column for error reporting
-			if byte == 0x0A {
-				self.line += 1
-				self.column = 0
-			}
-			else {
-				self.column += 1
-			}
+			self.advanceLocation(for: byte)
 			self.pos += 1
 		}
 
@@ -894,7 +1141,7 @@ public final class Tokenizer {
 		if self.pos > startPos {
 			self.emitTextBytes(from: startPos, to: self.pos)
 		}
-		self.emit(.eof)
+		self.emitEOF()
 	}
 
 	/// Emit a run of bytes as text (just copy bytes, convert when flushing)
@@ -915,7 +1162,7 @@ public final class Tokenizer {
 					self.emitTextBytes(from: startPos, to: self.pos)
 				}
 				self.pos += 1
-				self.column += 1
+				self.advanceColumn()
 				self.state = .rcdataLessThan
 				return
 			}
@@ -925,7 +1172,7 @@ public final class Tokenizer {
 					self.emitTextBytes(from: startPos, to: self.pos)
 				}
 				self.pos += 1
-				self.column += 1
+				self.advanceColumn()
 				self.returnState = .rcdata
 				self.state = .characterReference
 				return
@@ -936,26 +1183,20 @@ public final class Tokenizer {
 					self.emitTextBytes(from: startPos, to: self.pos)
 				}
 				self.pos += 1
-				self.column += 1
+				self.advanceColumn()
 				self.emitError("unexpected-null-character")
 				self.emitChar("\u{FFFD}")
 				return
 			}
 
-			if byte == 0x0A {
-				self.line += 1
-				self.column = 0
-			}
-			else {
-				self.column += 1
-			}
+			self.advanceLocation(for: byte)
 			self.pos += 1
 		}
 
 		if self.pos > startPos {
 			self.emitTextBytes(from: startPos, to: self.pos)
 		}
-		self.emit(.eof)
+		self.emitEOF()
 	}
 
 	private func rawtextState() {
@@ -969,7 +1210,7 @@ public final class Tokenizer {
 					self.emitTextBytes(from: startPos, to: self.pos)
 				}
 				self.pos += 1
-				self.column += 1
+				self.advanceColumn()
 				self.state = .rawtextLessThan
 				return
 			}
@@ -979,31 +1220,25 @@ public final class Tokenizer {
 					self.emitTextBytes(from: startPos, to: self.pos)
 				}
 				self.pos += 1
-				self.column += 1
+				self.advanceColumn()
 				self.emitError("unexpected-null-character")
 				self.emitChar("\u{FFFD}")
 				return
 			}
 
-			if byte == 0x0A {
-				self.line += 1
-				self.column = 0
-			}
-			else {
-				self.column += 1
-			}
+			self.advanceLocation(for: byte)
 			self.pos += 1
 		}
 
 		if self.pos > startPos {
 			self.emitTextBytes(from: startPos, to: self.pos)
 		}
-		self.emit(.eof)
+		self.emitEOF()
 	}
 
 	private func plaintextState() {
 		guard let ch = consume() else {
-			self.emit(.eof)
+			self.emitEOF()
 			return
 		}
 
@@ -1017,57 +1252,61 @@ public final class Tokenizer {
 	}
 
 	private func tagOpenState() {
-		guard let ch = consume() else {
+		guard self.pos < self.inputLength else {
 			self.emitError("eof-before-tag-name")
 			self.emitChar("<")
 			self.state = .data
 			return
 		}
 
-		switch ch {
-			case "!":
+		let byte = self.inputBytes[self.pos]
+		switch byte {
+			case 0x21: // !
+				self.pos += 1
+				self.advanceColumn()
 				self.state = .markupDeclarationOpen
 
-			case "/":
+			case 0x2F: // /
+				self.pos += 1
+				self.advanceColumn()
 				self.state = .endTagOpen
 
-			case "?":
+			case 0x3F: // ?
 				self.emitError("unexpected-question-mark-instead-of-tag-name")
 				self.currentComment = ""
 				self.state = .bogusComment
-				self.reconsume()
 
 			default:
-				if ch.isASCIILetter {
+				if (byte >= 0x41 && byte <= 0x5A) || (byte >= 0x61 && byte <= 0x7A) {
 					self.resetTag()
 					self.currentTagIsEnd = false
 					self.state = .tagName
-					self.reconsume()
 				}
 				else {
 					self.emitError("invalid-first-character-of-tag-name")
 					self.emitChar("<")
 					self.state = .data
-					self.reconsume()
 				}
 		}
 	}
 
 	private func endTagOpenState() {
-		guard let ch = consume() else {
+		guard self.pos < self.inputLength else {
 			self.emitError("eof-before-tag-name")
 			self.emitString("</")
 			self.state = .data
 			return
 		}
 
-		if ch.isASCIILetter {
+		let byte = self.inputBytes[self.pos]
+		if (byte >= 0x41 && byte <= 0x5A) || (byte >= 0x61 && byte <= 0x7A) {
 			self.resetTag()
 			self.currentTagIsEnd = true
 			self.state = .tagName
-			self.reconsume()
 		}
-		else if ch == ">" {
+		else if byte == 0x3E {
+			self.pos += 1
+			self.advanceColumn()
 			self.emitError("missing-end-tag-name")
 			self.state = .data
 		}
@@ -1075,7 +1314,6 @@ public final class Tokenizer {
 			self.emitError("invalid-first-character-of-tag-name")
 			self.currentComment = ""
 			self.state = .bogusComment
-			self.reconsume()
 		}
 	}
 
@@ -1084,6 +1322,37 @@ public final class Tokenizer {
 		// Use reusable buffer to avoid allocation per tag
 		self.nameBuffer.removeAll(keepingCapacity: true)
 
+		let lowercaseRunStart = self.pos
+		var lowercaseRunEnd = self.pos
+		while lowercaseRunEnd < self.inputLength {
+			let byte = self.inputBytes[lowercaseRunEnd]
+			switch byte {
+				case 0x09, 0x0A, 0x0C, 0x20, 0x2F, 0x3E, 0x00:
+					break
+
+				case 0x41 ... 0x5A, 0x80 ... 0xFF:
+					break
+
+				default:
+					lowercaseRunEnd += 1
+					continue
+			}
+			break
+		}
+		if lowercaseRunEnd > lowercaseRunStart {
+			let decoded = String(
+				decoding: self.inputBytes[lowercaseRunStart ..< lowercaseRunEnd],
+				as: UTF8.self)
+			if self.currentTagName.isEmpty {
+				self.currentTagName = decoded
+			}
+			else {
+				self.currentTagName.append(decoded)
+			}
+			self.advanceColumns(lowercaseRunEnd - lowercaseRunStart)
+			self.pos = lowercaseRunEnd
+		}
+
 		while self.pos < self.inputLength {
 			let byte = self.inputBytes[self.pos]
 
@@ -1091,7 +1360,7 @@ public final class Tokenizer {
 			switch byte {
 				case 0x09, 0x0A, 0x0C, 0x20: // \t \n \f space
 					self.pos += 1
-					self.column += 1
+					self.advanceLocation(for: byte)
 					if !self.nameBuffer.isEmpty {
 						self.currentTagName.append(String(decoding: self.nameBuffer, as: UTF8.self))
 					}
@@ -1100,7 +1369,7 @@ public final class Tokenizer {
 
 				case 0x2F: // /
 					self.pos += 1
-					self.column += 1
+					self.advanceColumn()
 					if !self.nameBuffer.isEmpty {
 						self.currentTagName.append(String(decoding: self.nameBuffer, as: UTF8.self))
 					}
@@ -1109,7 +1378,7 @@ public final class Tokenizer {
 
 				case 0x3E: // >
 					self.pos += 1
-					self.column += 1
+					self.advanceColumn()
 					if !self.nameBuffer.isEmpty {
 						self.currentTagName.append(String(decoding: self.nameBuffer, as: UTF8.self))
 					}
@@ -1119,7 +1388,7 @@ public final class Tokenizer {
 
 				case 0x00: // null
 					self.pos += 1
-					self.column += 1
+					self.advanceColumn()
 					if !self.nameBuffer.isEmpty {
 						self.currentTagName.append(String(decoding: self.nameBuffer, as: UTF8.self))
 						self.nameBuffer.removeAll(keepingCapacity: true)
@@ -1138,13 +1407,7 @@ public final class Tokenizer {
 					}
 
 					// Track position
-					if byte == 0x0A {
-						self.line += 1
-						self.column = 0
-					}
-					else {
-						self.column += 1
-					}
+					self.advanceLocation(for: byte)
 					self.pos += 1
 
 					// Handle multi-byte UTF-8 sequences
@@ -1362,7 +1625,7 @@ public final class Tokenizer {
 
 	private func scriptDataState() {
 		guard let ch = consume() else {
-			self.emit(.eof)
+			self.emitEOF()
 			return
 		}
 
@@ -1515,7 +1778,7 @@ public final class Tokenizer {
 	private func scriptDataEscapedState() {
 		guard let ch = consume() else {
 			self.emitError("eof-in-script-html-comment-like-text")
-			self.emit(.eof)
+			self.emitEOF()
 			return
 		}
 
@@ -1539,7 +1802,7 @@ public final class Tokenizer {
 	private func scriptDataEscapedDashState() {
 		guard let ch = consume() else {
 			self.emitError("eof-in-script-html-comment-like-text")
-			self.emit(.eof)
+			self.emitEOF()
 			return
 		}
 
@@ -1565,7 +1828,7 @@ public final class Tokenizer {
 	private func scriptDataEscapedDashDashState() {
 		guard let ch = consume() else {
 			self.emitError("eof-in-script-html-comment-like-text")
-			self.emit(.eof)
+			self.emitEOF()
 			return
 		}
 
@@ -1727,7 +1990,7 @@ public final class Tokenizer {
 	private func scriptDataDoubleEscapedState() {
 		guard let ch = consume() else {
 			self.emitError("eof-in-script-html-comment-like-text")
-			self.emit(.eof)
+			self.emitEOF()
 			return
 		}
 
@@ -1752,7 +2015,7 @@ public final class Tokenizer {
 	private func scriptDataDoubleEscapedDashState() {
 		guard let ch = consume() else {
 			self.emitError("eof-in-script-html-comment-like-text")
-			self.emit(.eof)
+			self.emitEOF()
 			return
 		}
 
@@ -1779,7 +2042,7 @@ public final class Tokenizer {
 	private func scriptDataDoubleEscapedDashDashState() {
 		guard let ch = consume() else {
 			self.emitError("eof-in-script-html-comment-like-text")
-			self.emit(.eof)
+			self.emitEOF()
 			return
 		}
 
@@ -1852,32 +2115,47 @@ public final class Tokenizer {
 	}
 
 	private func beforeAttributeNameState() {
-		guard let ch = consume() else {
-			self.emitError("eof-in-tag")
-			self.state = .data
-			return
+		while self.pos < self.inputLength {
+			let byte = self.inputBytes[self.pos]
+
+			switch byte {
+				case 0x09, 0x0A, 0x0C, 0x20: // \t \n \f space
+					self.pos += 1
+					self.advanceLocation(for: byte)
+
+				case 0x2F: // /
+					self.pos += 1
+					self.advanceColumn()
+					self.state = .selfClosingStartTag
+					return
+
+				case 0x3E: // >
+					self.pos += 1
+					self.advanceColumn()
+					self.state = .data
+					self.emitCurrentTag()
+					return
+
+				case 0x3D: // =
+					self.pos += 1
+					self.advanceColumn()
+					self.emitError("unexpected-equals-sign-before-attribute-name")
+					self.reserveAttrsForCurrentTagIfNeeded()
+					self.currentAttrName = "="
+					self.state = .attributeName
+					return
+
+				default:
+					self.reserveAttrsForCurrentTagIfNeeded()
+					self.storeCurrentAttr()
+					self.state = .attributeName
+					return
+			}
 		}
 
-		switch ch {
-			case "\t", "\n", "\u{0C}", " ":
-				// Ignore
-				break
-
-			case "/", ">":
-				self.state = ch == "/" ? .selfClosingStartTag : .data
-				if ch == ">" {
-					self.emitCurrentTag()
-				}
-
-			case "=":
-				self.emitError("unexpected-equals-sign-before-attribute-name")
-				self.currentAttrName = String(ch)
-				self.state = .attributeName
-
-			default:
-				self.storeCurrentAttr()
-				self.state = .attributeName
-				self.reconsume()
+		if self.pos >= self.inputLength {
+			self.emitError("eof-in-tag")
+			self.state = .data
 		}
 	}
 
@@ -1886,13 +2164,44 @@ public final class Tokenizer {
 		// Use reusable buffer to avoid allocation per attribute
 		self.nameBuffer.removeAll(keepingCapacity: true)
 
+		let lowercaseRunStart = self.pos
+		var lowercaseRunEnd = self.pos
+		while lowercaseRunEnd < self.inputLength {
+			let byte = self.inputBytes[lowercaseRunEnd]
+			switch byte {
+				case 0x09, 0x0A, 0x0C, 0x20, 0x2F, 0x3E, 0x3D, 0x00, 0x22, 0x27, 0x3C:
+					break
+
+				case 0x41 ... 0x5A, 0x80 ... 0xFF:
+					break
+
+				default:
+					lowercaseRunEnd += 1
+					continue
+			}
+			break
+		}
+		if lowercaseRunEnd > lowercaseRunStart {
+			let decoded = String(
+				decoding: self.inputBytes[lowercaseRunStart ..< lowercaseRunEnd],
+				as: UTF8.self)
+			if self.currentAttrName.isEmpty {
+				self.currentAttrName = decoded
+			}
+			else {
+				self.currentAttrName.append(decoded)
+			}
+			self.advanceColumns(lowercaseRunEnd - lowercaseRunStart)
+			self.pos = lowercaseRunEnd
+		}
+
 		while self.pos < self.inputLength {
 			let byte = self.inputBytes[self.pos]
 
 			switch byte {
 				case 0x09, 0x0A, 0x0C, 0x20: // \t \n \f space
 					self.pos += 1
-					self.column += 1
+					self.advanceLocation(for: byte)
 					if !self.nameBuffer.isEmpty {
 						self.currentAttrName.append(String(decoding: self.nameBuffer, as: UTF8.self))
 					}
@@ -1901,7 +2210,7 @@ public final class Tokenizer {
 
 				case 0x2F: // /
 					self.pos += 1
-					self.column += 1
+					self.advanceColumn()
 					if !self.nameBuffer.isEmpty {
 						self.currentAttrName.append(String(decoding: self.nameBuffer, as: UTF8.self))
 					}
@@ -1911,7 +2220,7 @@ public final class Tokenizer {
 
 				case 0x3E: // >
 					self.pos += 1
-					self.column += 1
+					self.advanceColumn()
 					if !self.nameBuffer.isEmpty {
 						self.currentAttrName.append(String(decoding: self.nameBuffer, as: UTF8.self))
 					}
@@ -1922,7 +2231,7 @@ public final class Tokenizer {
 
 				case 0x3D: // =
 					self.pos += 1
-					self.column += 1
+					self.advanceColumn()
 					if !self.nameBuffer.isEmpty {
 						self.currentAttrName.append(String(decoding: self.nameBuffer, as: UTF8.self))
 					}
@@ -1931,7 +2240,7 @@ public final class Tokenizer {
 
 				case 0x00: // null
 					self.pos += 1
-					self.column += 1
+					self.advanceColumn()
 					if !self.nameBuffer.isEmpty {
 						self.currentAttrName.append(String(decoding: self.nameBuffer, as: UTF8.self))
 						self.nameBuffer.removeAll(keepingCapacity: true)
@@ -1941,7 +2250,7 @@ public final class Tokenizer {
 
 				case 0x22, 0x27, 0x3C: // " ' <
 					self.pos += 1
-					self.column += 1
+					self.advanceColumn()
 					if !self.nameBuffer.isEmpty {
 						self.currentAttrName.append(String(decoding: self.nameBuffer, as: UTF8.self))
 						self.nameBuffer.removeAll(keepingCapacity: true)
@@ -1957,7 +2266,7 @@ public final class Tokenizer {
 					else {
 						self.nameBuffer.append(byte)
 					}
-					self.column += 1
+					self.advanceColumn()
 					self.pos += 1
 
 					// Handle multi-byte UTF-8
@@ -1979,63 +2288,87 @@ public final class Tokenizer {
 	}
 
 	private func afterAttributeNameState() {
-		guard let ch = consume() else {
-			self.emitError("eof-in-tag")
-			self.state = .data
-			return
+		while self.pos < self.inputLength {
+			let byte = self.inputBytes[self.pos]
+
+			switch byte {
+				case 0x09, 0x0A, 0x0C, 0x20: // \t \n \f space
+					self.pos += 1
+					self.advanceLocation(for: byte)
+
+				case 0x2F: // /
+					self.pos += 1
+					self.advanceColumn()
+					self.storeCurrentAttr()
+					self.state = .selfClosingStartTag
+					return
+
+				case 0x3D: // =
+					self.pos += 1
+					self.advanceColumn()
+					self.state = .beforeAttributeValue
+					return
+
+				case 0x3E: // >
+					self.pos += 1
+					self.advanceColumn()
+					self.storeCurrentAttr()
+					self.state = .data
+					self.emitCurrentTag()
+					return
+
+				default:
+					self.storeCurrentAttr()
+					self.state = .attributeName
+					return
+			}
 		}
 
-		switch ch {
-			case "\t", "\n", "\u{0C}", " ":
-				// Ignore
-				break
-
-			case "/":
-				self.storeCurrentAttr()
-				self.state = .selfClosingStartTag
-
-			case "=":
-				self.state = .beforeAttributeValue
-
-			case ">":
-				self.storeCurrentAttr()
-				self.state = .data
-				self.emitCurrentTag()
-
-			default:
-				self.storeCurrentAttr()
-				self.state = .attributeName
-				self.reconsume()
+		if self.pos >= self.inputLength {
+			self.emitError("eof-in-tag")
+			self.state = .data
 		}
 	}
 
 	private func beforeAttributeValueState() {
-		guard let ch = consume() else {
-			self.emitError("eof-in-tag")
-			self.state = .data
-			return
+		while self.pos < self.inputLength {
+			let byte = self.inputBytes[self.pos]
+
+			switch byte {
+				case 0x09, 0x0A, 0x0C, 0x20: // \t \n \f space
+					self.pos += 1
+					self.advanceLocation(for: byte)
+
+				case 0x22: // "
+					self.pos += 1
+					self.advanceColumn()
+					self.state = .attributeValueDoubleQuoted
+					return
+
+				case 0x27: // '
+					self.pos += 1
+					self.advanceColumn()
+					self.state = .attributeValueSingleQuoted
+					return
+
+				case 0x3E: // >
+					self.pos += 1
+					self.advanceColumn()
+					self.emitError("missing-attribute-value")
+					self.storeCurrentAttr()
+					self.state = .data
+					self.emitCurrentTag()
+					return
+
+				default:
+					self.state = .attributeValueUnquoted
+					return
+			}
 		}
 
-		switch ch {
-			case "\t", "\n", "\u{0C}", " ":
-				// Ignore
-				break
-
-			case "\"":
-				self.state = .attributeValueDoubleQuoted
-
-			case "'":
-				self.state = .attributeValueSingleQuoted
-
-			case ">":
-				self.emitError("missing-attribute-value")
-				self.storeCurrentAttr()
-				self.state = .data
-				self.emitCurrentTag()
-
-			default:
-				self.state = .attributeValueUnquoted
-				self.reconsume()
+		if self.pos >= self.inputLength {
+			self.emitError("eof-in-tag")
+			self.state = .data
 		}
 	}
 
@@ -2053,7 +2386,7 @@ public final class Tokenizer {
 							String(decoding: self.inputBytes[startPos ..< self.pos], as: UTF8.self))
 					}
 					self.pos += 1
-					self.column += 1
+					self.advanceColumn()
 					self.storeCurrentAttr()
 					self.state = .afterAttributeValueQuoted
 					return
@@ -2064,7 +2397,7 @@ public final class Tokenizer {
 							String(decoding: self.inputBytes[startPos ..< self.pos], as: UTF8.self))
 					}
 					self.pos += 1
-					self.column += 1
+					self.advanceColumn()
 					self.returnState = .attributeValueDoubleQuoted
 					self.state = .characterReference
 					return
@@ -2075,7 +2408,7 @@ public final class Tokenizer {
 							String(decoding: self.inputBytes[startPos ..< self.pos], as: UTF8.self))
 					}
 					self.pos += 1
-					self.column += 1
+					self.advanceColumn()
 					self.emitError("unexpected-null-character")
 					self.currentAttrValue.append("\u{FFFD}")
 					// Restart scanning from current position
@@ -2083,13 +2416,7 @@ public final class Tokenizer {
 					return
 
 				default:
-					if byte == 0x0A {
-						self.line += 1
-						self.column = 0
-					}
-					else {
-						self.column += 1
-					}
+					self.advanceLocation(for: byte)
 					self.pos += 1
 			}
 		}
@@ -2117,7 +2444,7 @@ public final class Tokenizer {
 							String(decoding: self.inputBytes[startPos ..< self.pos], as: UTF8.self))
 					}
 					self.pos += 1
-					self.column += 1
+					self.advanceColumn()
 					self.storeCurrentAttr()
 					self.state = .afterAttributeValueQuoted
 					return
@@ -2128,7 +2455,7 @@ public final class Tokenizer {
 							String(decoding: self.inputBytes[startPos ..< self.pos], as: UTF8.self))
 					}
 					self.pos += 1
-					self.column += 1
+					self.advanceColumn()
 					self.returnState = .attributeValueSingleQuoted
 					self.state = .characterReference
 					return
@@ -2139,7 +2466,7 @@ public final class Tokenizer {
 							String(decoding: self.inputBytes[startPos ..< self.pos], as: UTF8.self))
 					}
 					self.pos += 1
-					self.column += 1
+					self.advanceColumn()
 					self.emitError("unexpected-null-character")
 					self.currentAttrValue.append("\u{FFFD}")
 					// Restart scanning from current position
@@ -2147,13 +2474,7 @@ public final class Tokenizer {
 					return
 
 				default:
-					if byte == 0x0A {
-						self.line += 1
-						self.column = 0
-					}
-					else {
-						self.column += 1
-					}
+					self.advanceLocation(for: byte)
 					self.pos += 1
 			}
 		}
@@ -2181,7 +2502,7 @@ public final class Tokenizer {
 							String(decoding: self.inputBytes[startPos ..< self.pos], as: UTF8.self))
 					}
 					self.pos += 1
-					self.column += 1
+					self.advanceLocation(for: byte)
 					self.storeCurrentAttr()
 					self.state = .beforeAttributeName
 					return
@@ -2192,7 +2513,7 @@ public final class Tokenizer {
 							String(decoding: self.inputBytes[startPos ..< self.pos], as: UTF8.self))
 					}
 					self.pos += 1
-					self.column += 1
+					self.advanceColumn()
 					self.returnState = .attributeValueUnquoted
 					self.state = .characterReference
 					return
@@ -2203,7 +2524,7 @@ public final class Tokenizer {
 							String(decoding: self.inputBytes[startPos ..< self.pos], as: UTF8.self))
 					}
 					self.pos += 1
-					self.column += 1
+					self.advanceColumn()
 					self.storeCurrentAttr()
 					self.state = .data
 					self.emitCurrentTag()
@@ -2215,7 +2536,7 @@ public final class Tokenizer {
 							String(decoding: self.inputBytes[startPos ..< self.pos], as: UTF8.self))
 					}
 					self.pos += 1
-					self.column += 1
+					self.advanceColumn()
 					self.emitError("unexpected-null-character")
 					self.currentAttrValue.append("\u{FFFD}")
 					// Restart scanning from current position
@@ -2228,7 +2549,7 @@ public final class Tokenizer {
 							String(decoding: self.inputBytes[startPos ..< self.pos], as: UTF8.self))
 					}
 					self.pos += 1
-					self.column += 1
+					self.advanceColumn()
 					self.emitError("unexpected-character-in-unquoted-attribute-value")
 					self.currentAttrValue.append(Character(UnicodeScalar(byte)))
 					// Restart scanning from current position
@@ -2236,13 +2557,7 @@ public final class Tokenizer {
 					return
 
 				default:
-					if byte == 0x0A {
-						self.line += 1
-						self.column = 0
-					}
-					else {
-						self.column += 1
-					}
+					self.advanceLocation(for: byte)
 					self.pos += 1
 			}
 		}
@@ -2257,24 +2572,32 @@ public final class Tokenizer {
 	}
 
 	private func afterAttributeValueQuotedState() {
-		guard let ch = consume() else {
+		guard self.pos < self.inputLength else {
 			self.emitError("eof-in-tag")
 			self.state = .data
 			return
 		}
 
-		switch ch {
-			case "\t", "\n", "\u{0C}", " ":
+		let byte = self.inputBytes[self.pos]
+		switch byte {
+			case 0x09, 0x0A, 0x0C, 0x20: // \t \n \f space
+				self.pos += 1
+				self.advanceLocation(for: byte)
 				self.state = .beforeAttributeName
 
-			case "/":
+			case 0x2F: // /
+				self.pos += 1
+				self.advanceColumn()
 				self.state = .selfClosingStartTag
 
-			case ">":
+			case 0x3E: // >
+				self.pos += 1
+				self.advanceColumn()
 				self.state = .data
 				self.emitCurrentTag()
 
 			default:
+				_ = self.consume()
 				self.emitError("missing-whitespace-between-attributes")
 				self.state = .beforeAttributeName
 				self.reconsume()
@@ -2282,22 +2605,24 @@ public final class Tokenizer {
 	}
 
 	private func selfClosingStartTagState() {
-		guard let ch = consume() else {
+		guard self.pos < self.inputLength else {
 			self.emitError("eof-in-tag")
 			self.state = .data
 			return
 		}
 
-		switch ch {
-			case ">":
-				self.currentTagSelfClosing = true
-				self.state = .data
-				self.emitCurrentTag()
-
-			default:
-				self.emitError("unexpected-solidus-in-tag")
-				self.state = .beforeAttributeName
-				self.reconsume()
+		if self.inputBytes[self.pos] == 0x3E {
+			self.pos += 1
+			self.advanceColumn()
+			self.currentTagSelfClosing = true
+			self.state = .data
+			self.emitCurrentTag()
+		}
+		else {
+			_ = self.consume()
+			self.emitError("unexpected-solidus-in-tag")
+			self.state = .beforeAttributeName
+			self.reconsume()
 		}
 	}
 
@@ -2332,7 +2657,8 @@ public final class Tokenizer {
 		}
 		else if self.consumeIf("[CDATA[", caseInsensitive: false) {
 			// CDATA is only valid in foreign content (SVG/MathML)
-			if let ns = sink?.currentNamespace, ns == .svg || ns == .math {
+			let ns = self.sink.currentNamespace
+			if ns == .svg || ns == .math {
 				// In foreign content - process as CDATA section
 				self.state = .cdataSection
 			}
@@ -3032,6 +3358,11 @@ public final class Tokenizer {
 	}
 
 	private func namedCharacterReferenceState() {
+		if self.emitCommonNamedCharacterReference() {
+			self.state = self.returnState
+			return
+		}
+
 		// Collect alphanumeric characters
 		var entityName = ""
 		var matchedEntity: String? = nil
@@ -3162,6 +3493,69 @@ public final class Tokenizer {
 		self.state = .ambiguousAmpersand
 	}
 
+	@inline(__always)
+	private func emitCommonNamedCharacterReference() -> Bool {
+		let remaining = self.inputLength - self.pos
+
+		if remaining >= 3 {
+			let b0 = self.inputBytes[self.pos]
+			let b1 = self.inputBytes[self.pos + 1]
+			let b2 = self.inputBytes[self.pos + 2]
+
+			if self.hasEntitySemicolon(after: 3), b0 == 0x61, b1 == 0x6D, b2 == 0x70 { // amp
+				return self.emitFastEntity("&", byteCount: 4)
+			}
+			if self.hasEntitySemicolon(after: 3), b0 == 0x41, b1 == 0x4D, b2 == 0x50 { // AMP
+				return self.emitFastEntity("&", byteCount: 4)
+			}
+			if self.hasEntitySemicolon(after: 2), b0 == 0x6C, b1 == 0x74 { // lt
+				return self.emitFastEntity("<", byteCount: 3)
+			}
+			if self.hasEntitySemicolon(after: 2), b0 == 0x67, b1 == 0x74 { // gt
+				return self.emitFastEntity(">", byteCount: 3)
+			}
+			if self.hasEntitySemicolon(after: 2), b0 == 0x4C, b1 == 0x54 { // LT
+				return self.emitFastEntity("<", byteCount: 3)
+			}
+			if self.hasEntitySemicolon(after: 2), b0 == 0x47, b1 == 0x54 { // GT
+				return self.emitFastEntity(">", byteCount: 3)
+			}
+		}
+
+		if remaining >= 4 {
+			let b0 = self.inputBytes[self.pos]
+			let b1 = self.inputBytes[self.pos + 1]
+			let b2 = self.inputBytes[self.pos + 2]
+			let b3 = self.inputBytes[self.pos + 3]
+
+			if self.hasEntitySemicolon(after: 4), b0 == 0x71, b1 == 0x75, b2 == 0x6F, b3 == 0x74 { // quot
+				return self.emitFastEntity("\"", byteCount: 5)
+			}
+			if self.hasEntitySemicolon(after: 4), b0 == 0x51, b1 == 0x55, b2 == 0x4F, b3 == 0x54 { // QUOT
+				return self.emitFastEntity("\"", byteCount: 5)
+			}
+			if self.hasEntitySemicolon(after: 4), b0 == 0x6E, b1 == 0x62, b2 == 0x73, b3 == 0x70 { // nbsp
+				return self.emitFastEntity("\u{00A0}", byteCount: 5)
+			}
+		}
+
+		return false
+	}
+
+	@inline(__always)
+	private func hasEntitySemicolon(after byteCount: Int) -> Bool {
+		let semicolonIndex = self.pos + byteCount
+		return semicolonIndex < self.inputLength && self.inputBytes[semicolonIndex] == 0x3B
+	}
+
+	@inline(__always)
+	private func emitFastEntity(_ entity: String, byteCount: Int) -> Bool {
+		self.pos += byteCount
+		self.advanceColumns(byteCount)
+		self.emitCharRefString(entity)
+		return true
+	}
+
 	private func ambiguousAmpersandState() {
 		guard let ch = consume() else {
 			self.state = self.returnState
@@ -3192,7 +3586,6 @@ public final class Tokenizer {
 
 		guard let ch = consume() else {
 			self.state = .decimalCharacterReferenceStart
-			self.reconsume()
 			return
 		}
 
@@ -3470,6 +3863,32 @@ extension String {
 				let lower1 = b1 >= 65 && b1 <= 90 ? b1 + 32 : b1
 				let lower2 = b2 >= 65 && b2 <= 90 ? b2 + 32 : b2
 				if lower1 != lower2 {
+					return false
+				}
+			}
+		}
+
+		return true
+	}
+
+	/// Fast ASCII case-insensitive prefix check using UTF-8 bytes
+	@inline(__always)
+	func asciiCaseInsensitiveHasPrefix(_ prefix: String) -> Bool {
+		let selfUTF8 = self.utf8
+		let prefixUTF8 = prefix.utf8
+
+		guard selfUTF8.count >= prefixUTF8.count else { return false }
+
+		var selfIter = selfUTF8.makeIterator()
+		var prefixIter = prefixUTF8.makeIterator()
+
+		while let prefixByte = prefixIter.next() {
+			guard let selfByte = selfIter.next() else { return false }
+
+			if selfByte != prefixByte {
+				let lowerSelf = selfByte >= 65 && selfByte <= 90 ? selfByte + 32 : selfByte
+				let lowerPrefix = prefixByte >= 65 && prefixByte <= 90 ? prefixByte + 32 : prefixByte
+				if lowerSelf != lowerPrefix {
 					return false
 				}
 			}

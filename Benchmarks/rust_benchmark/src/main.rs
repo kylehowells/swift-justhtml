@@ -209,6 +209,10 @@ fn main() {
     // Sort by filename
     all_files.sort_by(|a, b| a.1.cmp(&b.1));
 
+    if std::env::var("BENCHMARK_SKIP_SYNTHETIC").ok().as_deref() == Some("1") {
+        all_files.retain(|(_, filename, _)| filename != "synthetic.html");
+    }
+
     let mut results = Vec::new();
 
     for (filepath, filename, file_size) in all_files {

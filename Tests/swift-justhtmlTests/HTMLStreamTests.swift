@@ -65,3 +65,17 @@ import Testing
 	// First event should be comment
 	#expect(events[0] == .comment(" This is a comment "))
 }
+
+@Test func hTMLStreamCompactsConsumedEventsWithoutReordering() async throws {
+	let html = (0 ..< 80).map { "<p>\($0)</p>" }.joined()
+	let events = Array(HTMLStream(html))
+
+	#expect(events.count == 240)
+
+	for i in 0 ..< 80 {
+		let offset = i * 3
+		#expect(events[offset] == .start(tagName: "p", attrs: [:]))
+		#expect(events[offset + 1] == .text(String(i)))
+		#expect(events[offset + 2] == .end(tagName: "p"))
+	}
+}

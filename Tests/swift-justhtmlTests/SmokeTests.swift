@@ -40,6 +40,17 @@ import Testing
 	#expect(doc.toText() == "X")
 }
 
+@Test func smokeTestFosterParentedTextBeforeTableMerges() async throws {
+	let html = "<!doctype html><table>before<tr><td>cell</td></tr></table>"
+	let doc = try JustHTML(html)
+	let body = try #require(doc.query("body").first)
+
+	#expect(body.children.count >= 2)
+	#expect(body.children[0].name == "#text")
+	#expect(body.children[0].text == "before")
+	#expect(body.children[1].name == "table")
+}
+
 @Test func smokeTestMultiBody() async throws {
 	let html = "<body><body><base><link><meta><title><p></title><body><p></body>"
 	let doc = try JustHTML(html)

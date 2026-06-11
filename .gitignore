@@ -33,5 +33,6 @@ fastlane/test_output
 # Benchmark sample files (downloaded HTML)
 Benchmarks/samples/
 Benchmarks/*.json
+Benchmarks/BENCHMARK_RESULTS.incomplete.md
 Benchmarks/test_files/synthetic.html
 Benchmarks/rust_benchmark/target/

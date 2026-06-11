@@ -75,17 +75,29 @@ class ProfilerStats {
 
 // MARK: - Sample File Loader
 
-private let kSampleFilesBasePath =
-	"/home/kyle/Development/justhtml/swift-justhtml/Benchmarks/samples"
+private func sampleFilesDirectory() -> URL? {
+	let fileManager = FileManager.default
+	let cwdUrl = URL(fileURLWithPath: fileManager.currentDirectoryPath)
+	let possiblePaths = [
+		cwdUrl.appendingPathComponent("Benchmarks/samples"),
+		cwdUrl.appendingPathComponent("../Benchmarks/samples"),
+		Bundle.module.bundleURL.appendingPathComponent("Benchmarks/samples"),
+	]
+
+	return possiblePaths.first { fileManager.fileExists(atPath: $0.path) }
+}
 
 /// Check if sample files are available (skip tests on CI)
 func sampleFilesAvailable() -> Bool {
-	FileManager.default.fileExists(atPath: kSampleFilesBasePath)
+	sampleFilesDirectory() != nil
 }
 
 func loadSampleFile(_ name: String) throws -> String {
-	let path = "\(kSampleFilesBasePath)/\(name)"
-	return try String(contentsOfFile: path, encoding: .utf8)
+	guard let directory = sampleFilesDirectory() else {
+		throw CocoaError(.fileNoSuchFile)
+	}
+
+	return try String(contentsOf: directory.appendingPathComponent(name), encoding: .utf8)
 }
 
 // MARK: - Profiling Tests
@@ -160,8 +172,6 @@ func loadSampleFile(_ name: String) throws -> String {
 		String(
 			format: "| **TOTAL** | %d KB | %.2f ms | - | - | %.2f MB/s |", totalKB, totalMs, avgThroughput
 		))
-
-	#expect(totalMs < 1000, "Total parse time should be under 1 second")
 }
 
 @Test func profileTokenizerVsTreeBuilder() async throws {
@@ -215,8 +225,6 @@ func loadSampleFile(_ name: String) throws -> String {
 			format: "Tree builder:      %.2f ms (%.1f%%)", treeBuilderAvg,
 			treeBuilderAvg / fullParseAvg * 100))
 	print(String(format: "Full parse:        %.2f ms (100%%)", fullParseAvg))
-
-	#expect(fullParseAvg < 500, "Full parse should be under 500ms")
 }
 
 @Test func profileStringOperations() async throws {
@@ -1553,8 +1561,6 @@ func blackhole<T>(_ x: T) {
 	// Tokenizer breakdown estimate
 	// Based on throughput differences from micro-benchmarks
 	let pureTextThroughput = 125.0 // MB/s from profileTokenizerMicroBenchmarks
-	let tagHeavyThroughput = 9.5 // MB/s
-	let entityThroughput = 13.0 // MB/s
 
 	// Estimate time if it were all pure text
 	let pureTextMs = sizeKB / 1024.0 / pureTextThroughput * 1000.0

@@ -152,6 +152,10 @@ func main() {
 	// Sort by filename
 	allFiles.sort { $0.name < $1.name }
 
+	if ProcessInfo.processInfo.environment["BENCHMARK_SKIP_SYNTHETIC"] == "1" {
+		allFiles.removeAll { $0.name == "synthetic.html" }
+	}
+
 	for (filepath, filename, fileSize) in allFiles {
 		// Adjust iterations based on file size
 		let iterations: Int

@@ -4,7 +4,7 @@ Testing and benchmarking methodology for swift-justhtml.
 
 ## Overview
 
-Swift-justhtml includes comprehensive benchmarking infrastructure to measure parse time, memory usage, and compare performance against Python ([justhtml](https://github.com/EmilStenstrom/justhtml)) and JavaScript ([justjshtml](https://github.com/simonw/justjshtml)) implementations.
+Swift-justhtml includes comprehensive benchmarking infrastructure to measure parse time, memory usage, and compare performance against Python ([justhtml](https://github.com/EmilStenstrom/justhtml)), JavaScript ([justjshtml](https://github.com/simonw/justjshtml)), html5ever, and the rust-justhtml POC when those sibling checkouts are available.
 
 ## Benchmark Suite
 
@@ -43,10 +43,38 @@ python3 compare.py
 
 This:
 1. Downloads sample HTML files if not present
-2. Builds Swift in release mode
-3. Runs Swift, Python, and JavaScript benchmarks
-4. Compares output for consistency
-5. Generates `BENCHMARK_RESULTS.md`
+2. Generates `test_files/synthetic.html` if not present
+3. Builds Swift in release mode
+4. Runs Swift, Python, and JavaScript benchmarks
+5. Runs Rust comparison benchmarks when those sibling repositories are available
+6. Compares output for consistency
+7. Generates `BENCHMARK_RESULTS.md`
+
+`BENCHMARK_RESULTS.md` is only replaced when the required Swift, Python, and
+JavaScript benchmark runs complete and the output comparison passes. Incomplete
+or mismatched runs write `BENCHMARK_RESULTS.incomplete.md` and
+`results.incomplete.json` instead.
+
+To prepare fixtures without running benchmarks:
+
+```bash
+cd Benchmarks
+python3 compare.py --prepare-only
+```
+
+To run only real-world samples and skip the generated synthetic stress file:
+
+```bash
+cd Benchmarks
+python3 compare.py --skip-synthetic
+```
+
+To intentionally replace the canonical report with a partial or mismatched run:
+
+```bash
+cd Benchmarks
+python3 compare.py --allow-incomplete-results
+```
 
 #### Memory Comparison (`memory_compare.py`)
 
@@ -100,6 +128,10 @@ All implementations output a normalized tree format for comparison:
 
 This ensures all parsers produce identical DOM trees from the same input.
 
+The current `wikipedia_ww2.html` benchmark fixture has one known mismatch in the Python JustHTML output. The source contains an infobox fragment like `<hr /><link ... /><div class="plainlist">`; Python nests the following `<link>` and `<div>` under the `<hr>` element, while Swift, JavaScript, and html5ever keep them as siblings. Because `<hr>` is a void element, the Swift/JavaScript/html5ever result is the expected tree shape.
+
+html5ever's full serialized output is not used for the byte-for-byte consistency table because it has separate serializer/tokenizer conventions around `<noscript>` content, even though it agrees with Swift and JavaScript on the `<hr>` mismatch.
+
 ## Running Profiling Tests
 
 ### Swift Profiling Tests
@@ -132,9 +164,14 @@ swift test --filter testOverallTiming -c release
 
 ```bash
 cd Benchmarks
+python3 compare.py --prepare-only
 python3 compare.py
 # Creates BENCHMARK_RESULTS.md
 ```
+
+If a required sibling implementation is missing or the output comparison fails,
+the run creates `BENCHMARK_RESULTS.incomplete.md` instead and leaves the
+canonical report untouched.
 
 ### Memory Results
 
@@ -148,7 +185,7 @@ python3 memory_compare.py
 
 ```bash
 cd Benchmarks
-python3 generate_synthetic.py
+python3 compare.py --prepare-only
 # Creates test_files/synthetic.html (~20MB)
 ```
 
@@ -156,19 +193,19 @@ python3 generate_synthetic.py
 
 ### Parse Time
 
-- **Throughput (MB/s):** Higher is better; expect 15-30 MB/s
+- **Throughput (MB/s):** Higher is better; the current Swift report is roughly 18-27 MB/s across the checked-in fixture set
 - **Time per KB:** Should be consistent (~0.04 ms/KB) indicating linear scaling
-- **Comparison ratios:** Swift should match or beat JavaScript
+- **Comparison ratios:** Swift is currently much faster than Python, slightly faster than JavaScript overall, faster than rust-justhtml, and slower than html5ever in the checked-in benchmark report
 
 ### Memory Usage
 
 - **Peak RSS:** Lower is better
-- **Memory/input ratio:** Typically 2-3x the input size
-- **Comparison:** Swift uses ~2x less memory than JavaScript
+- **Memory/input ratio:** Varies by fixture and implementation; the current Swift average peak RSS is 89.74 MB across the six-file benchmark set
+- **Comparison:** Swift uses less memory than Python, JavaScript, and rust-justhtml on average, but more than html5ever
 
 ### Output Consistency
 
-All three implementations should produce identical output. Mismatches indicate parser bugs that should be investigated.
+Swift, Python, and JavaScript should produce identical output. Mismatches indicate parser bugs or reference divergence that should be investigated. For the current `wikipedia_ww2.html` fixture, Swift agrees with JavaScript and html5ever; Python is the divergent implementation around a void `<hr>` element.
 
 ## Continuous Benchmarking
 

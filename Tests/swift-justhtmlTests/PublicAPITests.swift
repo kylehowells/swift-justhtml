@@ -132,6 +132,61 @@ import Testing
 	}
 }
 
+@Test func selectedcontentMirrorsSelectedOption() async throws {
+	let html = """
+	<!DOCTYPE html>
+	<select>
+		<selectedcontent></selectedcontent>
+		<option>One</option>
+		<option selected>Two <b>bold</b></option>
+	</select>
+	"""
+
+	let doc = try JustHTML(html)
+	let selectedcontent = try #require(doc.query("selectedcontent").first)
+
+	#expect(selectedcontent.toText(separator: " ", strip: true) == "Two bold")
+	#expect(try selectedcontent.query("b").first?.toText() == "bold")
+}
+
+@Test func selectedcontentFallsBackToFirstOption() async throws {
+	let html = """
+	<!DOCTYPE html>
+	<select>
+		<selectedcontent></selectedcontent>
+		<option>One <i>first</i></option>
+		<option>Two</option>
+	</select>
+	"""
+
+	let doc = try JustHTML(html)
+	let selectedcontent = try #require(doc.query("selectedcontent").first)
+
+	#expect(selectedcontent.toText(separator: " ", strip: true) == "One first")
+	#expect(try selectedcontent.query("i").first?.toText() == "first")
+}
+
+@Test func selectedcontentHandlesMultipleSelects() async throws {
+	let html = """
+	<!DOCTYPE html>
+	<select>
+		<selectedcontent></selectedcontent>
+		<option selected>First</option>
+	</select>
+	<select>
+		<selectedcontent></selectedcontent>
+		<option>Second fallback</option>
+	</select>
+	"""
+
+	let doc = try JustHTML(html)
+	let selectedcontent = try doc.query("selectedcontent")
+
+	#expect(selectedcontent.count == 2)
+	#expect(selectedcontent[0].toText(separator: " ", strip: true) == "First")
+	#expect(selectedcontent[1].toText(separator: " ", strip: true) == "Second fallback")
+}
+
 /// Test Node.replaceChild()
 @Test func nodeReplaceChild() async throws {
 	let parent = Node(name: "div")
@@ -261,11 +316,21 @@ import Testing
 	#expect(doc.root.name == "#document-fragment")
 }
 
+@Test func fragmentContextScriptIsCaseInsensitive() async throws {
+	let doc = try JustHTML("<b>not markup</b>", fragmentContext: FragmentContext("SCRIPT"))
+	#expect(doc.toText().contains("<b>not markup</b>"))
+}
+
 /// Test FragmentContext with textarea (rcdata)
 @Test func fragmentContextTextarea() async throws {
 	let ctx = FragmentContext("textarea")
 	let doc = try JustHTML("Hello <b>World</b>", fragmentContext: ctx)
 	// Textarea content treats tags as text
+	#expect(doc.toText().contains("<b>"))
+}
+
+@Test func fragmentContextTextareaIsCaseInsensitive() async throws {
+	let doc = try JustHTML("Hello <b>World</b>", fragmentContext: FragmentContext("TEXTAREA"))
 	#expect(doc.toText().contains("<b>"))
 }
 

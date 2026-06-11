@@ -433,8 +433,84 @@ public final class Node {
 
 		// Create template content for template elements
 		if self.tagId == .template, namespace == nil || namespace == .html {
-			self.templateContent = Node(name: "#document-fragment")
+			self.templateContent = Node.documentFragment()
 		}
+		self.reserveLikelyChildCapacity()
+	}
+
+	init(
+		name: String,
+		tagId: TagID,
+		namespace: Namespace?,
+		attrs: [String: String] = [:],
+		data: NodeData? = nil
+	) {
+		self.name = name
+		self.tagId = tagId
+		self.namespace = namespace
+		self.attrs = attrs
+		self.data = data
+
+		if tagId == .template, namespace == nil || namespace == .html {
+			self.templateContent = Node.documentFragment()
+		}
+		self.reserveLikelyChildCapacity()
+	}
+
+	private init(specialName name: String, tagId: TagID, data: NodeData) {
+		self.name = name
+		self.tagId = tagId
+		self.namespace = nil
+		self.attrs = [:]
+		self.data = data
+	}
+
+	private func reserveLikelyChildCapacity() {
+		switch self.tagId {
+			case .document, .html:
+				self.children.reserveCapacity(2)
+
+			case .td, .th, .a, .span, .h2, .strong, .em, .code, .option, .label, .sup:
+				self.children.reserveCapacity(1)
+
+			case .p, .li:
+				self.children.reserveCapacity(2)
+
+			case .div, .table:
+				self.children.reserveCapacity(4)
+
+			case .head, .body, .ul, .ol, .tbody, .tr, .select, .article, .section, .form:
+				self.children.reserveCapacity(16)
+
+			case .main, .pre:
+				self.children.reserveCapacity(32)
+
+			case .cite:
+				self.children.reserveCapacity(8)
+
+			default:
+				break
+		}
+	}
+
+	static func document() -> Node {
+		Node(name: "#document", tagId: .document, namespace: nil)
+	}
+
+	static func documentFragment() -> Node {
+		Node(name: "#document-fragment", tagId: .documentFragment, namespace: nil)
+	}
+
+	static func text(_ text: String) -> Node {
+		Node(specialName: "#text", tagId: .text, data: .text(text))
+	}
+
+	static func comment(_ text: String) -> Node {
+		Node(specialName: "#comment", tagId: .comment, data: .comment(text))
+	}
+
+	static func doctype(_ doctype: Doctype) -> Node {
+		Node(specialName: "!doctype", tagId: .doctype, data: .doctype(doctype))
 	}
 
 	// MARK: - DOM Manipulation
@@ -445,9 +521,18 @@ public final class Node {
 	}
 
 	public func removeChild(_ node: Node) {
-		if let idx = children.firstIndex(where: { $0 === node }) {
+		if let idx = self.indexOfChild(node) {
 			self.children.remove(at: idx)
 			node.parent = nil
+		}
+	}
+
+	func moveChildren(to destination: Node) {
+		let movedChildren = self.children
+		self.children.removeAll(keepingCapacity: true)
+		for child in movedChildren {
+			child.parent = nil
+			destination.appendChild(child)
 		}
 	}
 
@@ -457,20 +542,30 @@ public final class Node {
 			return
 		}
 
-		if let idx = children.firstIndex(where: { $0 === reference }) {
-			self.children.insert(node, at: idx)
-			node.parent = self
+		if let idx = self.indexOfChild(reference) {
+			self.insertChild(node, at: idx)
 		}
 	}
 
 	public func replaceChild(_ newNode: Node, oldNode: Node) -> Node? {
-		if let idx = children.firstIndex(where: { $0 === oldNode }) {
+		if let idx = self.indexOfChild(oldNode) {
 			self.children[idx] = newNode
 			oldNode.parent = nil
 			newNode.parent = self
 			return oldNode
 		}
 		return nil
+	}
+
+	func indexOfChild(_ node: Node) -> Int? {
+		self.children.firstIndex { $0 === node }
+	}
+
+	func insertChild(_ node: Node, at index: Int) {
+		guard index >= 0, index <= self.children.count else { return }
+
+		self.children.insert(node, at: index)
+		node.parent = self
 	}
 
 	public func cloneNode(deep: Bool = false) -> Node {
@@ -511,9 +606,9 @@ public final class Node {
 	public func toText(separator: String = "", strip: Bool = false, collapseWhitespace: Bool = true)
 		-> String
 	{
-		var parts: [String] = []
-		self.collectText(into: &parts, strip: strip)
-		var result = parts.joined(separator: separator)
+		var result = ""
+		var didAppendText = false
+		self.collectText(into: &result, separator: separator, strip: strip, didAppendText: &didAppendText)
 		if collapseWhitespace {
 			// Collapse runs of whitespace to single spaces
 			result = result.replacingOccurrences(
@@ -526,17 +621,31 @@ public final class Node {
 		return result
 	}
 
-	private func collectText(into parts: inout [String], strip: Bool) {
+	private func collectText(
+		into result: inout String,
+		separator: String,
+		strip: Bool,
+		didAppendText: inout Bool
+	) {
 		if case let .text(s) = data {
 			let text = strip ? s.trimmingCharacters(in: .whitespacesAndNewlines) : s
 			if !text.isEmpty {
-				parts.append(text)
+				if didAppendText {
+					result.append(separator)
+				}
+				result.append(text)
+				didAppendText = true
 			}
 			return
 		}
 
 		for child in self.children {
-			child.collectText(into: &parts, strip: strip)
+			child.collectText(
+				into: &result,
+				separator: separator,
+				strip: strip,
+				didAppendText: &didAppendText
+			)
 		}
 		// Note: templateContent is intentionally NOT included
 		// Template contents are inert and should not be part of text extraction

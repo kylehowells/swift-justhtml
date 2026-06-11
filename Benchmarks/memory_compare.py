@@ -213,6 +213,9 @@ import PackageDescription
 
 let package = Package(
     name: "MemTest",
+    platforms: [
+        .macOS(.v13),
+    ],
     dependencies: [
         .package(path: "{SWIFT_PROJECT_ROOT}"),
     ],
@@ -478,6 +481,15 @@ def generate_markdown_report(results, git_info):
     """Generate a markdown report with memory usage results."""
     lines = []
 
+    def memory_sentence(name_a, memory_a, name_b, memory_b):
+        if not memory_a or not memory_b:
+            return None
+        if memory_a < memory_b:
+            return f"{name_a} uses **{memory_b / memory_a:.2f}x less memory** than {name_b} on average."
+        if memory_a > memory_b:
+            return f"{name_a} uses **{memory_a / memory_b:.2f}x more memory** than {name_b} on average."
+        return f"{name_a} and {name_b} use the same average peak memory."
+
     lines.append("# Memory Usage Comparison")
     lines.append("")
     lines.append(f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
@@ -586,8 +598,12 @@ def generate_markdown_report(results, git_info):
             lines.append(f"html5ever uses **{total_js / total_rust:.2f}x less memory** than JavaScript on average.")
             lines.append(f"html5ever uses **{total_python / total_rust:.2f}x less memory** than Python on average.")
         if has_rust_justhtml and total_rust_justhtml > 0 and total_swift > 0:
-            lines.append(f"rust-justhtml uses **{total_swift / total_rust_justhtml:.2f}x less memory** than Swift on average.")
-            lines.append(f"rust-justhtml uses **{total_python / total_rust_justhtml:.2f}x less memory** than Python on average.")
+            rust_swift_sentence = memory_sentence("rust-justhtml", total_rust_justhtml, "Swift", total_swift)
+            if rust_swift_sentence:
+                lines.append(rust_swift_sentence)
+            rust_python_sentence = memory_sentence("rust-justhtml", total_rust_justhtml, "Python", total_python)
+            if rust_python_sentence:
+                lines.append(rust_python_sentence)
         elif total_swift > 0:
             lines.append(f"Swift uses **{total_python / total_swift:.2f}x less memory** than Python on average.")
             lines.append(f"Swift uses **{total_js / total_swift:.2f}x less memory** than JavaScript on average.")
