@@ -6,13 +6,10 @@ on:
     tags: ['**']
   pull_request:
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   # Linux - runs on every push
   linux:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
 
@@ -22,10 +19,8 @@ jobs:
           repository: html5lib/html5lib-tests
           path: html5lib-tests
 
-      - name: Setup Swift
-        uses: swift-actions/setup-swift@v2
-        with:
-          swift-version: "6.0"
+      - name: Show Swift version
+        run: swift --version
 
       - name: Build
         run: swift build
