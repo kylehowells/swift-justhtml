@@ -235,11 +235,12 @@ public enum Serialize {
 
 	private static func isVoidElement(_ node: Node) -> Bool {
 		switch node.tagId {
-		case .area, .base, .br, .col, .embed, .hr, .img, .input, .link, .meta,
-		     .param, .source, .track, .wbr:
-			return true
-		default:
-			return VOID_ELEMENTS.contains(node.name)
+			case .area, .base, .br, .col, .embed, .hr, .img, .input, .link, .meta,
+			     .param, .source, .track, .wbr:
+				return true
+
+			default:
+				return VOID_ELEMENTS.contains(node.name)
 		}
 	}
 
@@ -620,6 +621,7 @@ public enum Serialize {
 		findRows(table)
 
 		guard !rows.isEmpty else { return }
+
 		guard columnCount > 0 else { return }
 
 		// Calculate column widths
@@ -653,7 +655,7 @@ public enum Serialize {
 		_ row: [String], columnCount: Int, colWidths: [Int], context: inout MarkdownContext
 	) {
 		context.addText("| ")
-		for i in 0..<columnCount {
+		for i in 0 ..< columnCount {
 			if i > 0 {
 				context.addText(" | ")
 			}

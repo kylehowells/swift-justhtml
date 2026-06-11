@@ -96,6 +96,7 @@ func loadSampleFile(_ name: String) throws -> String {
 	guard let directory = sampleFilesDirectory() else {
 		throw CocoaError(.fileNoSuchFile)
 	}
+
 	return try String(contentsOf: directory.appendingPathComponent(name), encoding: .utf8)
 }
 

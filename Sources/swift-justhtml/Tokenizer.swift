@@ -11,6 +11,8 @@ public protocol TokenSink: AnyObject {
 	var currentNamespace: Namespace? { get }
 }
 
+// MARK: - DirectTokenSink
+
 /// Internal direct-token sink used by the tree builder to avoid allocating
 /// public Token enum values on the parser hot path.
 internal protocol DirectTokenSink: TokenSink {
@@ -31,6 +33,7 @@ private func isRCDATAElement(_ name: String) -> Bool {
 	switch name {
 		case "title", "textarea":
 			return true
+
 		default:
 			return false
 	}
@@ -41,6 +44,7 @@ private func isRAWTEXTElement(_ name: String) -> Bool {
 	switch name {
 		case "style", "xmp", "iframe", "noembed", "noframes":
 			return true
+
 		default:
 			return false
 	}
@@ -318,7 +322,7 @@ public final class Tokenizer {
 	public func run(_ html: String) {
 		self.startIncrementalRun(html)
 
-		while self.pumpIncrementalRun() {}
+		while self.pumpIncrementalRun() { }
 	}
 
 	internal func startIncrementalRun(_ html: String) {
@@ -795,6 +799,7 @@ public final class Tokenizer {
 	@inline(__always)
 	private func advanceLocation(for byte: UInt8) {
 		guard self.trackLocations else { return }
+
 		if byte == 0x0A {
 			self.line += 1
 			self.column = 0
@@ -813,14 +818,19 @@ public final class Tokenizer {
 			switch token {
 				case let .startTag(name, attrs, selfClosing):
 					directSink.processStartTag(name: name, attrs: attrs, selfClosing: selfClosing)
+
 				case let .endTag(name):
 					directSink.processEndTag(name: name)
+
 				case let .character(text):
 					directSink.processCharacters(text, containsNull: self.containsNullByte(text))
+
 				case let .comment(text):
 					directSink.processComment(text)
+
 				case let .doctype(doctype):
 					directSink.processDoctype(doctype)
+
 				case .eof:
 					directSink.processEOF()
 			}
@@ -935,15 +945,20 @@ public final class Tokenizer {
 			switch self.currentTagName {
 				case "title", "textarea":
 					nextState = .rcdata
+
 				case "style", "xmp", "iframe", "noembed", "noframes":
 					nextState = .rawtext
+
 				case "noscript" where self.opts.scripting:
 					// When scripting is enabled, noscript content is raw text
 					nextState = .rawtext
+
 				case SCRIPT_ELEMENT:
 					nextState = .scriptData
+
 				case "plaintext":
 					nextState = .plaintext
+
 				default:
 					nextState = nil
 			}
@@ -1012,12 +1027,16 @@ public final class Tokenizer {
 		switch self.currentTagName {
 			case "img":
 				self.currentAttrs.reserveCapacity(8)
+
 			case "input":
 				self.currentAttrs.reserveCapacity(6)
+
 			case "form", "textarea", "source":
 				self.currentAttrs.reserveCapacity(4)
+
 			case "section":
 				self.currentAttrs.reserveCapacity(3)
+
 			default:
 				break
 		}
@@ -1310,8 +1329,10 @@ public final class Tokenizer {
 			switch byte {
 				case 0x09, 0x0A, 0x0C, 0x20, 0x2F, 0x3E, 0x00:
 					break
+
 				case 0x41 ... 0x5A, 0x80 ... 0xFF:
 					break
+
 				default:
 					lowercaseRunEnd += 1
 					continue
@@ -2150,8 +2171,10 @@ public final class Tokenizer {
 			switch byte {
 				case 0x09, 0x0A, 0x0C, 0x20, 0x2F, 0x3E, 0x3D, 0x00, 0x22, 0x27, 0x3C:
 					break
+
 				case 0x41 ... 0x5A, 0x80 ... 0xFF:
 					break
+
 				default:
 					lowercaseRunEnd += 1
 					continue
@@ -3861,6 +3884,7 @@ extension String {
 
 		while let prefixByte = prefixIter.next() {
 			guard let selfByte = selfIter.next() else { return false }
+
 			if selfByte != prefixByte {
 				let lowerSelf = selfByte >= 65 && selfByte <= 90 ? selfByte + 32 : selfByte
 				let lowerPrefix = prefixByte >= 65 && prefixByte <= 90 ? prefixByte + 32 : prefixByte

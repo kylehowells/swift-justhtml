@@ -160,6 +160,7 @@ struct AttributeSelector {
 		guard let lowercaseName = self.lowercaseName else {
 			return nil
 		}
+
 		return attrs[lowercaseName]
 	}
 
@@ -169,16 +170,19 @@ struct AttributeSelector {
 
 	private func hasPrefix(_ value: String, _ prefix: String) -> Bool {
 		guard self.caseInsensitive else { return value.hasPrefix(prefix) }
+
 		return value.asciiCaseInsensitiveHasPrefix(prefix)
 	}
 
 	private func hasSuffix(_ value: String, _ suffix: String) -> Bool {
 		guard self.caseInsensitive else { return value.hasSuffix(suffix) }
+
 		return value.asciiCaseInsensitiveHasSuffix(suffix)
 	}
 
 	private func contains(_ value: String, _ needle: String) -> Bool {
 		guard self.caseInsensitive else { return value.contains(needle) }
+
 		return value.asciiCaseInsensitiveContains(needle)
 	}
 }
@@ -316,14 +320,15 @@ enum Combinator {
 
 // MARK: - Node Extensions for Selector Matching
 
-extension Node {
+fileprivate extension Node {
 	/// Index among element siblings
-	fileprivate var childIndex: Int? {
+	var childIndex: Int? {
 		guard let parent = parent else { return nil }
 
 		var index = 0
 		for child in parent.children {
 			guard child.isSelectorElement else { continue }
+
 			if child === self {
 				return index
 			}
@@ -332,12 +337,13 @@ extension Node {
 		return nil
 	}
 
-	fileprivate var childIndexFromEnd: Int? {
+	var childIndexFromEnd: Int? {
 		guard let parent = parent else { return nil }
 
 		var indexFromEnd = 1
 		for child in parent.children.reversed() {
 			guard child.isSelectorElement else { continue }
+
 			if child === self {
 				return indexFromEnd
 			}
@@ -346,26 +352,28 @@ extension Node {
 		return nil
 	}
 
-	fileprivate var isFirstChild: Bool {
+	var isFirstChild: Bool {
 		return self.childIndex == 0
 	}
 
-	fileprivate var isLastChild: Bool {
+	var isLastChild: Bool {
 		guard let parent = parent else { return false }
 
 		for child in parent.children.reversed() {
 			guard child.isSelectorElement else { continue }
+
 			return child === self
 		}
 		return false
 	}
 
-	fileprivate var isOnlyChild: Bool {
+	var isOnlyChild: Bool {
 		guard let parent = parent else { return false }
 
 		var foundElement = false
 		for child in parent.children {
 			guard child.isSelectorElement else { continue }
+
 			if foundElement {
 				return false
 			}
@@ -377,7 +385,7 @@ extension Node {
 		return foundElement
 	}
 
-	fileprivate var isFirstOfType: Bool {
+	var isFirstOfType: Bool {
 		guard let parent = parent else { return false }
 
 		for child in parent.children where child.isSelectorElement && child.name == name {
@@ -386,7 +394,7 @@ extension Node {
 		return false
 	}
 
-	fileprivate var isLastOfType: Bool {
+	var isLastOfType: Bool {
 		guard let parent = parent else { return false }
 
 		for child in parent.children.reversed() where child.isSelectorElement && child.name == name {
@@ -395,7 +403,7 @@ extension Node {
 		return false
 	}
 
-	fileprivate var isOnlyOfType: Bool {
+	var isOnlyOfType: Bool {
 		guard let parent = parent else { return false }
 
 		var foundMatchingElement = false
@@ -411,7 +419,7 @@ extension Node {
 		return foundMatchingElement
 	}
 
-	fileprivate var typeIndex: Int? {
+	var typeIndex: Int? {
 		guard let parent = parent else { return nil }
 
 		var index = 0
@@ -424,7 +432,7 @@ extension Node {
 		return nil
 	}
 
-	fileprivate var typeIndexFromEnd: Int? {
+	var typeIndexFromEnd: Int? {
 		guard let parent = parent else { return nil }
 
 		var indexFromEnd = 1
@@ -437,7 +445,7 @@ extension Node {
 		return nil
 	}
 
-	fileprivate var previousElementSibling: Node? {
+	var previousElementSibling: Node? {
 		guard let parent = parent else { return nil }
 
 		var previous: Node?
@@ -452,14 +460,14 @@ extension Node {
 		return nil
 	}
 
-	fileprivate func hasPreviousElementSibling(matching selector: Selector) -> Bool {
+	func hasPreviousElementSibling(matching selector: Selector) -> Bool {
 		guard let parent = parent else { return false }
 
 		for child in parent.children {
 			if child === self {
 				return false
 			}
-			if child.isSelectorElement && selector.matches(child) {
+			if child.isSelectorElement, selector.matches(child) {
 				return true
 			}
 		}
@@ -884,9 +892,11 @@ private struct SelectorParser {
 		guard let nextIdx = self.indexAfterKeyword(keyword) else {
 			return false
 		}
+
 		guard nextIdx >= self.input.endIndex || !self.input[nextIdx].isNameChar else {
 			return false
 		}
+
 		self.position = nextIdx
 		return true
 	}
@@ -899,6 +909,7 @@ private struct SelectorParser {
 			else {
 				return nil
 			}
+
 			inputIndex = self.input.index(after: inputIndex)
 		}
 		return inputIndex
@@ -1018,11 +1029,13 @@ private extension String {
 
 	func asciiCaseInsensitiveHasSuffix(_ suffix: String) -> Bool {
 		guard self.utf8.count >= suffix.utf8.count else { return false }
+
 		return self.utf8.suffix(suffix.utf8.count).elementsEqual(suffix.utf8, by: Self.asciiBytesEqual)
 	}
 
 	func asciiCaseInsensitiveContains(_ needle: String) -> Bool {
 		guard !needle.isEmpty else { return true }
+
 		guard self.utf8.count >= needle.utf8.count else { return false }
 
 		var start = self.utf8.startIndex
@@ -1067,6 +1080,7 @@ private extension String {
 		}
 
 		guard hasUppercase else { return nil }
+
 		return String(decoding: bytes, as: UTF8.self)
 	}
 
@@ -1080,6 +1094,7 @@ private extension String {
 private extension Substring {
 	func asciiCaseInsensitiveEquals(_ other: String) -> Bool {
 		guard self.utf8.count == other.utf8.count else { return false }
+
 		return zip(self.utf8, other.utf8).allSatisfy { lhs, rhs in
 			let lowerLHS = lhs >= 0x41 && lhs <= 0x5A ? lhs + 0x20 : lhs
 			let lowerRHS = rhs >= 0x41 && rhs <= 0x5A ? rhs + 0x20 : rhs
@@ -1099,6 +1114,7 @@ extension Character {
 		guard let lhs = self.asciiValue, let rhs = other.asciiValue else {
 			return self == other
 		}
+
 		let lowerLHS = lhs >= 0x41 && lhs <= 0x5A ? lhs + 0x20 : lhs
 		let lowerRHS = rhs >= 0x41 && rhs <= 0x5A ? rhs + 0x20 : rhs
 		return lowerLHS == lowerRHS

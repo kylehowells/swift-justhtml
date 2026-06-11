@@ -26,6 +26,8 @@ private final class TokenCollector: TokenSink {
 	}
 }
 
+// MARK: - RawTokenCollector
+
 private final class RawTokenCollector: TokenSink {
 	var tokens: [Token] = []
 	var currentNamespace: Namespace? = .html

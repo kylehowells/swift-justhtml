@@ -80,8 +80,8 @@ public struct HTMLStreamIterator: IteratorProtocol {
 
 /// Converts tokenizer tokens into stream events without storing the full token stream.
 private final class StreamEventSink: TokenSink {
-	private var firstEvent: StreamEvent?
-	private var secondEvent: StreamEvent?
+	private var firstEvent: StreamEvent? = nil
+	private var secondEvent: StreamEvent? = nil
 	private var overflowEvents: [StreamEvent] = []
 	private var overflowHead: Int = 0
 	private var textBuffer: String = ""

@@ -44,6 +44,8 @@ public enum InsertionMode {
 	case afterAfterFrameset
 }
 
+// MARK: - ResetInsertionModeDecision
+
 private enum ResetInsertionModeDecision {
 	case use(InsertionMode)
 	case continueSearch
@@ -51,16 +53,22 @@ private enum ResetInsertionModeDecision {
 	case stop
 }
 
+// MARK: - OtherEndTagStackSearchResult
+
 private enum OtherEndTagStackSearchResult {
 	case match(Int)
 	case blockedBySpecialElement
 	case noMatch
 }
 
+// MARK: - ForeignContentEndTagSearchResult
+
 private enum ForeignContentEndTagSearchResult {
 	case foreignMatch(Int)
 	case htmlBoundaryOrNoMatch
 }
+
+// MARK: - StartTagToken
 
 private struct StartTagToken {
 	let name: String
@@ -75,6 +83,8 @@ private struct StartTagToken {
 		self.selfClosing = selfClosing
 	}
 }
+
+// MARK: - EndTagToken
 
 private struct EndTagToken {
 	let name: String
@@ -96,6 +106,7 @@ private let kQuirksPublicIdPrefixes = [
 	"-//w3c//dtd html 4.01 frameset",
 	"html", // Just "html" as public id
 ]
+
 // MARK: - TreeBuilder
 
 /// Tree builder that constructs DOM from tokens
@@ -212,7 +223,7 @@ public final class TreeBuilder: DirectTokenSink {
 	/// Finish parsing and return the root
 	public func finish() -> Node {
 		// Populate selectedcontent elements with content from selected option
-		if self.sawSelectElement && self.sawSelectedcontentElement {
+		if self.sawSelectElement, self.sawSelectedcontentElement {
 			self.populateSelectedcontent(self.document)
 		}
 		return self.document
@@ -288,6 +299,7 @@ public final class TreeBuilder: DirectTokenSink {
 		guard let destination = selectedcontent, let source = firstSelectedOption ?? firstOption else {
 			return nil
 		}
+
 		return (source, destination)
 	}
 
@@ -319,7 +331,7 @@ public final class TreeBuilder: DirectTokenSink {
 				firstOption: &firstOption,
 				firstSelectedOption: &firstSelectedOption
 			)
-			if selectedcontent != nil && firstSelectedOption != nil {
+			if selectedcontent != nil, firstSelectedOption != nil {
 				return
 			}
 		}
@@ -332,7 +344,7 @@ public final class TreeBuilder: DirectTokenSink {
 					firstOption: &firstOption,
 					firstSelectedOption: &firstSelectedOption
 				)
-				if selectedcontent != nil && firstSelectedOption != nil {
+				if selectedcontent != nil, firstSelectedOption != nil {
 					return
 				}
 			}
@@ -884,6 +896,7 @@ public final class TreeBuilder: DirectTokenSink {
 		switch self.insertionMode {
 			case .inTable, .inTableBody, .inRow, .inCell, .inCaption, .inColumnGroup:
 				return true
+
 			default:
 				return false
 		}
@@ -1267,6 +1280,7 @@ public final class TreeBuilder: DirectTokenSink {
 					self.emitError("unexpected-start-tag")
 					return
 				}
+
 				self.closeTableBodyAndReprocessStartTag(tag)
 
 			case .table:
@@ -1299,6 +1313,7 @@ public final class TreeBuilder: DirectTokenSink {
 					self.emitError("unexpected-start-tag")
 					return
 				}
+
 				self.closeTableRowAndReprocessStartTag(tag)
 
 			case .table:
@@ -1556,8 +1571,10 @@ public final class TreeBuilder: DirectTokenSink {
 		switch tag.name {
 			case "dir", "hgroup":
 				self.processBlockStartTagInBody(tag)
+
 			case "noembed":
 				self.processRawtextStartTagInBody(tag)
+
 			default:
 				self.processGenericStartTagInBody(tag)
 		}
@@ -1734,6 +1751,7 @@ public final class TreeBuilder: DirectTokenSink {
 		guard let i = self.activeFormattingElementIndexFromEnd(stopAtMarker: false, where: { $0.name == name }),
 		      let elem = self.activeFormattingElements[i]
 		else { return }
+
 		self.activeFormattingElements.remove(at: i)
 		self.removeFirstOpenElement(matching: elem)
 	}
@@ -1875,7 +1893,7 @@ public final class TreeBuilder: DirectTokenSink {
 
 	private func processForeignStartTagInBody(
 		_ tag: StartTagToken,
-		namespace: Namespace,
+		namespace: Namespace
 	) {
 		self.reconstructActiveFormattingElements()
 		self.insertForeignElement(tag, namespace: namespace)
@@ -2057,6 +2075,7 @@ public final class TreeBuilder: DirectTokenSink {
 				self.insertHtmlElement()
 				self.insertionMode = .beforeHead
 				self.processEndTag(tag)
+
 			default:
 				self.emitError("unexpected-end-tag")
 		}
@@ -2068,6 +2087,7 @@ public final class TreeBuilder: DirectTokenSink {
 				self.insertHeadElement()
 				self.insertionMode = .inHead
 				self.processEndTag(tag)
+
 			default:
 				self.emitError("unexpected-end-tag")
 		}
@@ -2296,6 +2316,7 @@ public final class TreeBuilder: DirectTokenSink {
 		switch tag.tagId {
 			case .table:
 				guard self.requireElementInTableScope(.table) else { return }
+
 				self.closeCurrentTable()
 
 			case .body, .caption, .col, .colgroup, .html, .tbody,
@@ -2320,6 +2341,7 @@ public final class TreeBuilder: DirectTokenSink {
 		switch tag.tagId {
 			case .td, .th:
 				guard self.requireElementInTableScope(tag.name) else { return }
+
 				self.closeExplicitTableCellEndTag(tag.name)
 
 			case .body, .caption, .col, .colgroup, .html:
@@ -2327,6 +2349,7 @@ public final class TreeBuilder: DirectTokenSink {
 
 			case .table, .tbody, .tfoot, .thead, .tr:
 				guard self.requireElementInTableScope(tag.name) else { return }
+
 				self.closeCell()
 				self.processEndTag(tag)
 
@@ -2349,14 +2372,17 @@ public final class TreeBuilder: DirectTokenSink {
 		switch tag.tagId {
 			case .tr:
 				guard self.requireElementInTableScope(.tr) else { return }
+
 				self.closeTableRow()
 
 			case .table:
 				guard self.requireElementInTableScope(.tr) else { return }
+
 				self.closeTableRowAndReprocessEndTag(tag)
 
 			case .tbody, .tfoot, .thead:
 				guard self.requireElementInTableScope(tag.name) else { return }
+
 				if !self.hasElementInTableScope(.tr) {
 					return
 				}
@@ -2391,6 +2417,7 @@ public final class TreeBuilder: DirectTokenSink {
 		switch tag.tagId {
 			case .tbody, .tfoot, .thead:
 				guard self.requireElementInTableScope(tag.name) else { return }
+
 				self.closeTableBody()
 
 			case .table:
@@ -2398,6 +2425,7 @@ public final class TreeBuilder: DirectTokenSink {
 					self.emitError("unexpected-end-tag")
 					return
 				}
+
 				self.closeTableBodyAndReprocessEndTag(tag)
 
 			case .body, .caption, .col, .colgroup, .html, .td, .th, .tr:
@@ -2459,6 +2487,7 @@ public final class TreeBuilder: DirectTokenSink {
 		guard self.currentNode?.tagId == .colgroup else {
 			return false
 		}
+
 		self.popCurrentElement()
 		self.insertionMode = .inTable
 		return true
@@ -2468,10 +2497,12 @@ public final class TreeBuilder: DirectTokenSink {
 		switch tag.tagId {
 			case .caption:
 				guard self.requireElementInTableScope(.caption) else { return }
+
 				self.closeCaption()
 
 			case .table:
 				guard self.requireElementInTableScope(.caption) else { return }
+
 				self.closeCaptionAndReprocessEndTag(tag)
 
 			case .body, .col, .colgroup, .html, .tbody, .td, .tfoot, .th, .thead, .tr:
@@ -2520,6 +2551,7 @@ public final class TreeBuilder: DirectTokenSink {
 		switch tag.tagId {
 			case .template:
 				self.processEndTagInBody(tag)
+
 			default:
 				self.emitError("unexpected-end-tag-in-template")
 		}
@@ -2729,6 +2761,7 @@ public final class TreeBuilder: DirectTokenSink {
 			popTarget()
 			return
 		}
+
 		popTarget()
 	}
 
@@ -2778,10 +2811,12 @@ public final class TreeBuilder: DirectTokenSink {
 
 	private func anyOtherEndTag(name: String) {
 		switch self.findOtherEndTagStackMatch(named: name) {
-			case .match(let index):
+			case let .match(index):
 				self.closeMatchingOtherEndTag(named: name, at: index)
+
 			case .blockedBySpecialElement:
 				self.emitError("unexpected-end-tag")
+
 			case .noMatch:
 				break
 		}
@@ -2891,6 +2926,7 @@ public final class TreeBuilder: DirectTokenSink {
 
 	private func isHTMLDoctypeName(_ name: String?) -> Bool {
 		guard let name else { return false }
+
 		return name.asciiCaseInsensitiveEquals("html")
 	}
 
@@ -2962,6 +2998,7 @@ public final class TreeBuilder: DirectTokenSink {
 		guard !self.templateInsertionModes.isEmpty else {
 			return false
 		}
+
 		self.insertionMode = .inTemplate
 		return true
 	}
@@ -2971,6 +3008,7 @@ public final class TreeBuilder: DirectTokenSink {
 		guard self.hasTemplateOnOpenElementStack(htmlNamespaceOnly: false) else {
 			return false
 		}
+
 		self.emitError("eof-in-template")
 		self.popUntilElementAnyNamespace { $0.tagId == .template }
 		self.finishTemplateClose()
@@ -3227,7 +3265,7 @@ public final class TreeBuilder: DirectTokenSink {
 
 	private func containsASCIIUppercase(_ name: String) -> Bool {
 		for scalar in name.unicodeScalars {
-			if scalar.value >= 65 && scalar.value <= 90 {
+			if scalar.value >= 65, scalar.value <= 90 {
 				return true
 			}
 		}
@@ -3334,6 +3372,7 @@ public final class TreeBuilder: DirectTokenSink {
 
 	private func templateAtIndexWinsFosterParenting(_ templateIndex: Int, tableIndex: Int?) -> Bool {
 		guard let tableIndex else { return true }
+
 		return templateIndex > tableIndex
 	}
 
@@ -3453,6 +3492,7 @@ public final class TreeBuilder: DirectTokenSink {
 
 	private func appendTextIfPossible(_ text: String, to node: Node) -> Bool {
 		guard node.tagId == .text else { return false }
+
 		if case var .text(existing) = node.data {
 			existing.append(text)
 			node.data = .text(existing)
@@ -3669,17 +3709,29 @@ public final class TreeBuilder: DirectTokenSink {
 	private func tableScopeTagID(for name: String) -> TagID? {
 		switch name {
 			case "html": return .html
+
 			case "table": return .table
+
 			case "template": return .template
+
 			case "td": return .td
+
 			case "th": return .th
+
 			case "tr": return .tr
+
 			case "tbody": return .tbody
+
 			case "thead": return .thead
+
 			case "tfoot": return .tfoot
+
 			case "caption": return .caption
+
 			case "col": return .col
+
 			case "colgroup": return .colgroup
+
 			default: return nil
 		}
 	}
@@ -3767,6 +3819,7 @@ public final class TreeBuilder: DirectTokenSink {
 		switch tagId {
 			case .h1, .h2, .h3, .h4, .h5, .h6:
 				return true
+
 			default:
 				return false
 		}
@@ -3776,6 +3829,7 @@ public final class TreeBuilder: DirectTokenSink {
 		switch node.tagId {
 			case .table, .tbody, .tfoot, .thead, .tr:
 				return true
+
 			default:
 				return false
 		}
@@ -3785,6 +3839,7 @@ public final class TreeBuilder: DirectTokenSink {
 		switch tagId {
 			case .caption, .table, .tbody, .tfoot, .thead, .tr, .td, .th:
 				return true
+
 			default:
 				return false
 		}
@@ -3794,6 +3849,7 @@ public final class TreeBuilder: DirectTokenSink {
 		switch tagId {
 			case .p, .div, .span, .button, .datalist, .selectedcontent, .menuitem:
 				return true
+
 			default:
 				return false
 		}
@@ -3803,6 +3859,7 @@ public final class TreeBuilder: DirectTokenSink {
 		switch node.tagId {
 			case .table, .template, .html:
 				return true
+
 			default:
 				return false
 		}
@@ -3812,6 +3869,7 @@ public final class TreeBuilder: DirectTokenSink {
 		switch node.tagId {
 			case .tbody, .tfoot, .thead, .template, .html:
 				return true
+
 			default:
 				return false
 		}
@@ -3821,6 +3879,7 @@ public final class TreeBuilder: DirectTokenSink {
 		switch node.tagId {
 			case .tr, .template, .html:
 				return true
+
 			default:
 				return false
 		}
@@ -3831,6 +3890,7 @@ public final class TreeBuilder: DirectTokenSink {
 			case .a, .b, .big, .code, .em, .font, .i, .nobr,
 			     .s, .small, .strike, .strong, .tt, .u:
 				return true
+
 			default:
 				return false
 		}
@@ -3892,15 +3952,17 @@ public final class TreeBuilder: DirectTokenSink {
 			     .template, .mi, .mo, .mn, .ms, .mtext, .annotationXml,
 			     .foreignObject, .desc, .title:
 				return true
+
 			case .ol, .ul:
 				return scope == .listItem
+
 			case .button:
 				return scope == .button
+
 			default:
 				return false
 		}
 	}
-
 
 	private func isTableScopeTerminator(_ node: Node) -> Bool {
 		self.isHTMLNamespace(node) && self.isTableScopeTerminatorTag(node.tagId)
@@ -3910,6 +3972,7 @@ public final class TreeBuilder: DirectTokenSink {
 		switch tagId {
 			case .html, .table, .template:
 				return true
+
 			default:
 				return false
 		}
@@ -3923,6 +3986,7 @@ public final class TreeBuilder: DirectTokenSink {
 		switch tagId {
 			case .mi, .mo, .mn, .ms, .mtext, .annotationXml:
 				return true
+
 			default:
 				return false
 		}
@@ -3932,6 +3996,7 @@ public final class TreeBuilder: DirectTokenSink {
 		switch tagId {
 			case .mi, .mo, .mn, .ms, .mtext:
 				return true
+
 			default:
 				return false
 		}
@@ -3941,6 +4006,7 @@ public final class TreeBuilder: DirectTokenSink {
 		switch tagId {
 			case .foreignObject, .desc, .title:
 				return true
+
 			default:
 				return false
 		}
@@ -3968,6 +4034,7 @@ public final class TreeBuilder: DirectTokenSink {
 		switch tagId {
 			case .dd, .dt, .li, .optgroup, .option, .p, .rb, .rp, .rt, .rtc:
 				return true
+
 			default:
 				return false
 		}
@@ -4279,6 +4346,7 @@ public final class TreeBuilder: DirectTokenSink {
 	private func activeFormattingElementIndex(matching node: Node) -> Int? {
 		self.activeFormattingElements.firstIndex {
 			guard let elem = $0 else { return false }
+
 			return elem === node
 		}
 	}
@@ -4310,6 +4378,7 @@ public final class TreeBuilder: DirectTokenSink {
 
 	private func isDefinitionListItemRecoveryBoundary(_ node: Node) -> Bool {
 		guard self.isSpecialElement(node) else { return false }
+
 		return node.tagId != .address && node.tagId != .div && node.tagId != .p
 	}
 
@@ -4410,6 +4479,7 @@ public final class TreeBuilder: DirectTokenSink {
 		guard let index = self.openElementIndex(matching: node) else {
 			return false
 		}
+
 		self.openElements.remove(at: index)
 		return true
 	}
@@ -4419,6 +4489,7 @@ public final class TreeBuilder: DirectTokenSink {
 		guard let index = self.lastOpenElementIndex(matching: node) else {
 			return false
 		}
+
 		self.openElements.remove(at: index)
 		return true
 	}
@@ -4530,9 +4601,10 @@ public final class TreeBuilder: DirectTokenSink {
 		}
 
 		switch self.findForeignContentEndTagStackMatch(named: lowercaseName) {
-			case .foreignMatch(let index):
+			case let .foreignMatch(index):
 				self.popOpenElementsThroughIndex(index)
 				return true
+
 			case .htmlBoundaryOrNoMatch:
 				return false
 		}
@@ -4577,7 +4649,7 @@ public final class TreeBuilder: DirectTokenSink {
 		// stay in MathML - everything else should be processed as HTML
 		if let adjNode = adjustedCurrentNode,
 		   self.isMathMLTextIntegrationPoint(adjNode),
-		   lowercaseName != "mglyph" && lowercaseName != "malignmark"
+		   lowercaseName != "mglyph", lowercaseName != "malignmark"
 		{
 			return false
 		}
@@ -4635,6 +4707,7 @@ public final class TreeBuilder: DirectTokenSink {
 		switch name {
 			case "color", "face", "size":
 				return true
+
 			default:
 				return name.asciiCaseInsensitiveEquals("color")
 					|| name.asciiCaseInsensitiveEquals("face")
@@ -4644,6 +4717,7 @@ public final class TreeBuilder: DirectTokenSink {
 
 	private func isForeignContentBreakoutPassthroughContext() -> Bool {
 		guard let current = currentNode else { return false }
+
 		return self.isSVGHtmlIntegrationPoint(current)
 			|| self.isMathMLTextIntegrationPoint(current)
 	}
@@ -4661,6 +4735,7 @@ public final class TreeBuilder: DirectTokenSink {
 			guard let ns = current.namespace, ns == .svg || ns == .math else {
 				return true
 			}
+
 			if self.isSVGHtmlIntegrationPoint(current) {
 				return true
 			}
@@ -4757,13 +4832,16 @@ public final class TreeBuilder: DirectTokenSink {
 			let isHTML = self.isHTMLResetNode(node)
 
 			switch self.resetInsertionModeDecision(for: node, at: i, last: last, isHTML: isHTML) {
-				case .use(let mode):
+				case let .use(mode):
 					self.insertionMode = mode
 					return
+
 				case .continueSearch:
 					break
+
 				case .skipElement:
 					continue
+
 				case .stop:
 					return
 			}
@@ -4784,6 +4862,7 @@ public final class TreeBuilder: DirectTokenSink {
 		switch node.tagId {
 			case .select:
 				guard isHTML else { return .skipElement }
+
 				return .use(self.resetModeForSelect(at: index, last: last))
 
 			case .td, .th:
@@ -4847,7 +4926,7 @@ public final class TreeBuilder: DirectTokenSink {
 
 			default:
 				break
-			}
+		}
 
 		return .continueSearch
 	}

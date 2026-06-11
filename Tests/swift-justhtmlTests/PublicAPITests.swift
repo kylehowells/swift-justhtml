@@ -134,13 +134,13 @@ import Testing
 
 @Test func selectedcontentMirrorsSelectedOption() async throws {
 	let html = """
-		<!DOCTYPE html>
-		<select>
-			<selectedcontent></selectedcontent>
-			<option>One</option>
-			<option selected>Two <b>bold</b></option>
-		</select>
-		"""
+	<!DOCTYPE html>
+	<select>
+		<selectedcontent></selectedcontent>
+		<option>One</option>
+		<option selected>Two <b>bold</b></option>
+	</select>
+	"""
 
 	let doc = try JustHTML(html)
 	let selectedcontent = try #require(doc.query("selectedcontent").first)
@@ -151,13 +151,13 @@ import Testing
 
 @Test func selectedcontentFallsBackToFirstOption() async throws {
 	let html = """
-		<!DOCTYPE html>
-		<select>
-			<selectedcontent></selectedcontent>
-			<option>One <i>first</i></option>
-			<option>Two</option>
-		</select>
-		"""
+	<!DOCTYPE html>
+	<select>
+		<selectedcontent></selectedcontent>
+		<option>One <i>first</i></option>
+		<option>Two</option>
+	</select>
+	"""
 
 	let doc = try JustHTML(html)
 	let selectedcontent = try #require(doc.query("selectedcontent").first)
@@ -168,16 +168,16 @@ import Testing
 
 @Test func selectedcontentHandlesMultipleSelects() async throws {
 	let html = """
-		<!DOCTYPE html>
-		<select>
-			<selectedcontent></selectedcontent>
-			<option selected>First</option>
-		</select>
-		<select>
-			<selectedcontent></selectedcontent>
-			<option>Second fallback</option>
-		</select>
-		"""
+	<!DOCTYPE html>
+	<select>
+		<selectedcontent></selectedcontent>
+		<option selected>First</option>
+	</select>
+	<select>
+		<selectedcontent></selectedcontent>
+		<option>Second fallback</option>
+	</select>
+	"""
 
 	let doc = try JustHTML(html)
 	let selectedcontent = try doc.query("selectedcontent")

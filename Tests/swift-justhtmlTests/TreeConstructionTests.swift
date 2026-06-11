@@ -358,6 +358,7 @@ func runTreeConstructionTests(
 		print("Skipping tests1.dat; external html5lib tree-construction fixtures not found")
 		return
 	}
+
 	guard let content = try? String(contentsOf: fileURL, encoding: .utf8) else {
 		print("Could not read file: \(fileURL.path)")
 		#expect(Bool(false), "Could not read test file")
@@ -406,6 +407,7 @@ func runTreeConstructionTests(
 		files: ["tests2.dat"], showFailures: false)
 	print("\ntests2.dat: \(passed)/\(passed + failed) passed, \(failed) failed")
 	guard passed + failed > 0 else { return }
+
 	#expect(passed + failed > 0)
 	#expect(failed == 0, "Expected 0 failures but got \(failed)")
 }
@@ -415,6 +417,7 @@ func runTreeConstructionTests(
 		files: ["entities01.dat", "entities02.dat"], showFailures: false)
 	print("\nentities: \(passed)/\(passed + failed) passed, \(failed) failed")
 	guard passed + failed > 0 else { return }
+
 	#expect(passed + failed > 0)
 	#expect(failed == 0, "Expected 0 failures but got \(failed)")
 }
@@ -424,6 +427,7 @@ func runTreeConstructionTests(
 		files: ["comments01.dat"], showFailures: false)
 	print("\ncomments: \(passed)/\(passed + failed) passed, \(failed) failed")
 	guard passed + failed > 0 else { return }
+
 	#expect(passed + failed > 0)
 	#expect(failed == 0, "Expected 0 failures but got \(failed)")
 }
@@ -433,6 +437,7 @@ func runTreeConstructionTests(
 		files: ["doctype01.dat"], showFailures: false)
 	print("\ndoctype: \(passed)/\(passed + failed) passed, \(failed) failed")
 	guard passed + failed > 0 else { return }
+
 	#expect(passed + failed > 0)
 	#expect(failed == 0, "Expected 0 failures but got \(failed)")
 }

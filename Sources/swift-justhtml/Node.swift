@@ -469,18 +469,25 @@ public final class Node {
 		switch self.tagId {
 			case .document, .html:
 				self.children.reserveCapacity(2)
+
 			case .td, .th, .a, .span, .h2, .strong, .em, .code, .option, .label, .sup:
 				self.children.reserveCapacity(1)
+
 			case .p, .li:
 				self.children.reserveCapacity(2)
+
 			case .div, .table:
 				self.children.reserveCapacity(4)
+
 			case .head, .body, .ul, .ol, .tbody, .tr, .select, .article, .section, .form:
 				self.children.reserveCapacity(16)
+
 			case .main, .pre:
 				self.children.reserveCapacity(32)
+
 			case .cite:
 				self.children.reserveCapacity(8)
+
 			default:
 				break
 		}
@@ -556,6 +563,7 @@ public final class Node {
 
 	func insertChild(_ node: Node, at index: Int) {
 		guard index >= 0, index <= self.children.count else { return }
+
 		self.children.insert(node, at: index)
 		node.parent = self
 	}

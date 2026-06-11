@@ -167,6 +167,7 @@ func getEncodingTestsDirectory() -> URL? {
 		print("Skipping debugFailures: external encoding fixtures not found")
 		return
 	}
+
 	guard let content = try? Data(contentsOf: fileURL) else {
 		print("Could not read file")
 		return
