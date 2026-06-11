@@ -11,10 +11,10 @@ jobs:
   linux:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Checkout html5lib-tests
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: html5lib/html5lib-tests
           path: html5lib-tests
@@ -35,10 +35,10 @@ jobs:
     runs-on: macos-latest
     if: startsWith(github.ref, 'refs/tags/')
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Checkout html5lib-tests
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: html5lib/html5lib-tests
           path: html5lib-tests
@@ -53,7 +53,7 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install swiftformat
         run: |
